@@ -1,0 +1,9 @@
+{
+  "name": "wal-hook",
+  "description": "Records every Claude Code lifecycle event to a per-session JSONL write-ahead log beside its transcript.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Mario"
+  },
+  "keywords": ["observability", "hooks", "logging", "wal"]
+}

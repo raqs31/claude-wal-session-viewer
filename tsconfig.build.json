@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rewriteRelativeImportExtensions": true,
+    "rootDir": ".",
+    "outDir": "dist"
+  },
+  "include": ["scripts", "shared"],
+  "exclude": ["scripts/*.test.ts", "scripts/bench*.ts", "scripts/make-fixture.ts", "scripts/test-server.ts", "scripts/fixtures"]
+}

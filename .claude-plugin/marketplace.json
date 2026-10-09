@@ -1,0 +1,15 @@
+{
+  "name": "claude-wal-session-viewer",
+  "description": "Claude Code session recording for the claude-wal-session-viewer",
+  "owner": {
+    "name": "Mario"
+  },
+  "plugins": [
+    {
+      "name": "wal-hook",
+      "description": "Records every Claude Code lifecycle event to a per-session JSONL write-ahead log beside its transcript.",
+      "category": "observability",
+      "source": "./plugins/wal-hook"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+/node_modules/
+/dist/
+/web/dist/
+*.tgz
+.ai/worktrees/
+/.ai/plans/
+/.ai/logs/

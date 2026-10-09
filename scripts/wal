@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# wal — build and run the wal-observer viewer in the foreground (loopback only).
+
+set -euo pipefail
+
+usage="usage: wal [--port=N] [--source=<config-dir>]...
+       wal legacy [--source=<config-dir>]..."
+
+case "${1:-}" in
+    -h|--help) echo "$usage"; exit 0 ;;
+esac
+
+tool="$(dirname "$(realpath "$0")")/.."
+
+for cmd in node npm; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "wal: $cmd not found in PATH" >&2
+        exit 1
+    fi
+done
+
+if [[ ! -d "$tool/node_modules" || "$tool/package-lock.json" -nt "$tool/node_modules" \
+    || "$tool/package.json" -nt "$tool/node_modules" ]]; then
+    npm --prefix "$tool" ci --no-audit --no-fund || {
+        echo "wal: npm ci failed; falling back to npm install, which may rewrite package-lock.json" >&2
+        npm --prefix "$tool" install --no-audit --no-fund
+    }
+fi
+if [[ "${1:-}" == legacy ]]; then
+    exec node "$tool/scripts/legacy.ts" "${@:2}"
+fi
+npm --prefix "$tool" run build --silent
+
+open_url() {
+    local line url
+    while IFS= read -r line; do
+        echo "$line"
+        if [[ -n "${url-}" ]]; then
+            continue
+        fi
+        if [[ "$line" =~ ^wal\ viewer:[[:space:]]*(http://[^[:space:]]+) ]]; then
+            url="${BASH_REMATCH[1]}"
+            if command -v xdg-open >/dev/null 2>&1; then
+                xdg-open "$url" >/dev/null 2>&1 &
+            fi
+        fi
+    done
+}
+
+# Backgrounded so a SIGTERM to this script can be forwarded to node.
+exec 3> >(open_url)
+filter_pid=$!
+node "$tool/scripts/wal-server.ts" "$@" >&3 &
+server_pid=$!
+exec 3>&-
+trap 'kill "$server_pid" 2>/dev/null || true' INT TERM
+status=0
+wait "$server_pid" || status=$?
+if [[ $status -gt 128 ]]; then
+    # First wait was interrupted by the trapped signal; reap the real exit status.
+    wait "$server_pid" 2>/dev/null || status=$?
+fi
+# Let the filter drain so trailing server output lands before the prompt returns.
+wait "$filter_pid" 2>/dev/null || true
+exit "$status"
