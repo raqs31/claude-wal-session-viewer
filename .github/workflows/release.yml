@@ -1,27 +1,30 @@
 name: Release
 
-# A pushed v* tag publishes to GitHub Packages. npmjs is opt-in: run this workflow by hand on the
-# tag with `npm` checked.
+# A published GitHub Release publishes its tag to npmjs and GitHub Packages. A bare tag push
+# publishes nothing. To publish an existing tag again, run this workflow by hand on that tag.
 on:
-  push:
-    tags: ['v*']
+  release:
+    types: [published]
   workflow_dispatch:
-    inputs:
-      npm:
-        description: Publish the selected tag to npmjs
-        type: boolean
-        default: true
 
 permissions:
   contents: read
 
 jobs:
   publish:
-    if: github.event_name == 'push' || inputs.npm
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    strategy:
+      # Each registry rejects a version it already has, so one registry failing must not cancel the other.
+      fail-fast: false
+      matrix:
+        include:
+          - registry: https://registry.npmjs.org
+            token: NPM_TOKEN
+          - registry: https://npm.pkg.github.com
+            token: GITHUB_TOKEN
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -29,7 +32,7 @@ jobs:
           node-version: 24
           # Scoped, so `npm ci` still resolves dependencies from npmjs.
           scope: '@raqs31'
-          registry-url: ${{ github.event_name == 'push' && 'https://npm.pkg.github.com' || 'https://registry.npmjs.org' }}
+          registry-url: ${{ matrix.registry }}
           package-manager-cache: false
       - name: Check the tag matches package.json
         run: |
@@ -44,4 +47,4 @@ jobs:
       - run: npm test
       - run: npm publish --access public
         env:
-          NODE_AUTH_TOKEN: ${{ github.event_name == 'push' && secrets.GITHUB_TOKEN || secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets[matrix.token] }}

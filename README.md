@@ -182,7 +182,11 @@ CI (`.github/workflows/ci.yml`) runs lint, type check, tests and a pack dry run 
 for every pull request and every push to `main`.
 
 1. Bump `version` in `package.json`, commit, then tag and push: `git tag v0.2.0 && git push origin main v0.2.0`.
-   The tag must equal `v` plus the package version, or the release fails.
-2. The `Release` workflow tests the tag and publishes it to GitHub Packages.
-3. To also publish to npmjs, run `Release` by hand (Actions → Release → Run workflow), select the
-   tag and keep `npm` checked. It needs an `NPM_TOKEN` repository secret with publish rights.
+   The tag must equal `v` plus the package version, or the release fails. Pushing the tag alone
+   publishes nothing.
+2. Publish a GitHub Release for the tag (`gh release create v0.2.0 --generate-notes`). The `Release`
+   workflow tests it and publishes it to npmjs and GitHub Packages, one job per registry. npmjs needs
+   an `NPM_TOKEN` repository secret with publish rights.
+3. If one registry fails, re-run just that job. Running `Release` by hand (Actions → Release → Run
+   workflow) on the tag publishes to both again, and the registry that already has the version
+   fails.
