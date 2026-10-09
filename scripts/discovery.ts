@@ -41,7 +41,11 @@ export const sources = (extra: string[], home = homedir()): Source[] => {
   const ws = join(base, 'workspaces')
   const candidates = [
     { label: 'default', dir: base },
-    ...(existsSync(ws) ? readdirSync(ws).sort().map((n) => ({ label: n, dir: join(ws, n) })) : []),
+    ...(existsSync(ws)
+      ? readdirSync(ws)
+          .sort()
+          .map((n) => ({ label: n, dir: join(ws, n) }))
+      : []),
     ...extra.map((d) => ({ label: basename(resolve(d)), dir: resolve(d) })),
   ]
   const out: Source[] = []
@@ -101,7 +105,9 @@ const lastOf = (buf: Buffer, needle: Buffer, type: string, key: string): string 
     try {
       const e = JSON.parse(buf.toString('utf8', start, nl))
       if (e?.type === type && typeof e[key] === 'string') value = e[key]
-    } catch { /* an unparseable line is skipped, as the parser does */ }
+    } catch {
+      /* an unparseable line is skipped, as the parser does */
+    }
     at = buf.indexOf(needle, nl + 1)
   }
   return value
@@ -110,7 +116,7 @@ const lastOf = (buf: Buffer, needle: Buffer, type: string, key: string): string 
 const cap = (s: string): string => {
   if (s.length <= PROMPT_MAX) return s
   const cut = s.slice(0, PROMPT_MAX)
-  return (/[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut) + '…'
+  return `${/[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut}…`
 }
 
 const DROP = /<(command-message|system-reminder|local-command-[\w-]*)(?:\s[^>]*)?>(?:(?!<\1[\s>])[\s\S])*?<\/\1>/g
@@ -125,11 +131,14 @@ const tidy = (s: string): string => s.replace(/\n{3,}/g, '\n\n').trim()
  */
 export const cleanPrompt = (raw: string): string | null => {
   let s = raw
-  for (let prev = ''; prev !== s;) { prev = s; s = s.replace(DROP, '') }
+  for (let prev = ''; prev !== s; ) {
+    prev = s
+    s = s.replace(DROP, '')
+  }
   const name = /<command-name>([\s\S]*?)<\/command-name>/.exec(s)?.[1]?.trim()
   if (name) {
     const args = tidy((/<command-args>([\s\S]*?)<\/command-args>/.exec(s)?.[1] ?? '').replace(TAG, ''))
-    return `⚡ ${name}${args ? ' ' + args : ''}`
+    return `⚡ ${name}${args ? ` ${args}` : ''}`
   }
   return tidy(s.replace(TAG, '')) || null
 }
@@ -140,7 +149,9 @@ const unescape = (s: string): string => (s.includes('\\') ? JSON.parse(`"${s}"`)
 export const SNAP = '.snap-'
 export const snapshotsOf = (path: string): string[] => {
   try {
-    return readdirSync(dirname(path)).filter((f) => f.startsWith(basename(path) + SNAP)).map((f) => join(dirname(path), f))
+    return readdirSync(dirname(path))
+      .filter((f) => f.startsWith(basename(path) + SNAP))
+      .map((f) => join(dirname(path), f))
   } catch {
     return []
   }
@@ -159,11 +170,19 @@ export const createDiscovery = (extra: string[]) => {
     where.clear()
     for (const src of srcs) {
       let slugs: string[]
-      try { slugs = readdirSync(src.projectsDir) } catch { continue }
+      try {
+        slugs = readdirSync(src.projectsDir)
+      } catch {
+        continue
+      }
       for (const slug of slugs) {
         const dir = join(src.projectsDir, slug)
         let names: string[]
-        try { names = readdirSync(dir) } catch { continue }
+        try {
+          names = readdirSync(dir)
+        } catch {
+          continue
+        }
         for (const name of names) {
           const id = name.slice(0, -'.jsonl'.length)
           // `<id>.wal.jsonl` fails the pattern, so only transcripts are listed.
@@ -207,7 +226,11 @@ export const createDiscovery = (extra: string[]) => {
         // Past the first prompt only the parser's own meta rules can still change anything, and
         // its timeline work was most of a cold list.
         let e
-        try { e = JSON.parse(buf.toString('utf8', start, nl)) } catch { continue }
+        try {
+          e = JSON.parse(buf.toString('utf8', start, nl))
+        } catch {
+          continue
+        }
         if (!e || typeof e !== 'object') continue
         const t = Date.parse(e.timestamp)
         if (!Number.isNaN(t) && (m.first === null || t < m.first)) m.first = t
@@ -225,7 +248,9 @@ export const createDiscovery = (extra: string[]) => {
         const content = JSON.parse(readAt(path, opener.src[0], opener.src[1]).toString('utf8'))?.message?.content
         const cleaned = typeof content === 'string' ? cleanPrompt(content) : null
         if (cleaned !== null) prompt = cap(cleaned)
-      } catch { /* an unreadable opener leaves no prompt */ }
+      } catch {
+        /* an unreadable opener leaves no prompt */
+      }
     }
     const from = Math.max(0, size - TAIL)
     let tail = readAt(path, from, size - from)
@@ -250,7 +275,9 @@ export const createDiscovery = (extra: string[]) => {
       const rec = JSON.parse(buf.toString('utf8', start, end))
       if (typeof rec?.workspace === 'string') w.workspaces.add(rec.workspace)
       if (typeof rec?.event === 'string') w.lastEvent = rec.event
-    } catch { /* an unparseable line still counts */ }
+    } catch {
+      /* an unparseable line still counts */
+    }
   }
 
   const wal = (path: string, size: number, ino: number): WalScan => {
@@ -317,7 +344,11 @@ export const createDiscovery = (extra: string[]) => {
       const p = join(cwd, '.ai', 'logs', 'wal.jsonl')
       if (!existsSync(p) && snapshotsOf(p).length === 0) continue
       let real = p
-      try { real = join(realpathSync(dirname(p)), 'wal.jsonl') } catch { /* dir vanished: fall back to the raw path */ }
+      try {
+        real = join(realpathSync(dirname(p)), 'wal.jsonl')
+      } catch {
+        /* dir vanished: fall back to the raw path */
+      }
       if (!byReal.has(real)) byReal.set(real, p)
     }
     return [...byReal.values()]
@@ -330,7 +361,11 @@ export const createDiscovery = (extra: string[]) => {
     const sessions = found
       .map((f) => {
         // A transcript or WAL can vanish, or turn unreadable, between the walk and its read.
-        try { return describe(f, now) } catch { return null }
+        try {
+          return describe(f, now)
+        } catch {
+          return null
+        }
       })
       .filter((r) => r !== null)
       .sort((a, b) => b.last - a.last)

@@ -28,7 +28,7 @@ for (const id of [L1, L2, L3, L4]) writeFileSync(join(proj, `${id}.jsonl`), '')
 
 let clock = Date.now()
 // Strictly increasing timestamps, so the merge order is known regardless of wall-clock ties.
-const rec = (o: Record<string, unknown>): string => JSON.stringify({ ts: new Date(++clock).toISOString(), ...o }) + '\n'
+const rec = (o: Record<string, unknown>): string => `${JSON.stringify({ ts: new Date(++clock).toISOString(), ...o })}\n`
 writeFileSync(wal1, rec({ event: 'SessionStart', session_id: L1 }))
 writeFileSync(wal3, rec({ event: 'SessionStart', session_id: L3 }))
 writeFileSync(wal4, rec({ event: 'SessionStart', session_id: L4 }))
@@ -37,13 +37,17 @@ const { server, base: BASE } = await startServer([], { HOME: dir })
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 let fail = 0
 const check = (label: string, ok: boolean, detail = ''): void => {
-  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${label}${ok ? '' : ' — ' + detail}`)
+  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${label}${ok ? '' : ` — ${detail}`}`)
   if (!ok) fail = 1
 }
 
 const until = async <T>(fn: () => Promise<T>, tries = 60): Promise<T> => {
   for (let i = 0; i < tries; i++) {
-    try { return await fn() } catch { await wait(100) }
+    try {
+      return await fn()
+    } catch {
+      await wait(100)
+    }
   }
   throw new Error('timed out')
 }
@@ -56,7 +60,10 @@ const events = async (qs = BOTH): Promise<FirstPage> => {
 }
 const record = async (p: FirstPage, r: Row | undefined): Promise<WalRecord> =>
   (await (await fetch(`${BASE}/record?id=${r?.sess}&seq=${r?.seq}&gen=${p.gens[r?.sess ?? '']}`)).json()) as WalRecord
-const gensOf = (p: FirstPage): string => Object.entries(p.gens).map(([id, g]) => `${id}:${g}`).join(',')
+const gensOf = (p: FirstPage): string =>
+  Object.entries(p.gens)
+    .map(([id, g]) => `${id}:${g}`)
+    .join(',')
 // The stream query for "everything after this page", as the page builds it.
 const after = (p: FirstPage, qs = BOTH): string => `${qs}&after=${p.head}&gens=${gensOf(p)}`
 
@@ -83,7 +90,9 @@ const open = (qs: string, headers: Record<string, string> = {}): Promise<Stream>
         while ((end = pending.indexOf('\n\n')) !== -1) {
           const frame = pending.slice(0, end)
           pending = pending.slice(end + 2)
-          const f: Record<string, string> = Object.fromEntries(frame.split('\n').map((l) => [l.slice(0, l.indexOf(':')), l.slice(l.indexOf(':') + 1).trimStart()]))
+          const f: Record<string, string> = Object.fromEntries(
+            frame.split('\n').map((l) => [l.slice(0, l.indexOf(':')), l.slice(l.indexOf(':') + 1).trimStart()]),
+          )
           if (f.event === 'reset') s.resets++
           else if (f.event === 'unknown') s.unknown = JSON.parse(f.data!) as string[]
           else if (f.data) {
@@ -124,7 +133,10 @@ try {
   appendFileSync(wal2, rec({ event: 'PreToolUse', tool_name: 'Read' }) + rec({ event: 'PostToolUse', tool_name: 'Read', duration_ms: 4 }))
   appendFileSync(wal1, rec({ event: 'Stop' }))
   await wait(700)
-  const got = s.rows.slice(1).map((r) => `${r.sess === L1 ? 'a' : 'b'}${r.seq}`).join()
+  const got = s.rows
+    .slice(1)
+    .map((r) => `${r.sess === L1 ? 'a' : 'b'}${r.seq}`)
+    .join()
   check('two files growing at once reach one stream in time order', got === 'b0,a2,b1,b2,a3', got)
   check('rows of both files are intact', (await record(first, s.rows[1])).event === 'UserPromptSubmit' && (await record(first, s.rows[4])).duration_ms === 4)
   check('frame id advances both positions', s.lastId === `${L1}:4,${L2}:3`, `id ${s.lastId}`)
@@ -146,7 +158,11 @@ try {
   check('Last-Event-ID resume replays nothing', again.rows.length === 0, `got ${again.rows.length}`)
   const behind = await open(after(first), { 'last-event-id': `${L1}:4,${L2}:2` })
   await wait(600)
-  check('Last-Event-ID resume sends only what that position lacks', behind.rows.map((r) => `${r.sess === L1 ? 'a' : 'b'}${r.seq}`).join() === 'b2,b3', JSON.stringify(behind.rows))
+  check(
+    'Last-Event-ID resume sends only what that position lacks',
+    behind.rows.map((r) => `${r.sess === L1 ? 'a' : 'b'}${r.seq}`).join() === 'b2,b3',
+    JSON.stringify(behind.rows),
+  )
 
   const reads = await open(after(await events(), `${BOTH}&tool=Read`))
   const needle = await open(after(await events(), `${BOTH}&q=${encodeURIComponent('żółw')}`))
@@ -168,12 +184,19 @@ try {
 
   // A subtree token resolves per row, so an agent spawned after the stream opened falls inside it.
   const sub = await open(after(await events(), `${BOTH}&agent=${L2}:ag9*`))
-  appendFileSync(wal2, rec({ event: 'PostToolUse', agent_id: 'ag9', agent_type: 'Explore', tool_name: 'Agent', payload: { tool_response: { agentId: 'kid' } } })
-    + rec({ event: 'PreToolUse', agent_id: 'kid', agent_type: 'Plan', tool_name: 'Read' })
-    + rec({ event: 'SubagentStop', agent_id: 'sum', agent_type: '', payload: { background_tasks: [{ id: 'kid', type: 'subagent', status: 'running' }] } })
-    + rec({ event: 'Stop' }))
+  appendFileSync(
+    wal2,
+    rec({ event: 'PostToolUse', agent_id: 'ag9', agent_type: 'Explore', tool_name: 'Agent', payload: { tool_response: { agentId: 'kid' } } }) +
+      rec({ event: 'PreToolUse', agent_id: 'kid', agent_type: 'Plan', tool_name: 'Read' }) +
+      rec({ event: 'SubagentStop', agent_id: 'sum', agent_type: '', payload: { background_tasks: [{ id: 'kid', type: 'subagent', status: 'running' }] } }) +
+      rec({ event: 'Stop' }),
+  )
   await wait(700)
-  check('subtree filter streams a later-spawned child and its summary', sub.rows.map((r) => r.event).join() === 'PostToolUse,PreToolUse,SubagentStop', JSON.stringify(sub.rows))
+  check(
+    'subtree filter streams a later-spawned child and its summary',
+    sub.rows.map((r) => r.event).join() === 'PostToolUse,PreToolUse,SubagentStop',
+    JSON.stringify(sub.rows),
+  )
 
   // Pre and Post land in separate ticks, so the pairing has to survive between tail() calls.
   const FIND = 'mcp__claude_ai_Todoist__find-tasks'
@@ -181,13 +204,28 @@ try {
   const mcpOnly = await open(after(await events(), `${BOTH}&cat=mcp`))
   appendFileSync(wal1, rec({ event: 'PreToolUse', tool_name: FIND, tool_use_id: 'live1', payload: { tool_input: { searchText: 'milk' } } }))
   await wait(700)
-  check('mcp Pre arrives alone, marked request', mcpAll.rows.length === 1 && mcpAll.rows[0]?.mcp === 'request' && mcpOnly.rows.length === 0, JSON.stringify(mcpAll.rows))
-  appendFileSync(wal1, rec({ event: 'PostToolUse', tool_name: FIND, tool_use_id: 'live1', duration_ms: 7, payload: { tool_response: [{ type: 'text', text: 'Buy milk' }] } }))
+  check(
+    'mcp Pre arrives alone, marked request',
+    mcpAll.rows.length === 1 && mcpAll.rows[0]?.mcp === 'request' && mcpOnly.rows.length === 0,
+    JSON.stringify(mcpAll.rows),
+  )
+  appendFileSync(
+    wal1,
+    rec({ event: 'PostToolUse', tool_name: FIND, tool_use_id: 'live1', duration_ms: 7, payload: { tool_response: [{ type: 'text', text: 'Buy milk' }] } }),
+  )
   await wait(700)
   const [pre, post, call] = mcpAll.rows
   check('Post and its call row arrive once', mcpAll.rows.map((r) => r.event).join() === 'PreToolUse,PostToolUse,MCP call', JSON.stringify(mcpAll.rows))
-  check('streamed call row pairs the streamed seqs', call?.sess === L1 && call?.seq === (post?.seq ?? NaN) + 1 && call?.virtual?.pre === pre?.seq && call?.virtual?.post === post?.seq, JSON.stringify(call))
-  check('cat=mcp stream gets only the call row', mcpOnly.rows.map((r) => r.event).join() === 'MCP call' && mcpOnly.rows[0]?.seq === call?.seq, JSON.stringify(mcpOnly.rows))
+  check(
+    'streamed call row pairs the streamed seqs',
+    call?.sess === L1 && call?.seq === (post?.seq ?? NaN) + 1 && call?.virtual?.pre === pre?.seq && call?.virtual?.post === post?.seq,
+    JSON.stringify(call),
+  )
+  check(
+    'cat=mcp stream gets only the call row',
+    mcpOnly.rows.map((r) => r.event).join() === 'MCP call' && mcpOnly.rows[0]?.seq === call?.seq,
+    JSON.stringify(mcpOnly.rows),
+  )
   // Indexed before the truncation below, so its Post arriving afterwards must not pair with it.
   appendFileSync(wal1, rec({ event: 'PreToolUse', tool_name: FIND, tool_use_id: 'across' }))
   await wait(700)
@@ -200,8 +238,16 @@ try {
   check('truncation resets filtered streams too', reads.resets === 1 && needle.resets === 1)
   check('a stream not over the truncated file is untouched', only2.resets === 0)
   const after1 = await events()
-  check('re-query has a higher gen for the truncated file only', after1.gens[L1]! > before.gens[L1]! && after1.gens[L2] === before.gens[L2], `${JSON.stringify(after1.gens)} vs ${JSON.stringify(before.gens)}`)
-  check('re-query returns the new record beside the other file', after1.head.startsWith(`${L1}:1,`) && after1.rows.filter((r) => r.sess === L1).length === 1, JSON.stringify(after1.head))
+  check(
+    're-query has a higher gen for the truncated file only',
+    after1.gens[L1]! > before.gens[L1]! && after1.gens[L2] === before.gens[L2],
+    `${JSON.stringify(after1.gens)} vs ${JSON.stringify(before.gens)}`,
+  )
+  check(
+    're-query returns the new record beside the other file',
+    after1.head.startsWith(`${L1}:1,`) && after1.rows.filter((r) => r.sess === L1).length === 1,
+    JSON.stringify(after1.head),
+  )
 
   // /events can detect the truncation before the tick does; the stream must still reset.
   const late = await open(after(after1))
@@ -226,7 +272,11 @@ try {
   appendFileSync(wal1, rec({ event: 'PostToolUse', tool_name: FIND, tool_use_id: 'across', duration_ms: 3 }))
   await wait(700)
   const across = await events(`ids=${L1}`)
-  check('a Pre from before truncation never pairs', across.head === `${L1}:1` && across.rows[0]?.mcp === 'response' && !across.counts.mcp, JSON.stringify(across))
+  check(
+    'a Pre from before truncation never pairs',
+    across.head === `${L1}:1` && across.rows[0]?.mcp === 'response' && !across.counts.mcp,
+    JSON.stringify(across),
+  )
 
   // Replaced by rename with a longer file: the size never shrinks, only the inode tells.
   const rotated = await open(after(across, `ids=${L1}`))
@@ -236,8 +286,16 @@ try {
   renameSync(tmp, wal1)
   await wait(700)
   const renamed = await events(`ids=${L1}`)
-  check('a WAL replaced by rename resets the stream', rotated.resets === 1 && rotated.rows.length === 0, `resets ${rotated.resets}, rows ${rotated.rows.length}`)
-  check('...and is re-indexed from its first byte', renamed.gens[L1]! > across.gens[L1]! && renamed.head === `${L1}:4` && renamed.rows.map((r) => r.event).join() === 'SessionEnd,Stop,Stop,SessionStart', JSON.stringify(renamed.rows))
+  check(
+    'a WAL replaced by rename resets the stream',
+    rotated.resets === 1 && rotated.rows.length === 0,
+    `resets ${rotated.resets}, rows ${rotated.rows.length}`,
+  )
+  check(
+    '...and is re-indexed from its first byte',
+    renamed.gens[L1]! > across.gens[L1]! && renamed.head === `${L1}:4` && renamed.rows.map((r) => r.event).join() === 'SessionEnd,Stop,Stop,SessionStart',
+    JSON.stringify(renamed.rows),
+  )
 
   // An empty pick is every session: the stream follows sessions nobody named.
   const everyone = await open('ids=')

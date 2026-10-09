@@ -23,10 +23,21 @@ const PRICED = 'aaaaaaaa-0000-4000-8000-0000000000a1'
 const UNPRICED = 'aaaaaaaa-0000-4000-8000-0000000000a2'
 const treeFile = join(root, '-tmp-proj--ai-worktrees-demo', `${TREE}.jsonl`)
 
-const reply = (session: string, model: string, input: number, output: number): string => JSON.stringify({
-  type: 'assistant', uuid: randomUUID(), parentUuid: null, timestamp: new Date().toISOString(), sessionId: session,
-  message: { id: `msg_${randomUUID()}`, role: 'assistant', model, content: [{ type: 'text', text: 'hi' }], usage: { input_tokens: input, output_tokens: output } },
-}) + '\n'
+const reply = (session: string, model: string, input: number, output: number): string =>
+  `${JSON.stringify({
+    type: 'assistant',
+    uuid: randomUUID(),
+    parentUuid: null,
+    timestamp: new Date().toISOString(),
+    sessionId: session,
+    message: {
+      id: `msg_${randomUUID()}`,
+      role: 'assistant',
+      model,
+      content: [{ type: 'text', text: 'hi' }],
+      usage: { input_tokens: input, output_tokens: output },
+    },
+  })}\n`
 writeFileSync(join(root, '-tmp-proj', `${PRICED}.jsonl`), reply(PRICED, 'claude-opus-5-5', 100, 50))
 writeFileSync(join(root, '-tmp-proj', `${UNPRICED}.jsonl`), reply(UNPRICED, 'claude-mystery-1', 7, 3))
 
@@ -34,7 +45,7 @@ const { server, base: BASE } = await startServer([], { HOME: dir })
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 let fail = 0
 const check = (label: string, ok: boolean, detail = ''): void => {
-  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${label}${ok ? '' : ' — ' + detail}`)
+  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${label}${ok ? '' : ` — ${detail}`}`)
   if (!ok) fail = 1
 }
 const json = async <T>(path: string): Promise<T> => {
@@ -76,7 +87,9 @@ const open = (qs: string, headers: Record<string, string> = {}): Promise<Stream>
         while ((end = pending.indexOf('\n\n')) !== -1) {
           const frame = pending.slice(0, end)
           pending = pending.slice(end + 2)
-          const f: Record<string, string> = Object.fromEntries(frame.split('\n').map((l) => [l.slice(0, l.indexOf(':')), l.slice(l.indexOf(':') + 1).trimStart()]))
+          const f: Record<string, string> = Object.fromEntries(
+            frame.split('\n').map((l) => [l.slice(0, l.indexOf(':')), l.slice(l.indexOf(':') + 1).trimStart()]),
+          )
           if (f.event === 'unknown') s.unknown = JSON.parse(f.data!) as string[]
           else if (f.data) {
             s.frames.push(JSON.parse(f.data) as UsageTotals)
@@ -96,22 +109,42 @@ try {
   check('fixture: MAIN has a subagent with usage', m!.agents.length > 0 && Object.keys(m!.stats.agents).length > 1)
 
   const two = await json<UsageTotals>(`/usage?ids=${MAIN},${TREE}`)
-  check('/usage totals equal the sum of each session\'s /session totals', same(two.totals, sum([m!.stats.totals, t!.stats.totals])), JSON.stringify({ got: two.totals, want: sum([m!.stats.totals, t!.stats.totals]) }))
+  check(
+    "/usage totals equal the sum of each session's /session totals",
+    same(two.totals, sum([m!.stats.totals, t!.stats.totals])),
+    JSON.stringify({ got: two.totals, want: sum([m!.stats.totals, t!.stats.totals]) }),
+  )
   check('estimated cost is priced', two.totals.cost !== null && two.totals.cost > 0)
-  check('recorded sums both recorded costs, none missing', two.missing === 0 && two.recorded !== null && Math.abs(two.recorded - m!.recordedCostUsd!.total - t!.recordedCostUsd!.total) < 1e-9, JSON.stringify(two))
+  check(
+    'recorded sums both recorded costs, none missing',
+    two.missing === 0 && two.recorded !== null && Math.abs(two.recorded - m!.recordedCostUsd!.total - t!.recordedCostUsd!.total) < 1e-9,
+    JSON.stringify(two),
+  )
   check('the pick order does not change the sums', same((await json<UsageTotals>(`/usage?ids=${TREE},${MAIN}`)).totals, two.totals))
 
   const partial = await json<UsageTotals>(`/usage?ids=${MAIN},${PRICED}`)
-  check('recorded over a partial pick sums the sessions that have one', partial.missing === 1 && partial.recorded !== null && Math.abs(partial.recorded - m!.recordedCostUsd!.total) < 1e-9, JSON.stringify(partial))
+  check(
+    'recorded over a partial pick sums the sessions that have one',
+    partial.missing === 1 && partial.recorded !== null && Math.abs(partial.recorded - m!.recordedCostUsd!.total) < 1e-9,
+    JSON.stringify(partial),
+  )
   check('...and its totals still cover every picked session', same(partial.totals, sum([m!.stats.totals, p!.stats.totals])))
   const none = await json<UsageTotals>(`/usage?ids=${PRICED}`)
   check('recorded is null only when no picked session has one', none.recorded === null && none.missing === 1 && none.totals.cost !== null, JSON.stringify(none))
 
   const unpriced = await json<UsageTotals>(`/usage?ids=${MAIN},${UNPRICED}`)
-  check('an unpriced model makes the estimated cost null', u!.stats.totals.cost === null && unpriced.totals.cost === null && unpriced.totals.input === m!.stats.totals.input + 7, JSON.stringify(unpriced.totals))
+  check(
+    'an unpriced model makes the estimated cost null',
+    u!.stats.totals.cost === null && unpriced.totals.cost === null && unpriced.totals.input === m!.stats.totals.input + 7,
+    JSON.stringify(unpriced.totals),
+  )
 
   const empty = await json<UsageTotals>('/usage?ids=')
-  check('empty pick: zero totals, recorded null, none missing', empty.totals.requests === 0 && empty.totals.cost === 0 && empty.recorded === null && empty.missing === 0, JSON.stringify(empty))
+  check(
+    'empty pick: zero totals, recorded null, none missing',
+    empty.totals.requests === 0 && empty.totals.cost === 0 && empty.recorded === null && empty.missing === 0,
+    JSON.stringify(empty),
+  )
   check('malformed id is 400', (await status(`/usage?ids=${MAIN},abc`)) === 400 && (await status(`/usage-stream?ids=abc`)) === 400)
   const ZERO = '0'.repeat(36)
   const withUnknown = await json<UsageTotals>(`/usage?ids=${MAIN},${ZERO}`)
@@ -119,7 +152,11 @@ try {
   check('a repeated id is summed once', same((await json<UsageTotals>(`/usage?ids=${MAIN},${MAIN}`)).totals, m!.stats.totals))
   const lone = await open(`ids=${ZERO}`)
   await wait(500)
-  check('a stream opens with an unknown event naming the skipped ids', lone.unknown?.join() === ZERO && lone.frames.length === 0, JSON.stringify({ unknown: lone.unknown, frames: lone.frames }))
+  check(
+    'a stream opens with an unknown event naming the skipped ids',
+    lone.unknown?.join() === ZERO && lone.frames.length === 0,
+    JSON.stringify({ unknown: lone.unknown, frames: lone.frames }),
+  )
 
   // A failed lookup is remembered until the next /sessions, so a stream tick does not rescan every source.
   const LATE = 'aaaaaaaa-0000-4000-8000-0000000000a3'
@@ -132,8 +169,21 @@ try {
 
   const s = await open(`ids=${MAIN},${TREE}`)
   await wait(500)
-  check('the stream opens with the current totals', s.frames.length === 1 && same(s.frames[0]!.totals, two.totals) && s.frames[0]!.recorded === two.recorded, JSON.stringify(s.frames))
-  check('frame id is a version vector over the pick', s.lastId !== null && s.lastId.split(',').map((x) => x.split(':')[0]).sort().join() === [MAIN, TREE].sort().join(), String(s.lastId))
+  check(
+    'the stream opens with the current totals',
+    s.frames.length === 1 && same(s.frames[0]!.totals, two.totals) && s.frames[0]!.recorded === two.recorded,
+    JSON.stringify(s.frames),
+  )
+  check(
+    'frame id is a version vector over the pick',
+    s.lastId !== null &&
+      s.lastId
+        .split(',')
+        .map((x) => x.split(':')[0])
+        .sort()
+        .join() === [MAIN, TREE].sort().join(),
+    String(s.lastId),
+  )
   const resumed = await open(`ids=${MAIN},${TREE}`, { 'last-event-id': s.lastId! })
   await wait(500)
   check('Last-Event-ID at the current versions sends nothing', resumed.frames.length === 0, String(resumed.frames.length))
@@ -141,7 +191,11 @@ try {
   appendFileSync(treeFile, reply(TREE, 'claude-opus-5-5', 10, 20))
   await wait(700)
   const last = s.frames.at(-1)!
-  check('appending a reply to one session sends a new frame', s.frames.length === 2 && last.totals.output === two.totals.output + 20 && last.totals.requests === two.totals.requests + 1, JSON.stringify(s.frames.map((f) => f.totals.output)))
+  check(
+    'appending a reply to one session sends a new frame',
+    s.frames.length === 2 && last.totals.output === two.totals.output + 20 && last.totals.requests === two.totals.requests + 1,
+    JSON.stringify(s.frames.map((f) => f.totals.output)),
+  )
   check('the resumed stream gets it too', resumed.frames.length === 1 && same(resumed.frames[0]!.totals, last.totals))
   await wait(500)
   check('no frame while nothing grows', s.frames.length === 2, String(s.frames.length))

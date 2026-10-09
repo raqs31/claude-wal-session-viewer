@@ -19,8 +19,18 @@ export interface Filters {
 }
 
 export const EMPTY_FILTERS: Filters = {
-  q: '', date_from: '', date_to: '', time_from: '', time_to: '', min_ms: '', max_ms: '',
-  cat: new Set(), tool: new Set(), event: new Set(), agent: new Set(), nodur: false,
+  q: '',
+  date_from: '',
+  date_to: '',
+  time_from: '',
+  time_to: '',
+  min_ms: '',
+  max_ms: '',
+  cat: new Set(),
+  tool: new Set(),
+  event: new Set(),
+  agent: new Set(),
+  nodur: false,
 }
 
 // Field names double as the query parameter names.
@@ -30,7 +40,10 @@ const FIELDS = ['q', 'date_from', 'date_to', 'time_from', 'time_to', 'min_ms', '
 export const buildParams = (f: Filters, ids: readonly string[]): URLSearchParams => {
   const p = new URLSearchParams()
   p.set('ids', ids.join(','))
-  for (const id of FIELDS) { const v = f[id].trim(); if (v) p.set(id, v) }
+  for (const id of FIELDS) {
+    const v = f[id].trim()
+    if (v) p.set(id, v)
+  }
   if (f.cat.size) p.set('cat', [...f.cat].join(','))
   if (f.tool.size) p.set('tool', [...f.tool].join(','))
   if (f.event.size) p.set('event', [...f.event].join(','))
@@ -82,5 +95,4 @@ export const pruneFilters = (f: Filters, x: Facets): Filters => {
 }
 
 /** False when pruning emptied a filter that was set, so the loaded rows no longer match it. */
-export const sameRows = (f: Filters, g: Filters): boolean =>
-  !(['cat', 'tool', 'event', 'agent'] as const).some((k) => f[k].size > 0 && g[k].size === 0)
+export const sameRows = (f: Filters, g: Filters): boolean => !(['cat', 'tool', 'event', 'agent'] as const).some((k) => f[k].size > 0 && g[k].size === 0)

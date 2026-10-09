@@ -44,7 +44,17 @@ const transcript = (path: string, session: string, bytes: number, opts: { agent?
   const fd = openSync(path, 'w')
   const put = (e: Record<string, unknown>): string => {
     const uuid = `${(opts.agent ?? 'm000').slice(-4)}0000-0000-4000-8000-${String(n++).padStart(12, '0')}`
-    const buf = Buffer.from(JSON.stringify({ parentUuid: parent, isSidechain: !!opts.agent, uuid, timestamp: new Date(T0 + n * 1000).toISOString(), sessionId: session, cwd: PROJECT, ...e }) + '\n')
+    const buf = Buffer.from(
+      `${JSON.stringify({
+        parentUuid: parent,
+        isSidechain: !!opts.agent,
+        uuid,
+        timestamp: new Date(T0 + n * 1000).toISOString(),
+        sessionId: session,
+        cwd: PROJECT,
+        ...e,
+      })}\n`,
+    )
     writeSync(fd, buf)
     offset += buf.length
     parent = uuid
@@ -52,7 +62,14 @@ const transcript = (path: string, session: string, bytes: number, opts: { agent?
   }
   const model = opts.agent ? 'claude-sonnet-5' : 'claude-opus-5-5'
   const reply = (id: string, content: unknown[]) => {
-    const usage = { input_tokens: 3, cache_creation_input_tokens: 900, cache_read_input_tokens: 40_000 + n * 10, output_tokens: 350, output_tokens_details: { thinking_tokens: 120 }, cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 900 } }
+    const usage = {
+      input_tokens: 3,
+      cache_creation_input_tokens: 900,
+      cache_read_input_tokens: 40_000 + n * 10,
+      output_tokens: 350,
+      output_tokens_details: { thinking_tokens: 120 },
+      cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 900 },
+    }
     requests++
     for (const b of content) put({ type: 'assistant', message: { model, id, type: 'message', role: 'assistant', content: [b], usage } })
   }
@@ -64,10 +81,19 @@ const transcript = (path: string, session: string, bytes: number, opts: { agent?
       prompts++
       if (!boundaryHit && offset >= CHUNK - 64 * 1024) {
         // 'ż' is two bytes: start it on the last byte before the chunk boundary.
-        const probe = JSON.stringify({ parentUuid: parent, isSidechain: false, uuid: 'm0000000-0000-4000-8000-000000000000', timestamp: new Date(T0 + (n + 1) * 1000).toISOString(), sessionId: session, cwd: PROJECT, type: 'user', message: { role: 'user', content: 'MARK' } })
+        const probe = JSON.stringify({
+          parentUuid: parent,
+          isSidechain: false,
+          uuid: 'm0000000-0000-4000-8000-000000000000',
+          timestamp: new Date(T0 + (n + 1) * 1000).toISOString(),
+          sessionId: session,
+          cwd: PROJECT,
+          type: 'user',
+          message: { role: 'user', content: 'MARK' },
+        })
         const pad = CHUNK - 1 - offset - probe.indexOf('MARK')
         if (pad < 0) throw new Error(`boundary prompt starts past the chunk (${-pad} bytes)`)
-        prompt = 'x'.repeat(pad) + 'żboundary'
+        prompt = `${'x'.repeat(pad)}żboundary`
         boundaryHit = true
         put({ type: 'user', message: { role: 'user', content: prompt } })
       } else put({ type: 'user', message: { role: 'user', content: prompt } })
@@ -112,7 +138,8 @@ try {
     agentRequests += a.requests
     writeFileSync(`${base}.meta.json`, JSON.stringify({ agentType: 'general-purpose', description: `agent ${id}`, toolUseId: call, model: 'sonnet' }))
   }
-  const walLine = (session: string): string => JSON.stringify({ ts: new Date(T0).toISOString(), workspace: PROJECT, event: 'SessionStart', session_id: session }) + '\n'
+  const walLine = (session: string): string =>
+    `${JSON.stringify({ ts: new Date(T0).toISOString(), workspace: PROJECT, event: 'SessionStart', session_id: session })}\n`
   writeFileSync(join(mainDir, `${MAIN}.wal.jsonl`), walLine(MAIN))
   const listed = [join(mainDir, `${MAIN}.jsonl`)]
   // Odd files go to the workspace, even ones to --source. Sizes cycle 10 KB – 600 KB, so some tails
@@ -127,7 +154,7 @@ try {
   }
 
   const check = (label: string, ok: boolean, detail = ''): void => {
-    console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${label}${ok ? '' : ' — ' + detail}`)
+    console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${label}${ok ? '' : ` — ${detail}`}`)
     if (!ok) fail = 1
   }
   const timed = async <T>(path: string): Promise<{ ms: number; body: T }> => {
@@ -137,7 +164,9 @@ try {
     return { ms: Math.round(performance.now() - t), body }
   }
 
-  console.log(`bench-sessions: main ${(big.bytes / 1048576).toFixed(1)} MB + ${AGENTS} subagents ${(agentBytes / 1048576).toFixed(1)} MB, ${FILES} session files`)
+  console.log(
+    `bench-sessions: main ${(big.bytes / 1048576).toFixed(1)} MB + ${AGENTS} subagents ${(agentBytes / 1048576).toFixed(1)} MB, ${FILES} session files`,
+  )
   const { server, base: BASE } = await startServer([`--source=${join(dir, 'extra-src')}`], { HOME: dir })
   try {
     // Best of three cold listings: a single one is at the mercy of whatever else loads the host.
@@ -151,19 +180,26 @@ try {
     }
     console.log(`/sessions cold    ${list!.ms} ms (best of 3)`)
     check('/sessions ≤ 500 ms', list!.ms <= 500)
-    check('lists every session incl. the worktree', list!.body.sessions.length === FILES && list!.body.sessions.some((m) => m.worktree === 'demo'), `got ${list!.body.sessions.length}`)
+    check(
+      'lists every session incl. the worktree',
+      list!.body.sessions.length === FILES && list!.body.sessions.some((m) => m.worktree === 'demo'),
+      `got ${list!.body.sessions.length}`,
+    )
 
     const cold = await timed<SessionView>(`/session?id=${MAIN}`)
     console.log(`/session cold     ${cold.ms} ms`)
     check('/session cold ≤ 1.5 s', cold.ms <= 1500)
     // A dropped or doubled boundary prompt would shift the count.
-    check('/session stats match the 16 MB transcript', cold.body.stats.totals.requests === big.requests + agentRequests && cold.body.stats.turns === big.prompts, `requests ${cold.body.stats.totals.requests}/${big.requests + agentRequests}, turns ${cold.body.stats.turns}/${big.prompts}`)
+    check(
+      '/session stats match the 16 MB transcript',
+      cold.body.stats.totals.requests === big.requests + agentRequests && cold.body.stats.turns === big.prompts,
+      `requests ${cold.body.stats.totals.requests}/${big.requests + agentRequests}, turns ${cold.body.stats.turns}/${big.prompts}`,
+    )
     check('all subagents listed', cold.body.agents.length === AGENTS, String(cold.body.agents.length))
 
     const cached = await timed<SessionView>(`/session?id=${MAIN}`)
     console.log(`/session cached   ${cached.ms} ms`)
     check('/session cached ≤ 100 ms', cached.ms <= 100)
-
   } catch (err) {
     console.log(`  FAIL ${(err as Error).message}`)
     fail = 1
@@ -179,7 +215,21 @@ try {
     const lines: string[] = []
     let bytes = 0
     for (let i = 0; bytes < 1024 * 1024; i++) {
-      const l = JSON.stringify({ parentUuid: null, isSidechain: false, uuid: `f0000000-0000-4000-8000-${String(i).padStart(12, '0')}`, timestamp: new Date(T0 + 9e8 + i).toISOString(), sessionId: MAIN, type: 'assistant', message: { model: 'claude-opus-5-5', id: `msg_append_${i}`, role: 'assistant', content: [{ type: 'text', text: text(2000) }], usage: { input_tokens: 1, output_tokens: 10 } } }) + '\n'
+      const l = `${JSON.stringify({
+        parentUuid: null,
+        isSidechain: false,
+        uuid: `f0000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+        timestamp: new Date(T0 + 9e8 + i).toISOString(),
+        sessionId: MAIN,
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-5-5',
+          id: `msg_append_${i}`,
+          role: 'assistant',
+          content: [{ type: 'text', text: text(2000) }],
+          usage: { input_tokens: 1, output_tokens: 10 },
+        },
+      })}\n`
       lines.push(l)
       bytes += Buffer.byteLength(l)
     }

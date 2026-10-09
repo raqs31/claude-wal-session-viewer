@@ -20,17 +20,49 @@ import { basename, join } from 'node:path'
 type E = Record<string, any>
 
 export const STRUCTURAL_KEYS = new Set([
-  'type', 'subtype', 'uuid', 'parentUuid', 'logicalParentUuid', 'sessionId', 'session_id', 'timestamp',
-  'requestId', 'model', 'tool_use_id', 'agentId', 'toolUseId', 'agentType', 'subagent_type', 'requestShape',
-  'turnOrigin', 'trigger', 'stop_reason', 'service_tier', 'role', 'cwd', 'gitBranch',
+  'type',
+  'subtype',
+  'uuid',
+  'parentUuid',
+  'logicalParentUuid',
+  'sessionId',
+  'session_id',
+  'timestamp',
+  'requestId',
+  'model',
+  'tool_use_id',
+  'agentId',
+  'toolUseId',
+  'agentType',
+  'subagent_type',
+  'requestShape',
+  'turnOrigin',
+  'trigger',
+  'stop_reason',
+  'service_tier',
+  'role',
+  'cwd',
+  'gitBranch',
   // Id links the plan's list omits; blanking them would break the chains the parser may follow.
-  'promptId', 'leafUuid', 'messageId', 'snapshotMessageId', 'sourceToolAssistantUUID', 'sourceToolUseID',
-  'toolUseID', 'parentAgentId', 'headUuid', 'anchorUuid', 'tailUuid', 'uuids', 'allUuids',
+  'promptId',
+  'leafUuid',
+  'messageId',
+  'snapshotMessageId',
+  'sourceToolAssistantUUID',
+  'sourceToolUseID',
+  'toolUseID',
+  'parentAgentId',
+  'headUuid',
+  'anchorUuid',
+  'tailUuid',
+  'uuids',
+  'allUuids',
 ])
 // Keys that are structural only at one position: `name`/`id` elsewhere are MCP inputs or results,
 // and a nested `error` is free text.
 const STRUCTURAL_PATHS = new Set(['message.id', 'message.content.id', 'message.content.name', 'origin.kind', 'error'])
-const ID_RE = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|(?:toolu|srvtoolu|msg|req)_[A-Za-z0-9]+|a[0-9a-f]{16}|\d{4}-\d\d-\d\dT[\d:.]+Z)$/
+const ID_RE =
+  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|(?:toolu|srvtoolu|msg|req)_[A-Za-z0-9]+|a[0-9a-f]{16}|\d{4}-\d\d-\d\dT[\d:.]+Z)$/
 export const WRAPPERS = ['<command-name>', '<command-message>', '<local-command-caveat>', '<local-command-stdout>', '<task-notification>']
 const TAG_NAMES = ['command-name', 'command-message', 'command-args', 'local-command-caveat', 'local-command-stdout', 'task-notification']
 const TAG_RE = new RegExp(`</?(?:${TAG_NAMES.join('|')})>`, 'g')
@@ -44,8 +76,7 @@ const REWRITTEN = [CWD_MAIN, CWD_WORKTREE, CWD_SIBLING, 'main']
 const REWRITTEN_KEYS = new Set(['cwd', 'gitBranch'])
 const X = (s: string): string => 'x'.repeat(Math.min(s.length, 40))
 const scrub = (s: string): string => s.replace(DENY_RE, X)
-const keepPath = (path: string[]): boolean =>
-  STRUCTURAL_KEYS.has(path.at(-1) ?? '') || STRUCTURAL_PATHS.has(path.join('.'))
+const keepPath = (path: string[]): boolean => STRUCTURAL_KEYS.has(path.at(-1) ?? '') || STRUCTURAL_PATHS.has(path.join('.'))
 
 // A wrapper string keeps its recognised tags and a `<command-name>` command; the text between is blanked.
 const blankWrapped = (s: string): string | null => {
@@ -64,8 +95,7 @@ const blankWrapped = (s: string): string | null => {
 }
 
 /** True when a fixture string may stand as-is. `path` is the key path from the entry root, array indices dropped. */
-export const isAllowedString = (path: string[], v: string): boolean =>
-  /^x*$/.test(v) || keepPath(path) || ID_RE.test(v) || blankWrapped(v) === v
+export const isAllowedString = (path: string[], v: string): boolean => /^x*$/.test(v) || keepPath(path) || ID_RE.test(v) || blankWrapped(v) === v
 
 const KEY_OK = /^[A-Za-z0-9_$\-[\]]{1,64}$/
 const keyKept = (k: string): boolean => KEY_OK.test(k) && scrub(k) === k
@@ -81,11 +111,13 @@ const blank = (v: unknown, path: string[], cwd: string, gone: string[]): unknown
   if (Array.isArray(v)) return v.map((x) => blank(x, path, cwd, gone))
   if (v && typeof v === 'object') {
     // Keys can be data too (file-history keys are absolute paths).
-    return Object.fromEntries(Object.entries(v).map(([k, x], i) => {
-      const key = keyKept(k) ? k : `k${i}`
-      if (key !== k) gone.push(k)
-      return [key, blank(x, [...path, key], cwd, gone)]
-    }))
+    return Object.fromEntries(
+      Object.entries(v).map(([k, x], i) => {
+        const key = keyKept(k) ? k : `k${i}`
+        if (key !== k) gone.push(k)
+        return [key, blank(x, [...path, key], cwd, gone)]
+      }),
+    )
   }
   return v
 }
@@ -94,14 +126,18 @@ const blank = (v: unknown, path: string[], cwd: string, gone: string[]): unknown
 
 const content = (e: E): any => e.message?.content
 const blocks = (e: E): E[] => (Array.isArray(content(e)) ? content(e) : [])
-const isHuman = (e: E): boolean => e.type === 'user' && !e.isSidechain && typeof content(e) === 'string' &&
-  !e.isMeta && !e.isCompactSummary && (e.origin?.kind === 'human' || (!e.origin && blankWrapped(content(e) as string) === null))
-const isCommand = (e: E): boolean => e.type === 'user' && typeof content(e) === 'string' &&
-  /^<(?:command-|local-command-)/.test(content(e) as string)
+const isHuman = (e: E): boolean =>
+  e.type === 'user' &&
+  !e.isSidechain &&
+  typeof content(e) === 'string' &&
+  !e.isMeta &&
+  !e.isCompactSummary &&
+  (e.origin?.kind === 'human' || (!e.origin && blankWrapped(content(e) as string) === null))
+const isCommand = (e: E): boolean => e.type === 'user' && typeof content(e) === 'string' && /^<(?:command-|local-command-)/.test(content(e) as string)
 const isClear = (e: E): boolean => isCommand(e) && (content(e) as string).includes('<command-name>/clear</command-name>')
-const agentSpawns = (e: E): E[] => e.type === 'assistant' ? blocks(e).filter((b) => b.type === 'tool_use' && b.name === 'Agent') : []
+const agentSpawns = (e: E): E[] => (e.type === 'assistant' ? blocks(e).filter((b) => b.type === 'tool_use' && b.name === 'Agent') : [])
 
-type Sub = { id: string, meta: E, lines: E[] }
+type Sub = { id: string; meta: E; lines: E[] }
 type Classes = Record<string, (main: E[], subs: Sub[]) => number>
 const CLASSES: Classes = {
   'split reply (>=3 entries, one message.id)': (m) => {
@@ -112,7 +148,13 @@ const CLASSES: Classes = {
   '<synthetic> reply with isApiErrorMessage': (m) => m.filter((e) => e.type === 'assistant' && e.message.model === '<synthetic>' && e.isApiErrorMessage).length,
   'thinking block': (m) => m.filter((e) => blocks(e).some((b) => b.type === 'thinking')).length,
   'tool_result is_error: true (+ its tool_use)': (m) => {
-    const uses = new Set(m.flatMap((e) => blocks(e).filter((b) => b.type === 'tool_use').map((b) => b.id)))
+    const uses = new Set(
+      m.flatMap((e) =>
+        blocks(e)
+          .filter((b) => b.type === 'tool_use')
+          .map((b) => b.id),
+      ),
+    )
     return m.flatMap(blocks).filter((b) => b.type === 'tool_result' && b.is_error === true && uses.has(b.tool_use_id)).length
   },
   'array-content tool_result': (m) => m.flatMap(blocks).filter((b) => b.type === 'tool_result' && Array.isArray(b.content)).length,
@@ -121,11 +163,12 @@ const CLASSES: Classes = {
   'isMeta skill body': (m) => m.filter((e) => e.type === 'user' && e.isMeta === true && e.sourceToolUseID).length,
   '/clear command wrapper': (m) => m.filter(isClear).length,
   'other command wrapper': (m) => m.filter((e) => isCommand(e) && !isClear(e)).length,
-  'compact_boundary + isCompactSummary': (m) => m.filter((e, i) => e.subtype === 'compact_boundary' &&
-    m.slice(i + 1).find((x) => x.uuid)?.isCompactSummary === true).length,
-  'Agent spawn + subagent .jsonl + .meta.json + agentId result': (m, subs) => subs.filter((s) =>
-    s.lines.length > 0 && m.some((e) => agentSpawns(e).some((b) => b.id === s.meta.toolUseId)) &&
-    m.some((e) => e.toolUseResult?.agentId === s.id)).length,
+  'compact_boundary + isCompactSummary': (m) =>
+    m.filter((e, i) => e.subtype === 'compact_boundary' && m.slice(i + 1).find((x) => x.uuid)?.isCompactSummary === true).length,
+  'Agent spawn + subagent .jsonl + .meta.json + agentId result': (m, subs) =>
+    subs.filter(
+      (s) => s.lines.length > 0 && m.some((e) => agentSpawns(e).some((b) => b.id === s.meta.toolUseId)) && m.some((e) => e.toolUseResult?.agentId === s.id),
+    ).length,
   'system/turn_duration': (m) => m.filter((e) => e.subtype === 'turn_duration').length,
   'cost-state': (m) => m.filter((e) => e.type === 'cost-state').length,
   'repeated ai-title': (m) => {
@@ -140,9 +183,16 @@ const CLASSES: Classes = {
 
 // ---- selection ----
 
-const readJsonl = (f: string): E[] => readFileSync(f, 'utf8').split('\n').flatMap((l) => {
-  try { return l ? [JSON.parse(l) as E] : [] } catch { return [] }
-})
+const readJsonl = (f: string): E[] =>
+  readFileSync(f, 'utf8')
+    .split('\n')
+    .flatMap((l) => {
+      try {
+        return l ? [JSON.parse(l) as E] : []
+      } catch {
+        return []
+      }
+    })
 
 /** Anchor indices for every class; windows of ±2 around them, closed over reply groups and tool pairs. */
 const select = (all: E[], spawnId: string | null): Set<number> => {
@@ -152,7 +202,9 @@ const select = (all: E[], spawnId: string | null): Set<number> => {
     if (i >= 0) anchors.push(i)
   }
   const groups = new Map<string, number[]>()
-  all.forEach((e, i) => { if (e.type === 'assistant') groups.set(e.message.id, [...(groups.get(e.message.id) ?? []), i]) })
+  all.forEach((e, i) => {
+    if (e.type === 'assistant') groups.set(e.message.id, [...(groups.get(e.message.id) ?? []), i])
+  })
   const split = [...groups.values()].find((g) => g.length >= 3)
   if (split) anchors.push(split[0]!)
   const synth = (e: E): boolean => e.type === 'assistant' && e.message.model === '<synthetic>'
@@ -206,9 +258,14 @@ const select = (all: E[], spawnId: string | null): Set<number> => {
       if (b.type === 'tool_result') resultAt.set(b.tool_use_id, i)
     }
   })
-  for (let grew = true; grew;) {
+  for (let grew = true; grew; ) {
     grew = false
-    const add = (i: number | undefined): void => { if (i !== undefined && !keep.has(i)) { keep.add(i); grew = true } }
+    const add = (i: number | undefined): void => {
+      if (i !== undefined && !keep.has(i)) {
+        keep.add(i)
+        grew = true
+      }
+    }
     for (const i of [...keep]) {
       const e = all[i]!
       if (e.type === 'assistant') for (const j of groups.get(e.message.id) ?? []) add(j)
@@ -227,8 +284,14 @@ const reparent = (kept: E[]): void => {
   let last: string | null = null
   for (const e of kept) {
     if (!e.uuid) continue
-    if (e.parentUuid != null && !uuids.has(e.parentUuid)) { e.parentUuid = last; e._reparented = true }
-    if (e.logicalParentUuid != null && !uuids.has(e.logicalParentUuid)) { e.logicalParentUuid = last; e._reparented = true }
+    if (e.parentUuid != null && !uuids.has(e.parentUuid)) {
+      e.parentUuid = last
+      e._reparented = true
+    }
+    if (e.logicalParentUuid != null && !uuids.has(e.logicalParentUuid)) {
+      e.logicalParentUuid = last
+      e._reparented = true
+    }
     last = e.uuid
   }
 }
@@ -245,39 +308,71 @@ const synthUuid = (seed: string): string => {
 }
 const after = (ts: string, ms: number): string => new Date(Date.parse(ts) + ms).toISOString()
 const common = (at: E): E => ({
-  isSidechain: false, userType: at.userType, entrypoint: at.entrypoint, cwd: at.cwd,
-  sessionId: at.sessionId, version: at.version, gitBranch: at.gitBranch,
+  isSidechain: false,
+  userType: at.userType,
+  entrypoint: at.entrypoint,
+  cwd: at.cwd,
+  sessionId: at.sessionId,
+  version: at.version,
+  gitBranch: at.gitBranch,
 })
 
 /** A rate-limited reply: zero usage, `<synthetic>` model, answering `prompt`. */
 const apiErrorReply = (prompt: E): E => ({
-  parentUuid: prompt.uuid, ...common(prompt), type: 'assistant', uuid: synthUuid(`${prompt.uuid}:api-error`),
+  parentUuid: prompt.uuid,
+  ...common(prompt),
+  type: 'assistant',
+  uuid: synthUuid(`${prompt.uuid}:api-error`),
   timestamp: after(prompt.timestamp, 1500),
   message: {
-    id: synthUuid(`${prompt.uuid}:api-error:message`), container: null, model: '<synthetic>', role: 'assistant',
-    stop_reason: 'stop_sequence', stop_sequence: '', type: 'message',
+    id: synthUuid(`${prompt.uuid}:api-error:message`),
+    container: null,
+    model: '<synthetic>',
+    role: 'assistant',
+    stop_reason: 'stop_sequence',
+    stop_sequence: '',
+    type: 'message',
     usage: {
-      input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0,
-      server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 }, service_tier: null,
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+      server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+      service_tier: null,
       cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
     },
     content: [{ type: 'text', text: 'x'.repeat(40) }],
   },
-  error: 'rate_limit', isApiErrorMessage: true, _synthetic: true,
+  error: 'rate_limit',
+  isApiErrorMessage: true,
+  _synthetic: true,
 })
 
 /** A manual compaction after `prev`: the boundary restarts the chain, the summary hangs off it. */
 const compaction = (prev: E, preTokens: number): E[] => {
   const boundary: E = {
-    parentUuid: null, logicalParentUuid: prev.uuid, ...common(prev), type: 'system', subtype: 'compact_boundary',
-    content: 'x'.repeat(17), level: 'info',
+    parentUuid: null,
+    logicalParentUuid: prev.uuid,
+    ...common(prev),
+    type: 'system',
+    subtype: 'compact_boundary',
+    content: 'x'.repeat(17),
+    level: 'info',
     compactMetadata: { trigger: 'manual', preTokens, postTokens: Math.round(preTokens / 10), cumulativeDroppedTokens: 0, durationMs: 30000 },
-    uuid: synthUuid(`${prev.uuid}:compact`), timestamp: after(prev.timestamp, 1000), _synthetic: true,
+    uuid: synthUuid(`${prev.uuid}:compact`),
+    timestamp: after(prev.timestamp, 1000),
+    _synthetic: true,
   }
   const summary: E = {
-    parentUuid: boundary.uuid, ...common(prev), type: 'user', message: { role: 'user', content: 'x'.repeat(40) },
-    isVisibleInTranscriptOnly: true, isCompactSummary: true,
-    uuid: synthUuid(`${prev.uuid}:compact-summary`), timestamp: after(prev.timestamp, 31000), _synthetic: true,
+    parentUuid: boundary.uuid,
+    ...common(prev),
+    type: 'user',
+    message: { role: 'user', content: 'x'.repeat(40) },
+    isVisibleInTranscriptOnly: true,
+    isCompactSummary: true,
+    uuid: synthUuid(`${prev.uuid}:compact-summary`),
+    timestamp: after(prev.timestamp, 31000),
+    _synthetic: true,
   }
   return [boundary, summary]
 }
@@ -310,11 +405,17 @@ const synthesize = (kept: E[]): E[] => {
 // ---- file order vs parentUuid chain, over every main transcript of a folder ----
 
 const orderReport = (dir: string): { lines: string[]; ok: boolean } => {
-  let files = 0, backRefs = 0, dangling = 0, drops = 0
+  let files = 0,
+    backRefs = 0,
+    dangling = 0,
+    drops = 0
   const breakers = new Map<string, number>()
-  const kind = (e: E): string => e.type === 'user'
-    ? `user/${Array.isArray(content(e)) ? blocks(e)[0]?.type : e.isCompactSummary ? 'compactSummary' : e.isMeta ? 'meta' : 'string'}`
-    : e.type === 'assistant' ? `assistant/${blocks(e)[0]?.type}` : `${e.type}/${e.subtype ?? ''}`
+  const kind = (e: E): string =>
+    e.type === 'user'
+      ? `user/${Array.isArray(content(e)) ? blocks(e)[0]?.type : e.isCompactSummary ? 'compactSummary' : e.isMeta ? 'meta' : 'string'}`
+      : e.type === 'assistant'
+        ? `assistant/${blocks(e)[0]?.type}`
+        : `${e.type}/${e.subtype ?? ''}`
   for (const f of readdirSync(dir).filter((x) => x.endsWith('.jsonl'))) {
     files++
     const seen = new Set<string>()
@@ -345,7 +446,7 @@ const orderReport = (dir: string): { lines: string[]; ok: boolean } => {
 // ---- leak check ----
 
 const TOKEN_RE = /[^\s"'`<>(){}[\],;:=|]{12,}/g
-const leakCheck = (gone: string[], kept: string[], out: string): { ok: boolean, lines: string[] } => {
+const leakCheck = (gone: string[], kept: string[], out: string): { ok: boolean; lines: string[] } => {
   const structural = new Set([...kept, ...TAG_NAMES.flatMap((n) => [n, `/${n}`])].flatMap((s) => s.match(TOKEN_RE) ?? []))
   const tokens = [...new Set(gone.flatMap((s) => s.match(TOKEN_RE) ?? []))].filter((t) => !structural.has(t) && !ID_RE.test(t) && !/^x+$/.test(t))
   const outTokens = [...new Set(out.match(TOKEN_RE) ?? [])]
@@ -399,9 +500,14 @@ const main = (): void => {
   let written = ''
   const collectKept = (v: unknown, path: string[]): void => {
     // Real cwd/gitBranch values are rewritten, so they must not count as structure.
-    if (typeof v === 'string') { if ((keepPath(path) || ID_RE.test(v)) && !REWRITTEN_KEYS.has(path.at(-1) ?? '')) keptSrc.push(v) }
-    else if (Array.isArray(v)) v.forEach((x) => collectKept(x, path))
-    else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { if (keyKept(k)) keptSrc.push(k); collectKept(x, [...path, k]) }
+    if (typeof v === 'string') {
+      if ((keepPath(path) || ID_RE.test(v)) && !REWRITTEN_KEYS.has(path.at(-1) ?? '')) keptSrc.push(v)
+    } else if (Array.isArray(v)) v.forEach((x) => collectKept(x, path))
+    else if (v && typeof v === 'object')
+      for (const [k, x] of Object.entries(v)) {
+        if (keyKept(k)) keptSrc.push(k)
+        collectKept(x, [...path, k])
+      }
   }
   const write = (file: string, entries: E[], cwd: string): E[] => {
     entries.forEach((e) => collectKept(e, []))
@@ -411,7 +517,7 @@ const main = (): void => {
       if (_reparented) Object.defineProperty(b, '_reparented', { value: true })
       return b
     })
-    const text = out.map((e) => JSON.stringify(e) + '\n').join('')
+    const text = out.map((e) => `${JSON.stringify(e)}\n`).join('')
     mkdirSync(join(file, '..'), { recursive: true })
     writeFileSync(file, text)
     written += text
@@ -425,16 +531,19 @@ const main = (): void => {
     const all = readJsonl(join(dir, `${sid}.jsonl`))
     const subDir = join(dir, sid, 'subagents')
     const metas = existsSync(subDir)
-      ? readdirSync(subDir).filter((f) => f.endsWith('.meta.json')).map((f) => {
-        const id = f.slice('agent-'.length, -'.meta.json'.length)
-        return { id, meta: JSON.parse(readFileSync(join(subDir, f), 'utf8')) as E, size: statSync(join(subDir, `agent-${id}.jsonl`)).size }
-      })
+      ? readdirSync(subDir)
+          .filter((f) => f.endsWith('.meta.json'))
+          .map((f) => {
+            const id = f.slice('agent-'.length, -'.meta.json'.length)
+            return { id, meta: JSON.parse(readFileSync(join(subDir, f), 'utf8')) as E, size: statSync(join(subDir, `agent-${id}.jsonl`)).size }
+          })
       : []
     const spawned = new Set(all.flatMap(agentSpawns).map((b) => b.id))
     // A spawn after the first prompt, so the subagent's usage lands on a turn other than 0; then the smallest.
     const firstPrompt = all.findIndex(isHuman)
     const early = (m: { meta: E }): boolean => all.findIndex((e) => agentSpawns(e).some((b) => b.id === m.meta.toolUseId)) < firstPrompt
-    const sub = metas.filter((m) => spawned.has(m.meta.toolUseId) && all.some((e) => e.toolUseResult?.agentId === m.id))
+    const sub = metas
+      .filter((m) => spawned.has(m.meta.toolUseId) && all.some((e) => e.toolUseResult?.agentId === m.id))
       .sort((a, b) => Number(early(a)) - Number(early(b)) || a.size - b.size)[0]
     const keep = select(all, sub?.meta.toolUseId ?? null)
     const kept = all.filter((_, i) => keep.has(i))
@@ -445,13 +554,16 @@ const main = (): void => {
       const base = join(outDir, '-tmp-proj', sid, 'subagents', `agent-${sub.id}`)
       const lines = write(`${base}.jsonl`, readJsonl(join(subDir, `agent-${sub.id}.jsonl`)), CWD_MAIN)
       collectKept(sub.meta, [])
-      const meta = JSON.stringify(blank(sub.meta, [], CWD_MAIN, gone)) + '\n'
+      const meta = `${JSON.stringify(blank(sub.meta, [], CWD_MAIN, gone))}\n`
       writeFileSync(`${base}.meta.json`, meta)
       written += meta
       subsOut.push({ id: sub.id, meta: JSON.parse(meta) as E, lines })
     }
   }
-  for (const [sid, slug, cwd] of [[worktree, '-tmp-proj--ai-worktrees-demo', CWD_WORKTREE], [sibling, '-tmp-proj2', CWD_SIBLING]] as const) {
+  for (const [sid, slug, cwd] of [
+    [worktree, '-tmp-proj--ai-worktrees-demo', CWD_WORKTREE],
+    [sibling, '-tmp-proj2', CWD_SIBLING],
+  ] as const) {
     write(join(outDir, slug, `${sid}.jsonl`), readJsonl(join(find(sid), `${sid}.jsonl`)), cwd)
   }
 
@@ -462,7 +574,9 @@ const main = (): void => {
     console.log(`  ${n > 0 ? 'present' : 'MISSING'}  ${name} (${n})`)
     if (n === 0) missing.push(name)
   }
-  console.log(`fixture: ${mainOut.length} main entries, ${subsOut.map((s) => s.lines.length).join('+') || 0} subagent entries, ${(written.length / 1024).toFixed(0)} KiB total`)
+  console.log(
+    `fixture: ${mainOut.length} main entries, ${subsOut.map((s) => s.lines.length).join('+') || 0} subagent entries, ${(written.length / 1024).toFixed(0)} KiB total`,
+  )
   console.log('order report:')
   const order = orderReport(join(projects, slug))
   for (const l of order.lines) console.log(`  ${l}`)

@@ -1,10 +1,15 @@
 // mcp__<server>__<tool>: the server is the segment up to the next `__`, the tool the rest.
 export const mcpParts = (t: string): [server: string, tool: string] | null => {
   if (!t.startsWith('mcp__')) return null
-  const s = t.slice(5), i = s.indexOf('__')
+  const s = t.slice(5),
+    i = s.indexOf('__')
   return i < 0 ? [s, s] : [s.slice(0, i), s.slice(i + 2)]
 }
-export const hue = (s: string): number => { let h = 0; for (const c of s) h = (h * 31 + c.codePointAt(0)!) >>> 0; return h % 360 }
+export const hue = (s: string): number => {
+  let h = 0
+  for (const c of s) h = (h * 31 + c.codePointAt(0)!) >>> 0
+  return h % 360
+}
 export const toolColor = (t: string): string => {
   if (t === '-') return 'var(--status-critical)'
   const m = mcpParts(t)

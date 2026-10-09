@@ -27,7 +27,9 @@ if (args[0] === '-h' || args[0] === '--help') {
     if (!url) return
     opened = true
     // A headless machine has no opener; the printed URL is enough there.
-    spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [url], { stdio: 'ignore', detached: true }).on('error', () => {}).unref()
+    spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [url], { stdio: 'ignore', detached: true })
+      .on('error', () => {})
+      .unref()
   })
   // Ctrl-C reaches both processes; the handlers keep this one alive until the server has exited.
   for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => server.kill(signal))

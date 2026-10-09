@@ -1,282 +1,1158 @@
-  .viz-root {
-    color-scheme: light;
-    --surface-1: #fcfcfb;
-    --plane: #f9f9f7;
-    --text-primary: #0b0b0b;
-    --text-secondary: #52514e;
-    --muted: #898781;
-    --grid: #e1e0d9;
-    --baseline: #c3c2b7;
-    --ring: rgba(11,11,11,0.10);
-    --cat-tool: #2a78d6;
-    --cat-turn: #eb6834;
-    --cat-session: #1baf7a;
-    --cat-mcp: #8a5cd6;
-    --cat-subagent: #c2448a;
-    --status-warning: #fab219;
-    --status-critical: #d03b3b;
-    --tool-claude: #d97757;
-    --tok-input: #2a78d6; --tok-output: #eb6834; --tok-cache-read: #1baf7a; --tok-cache-write: #8a5cd6; --tok-thinking: #b97f00;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:where(:not([data-theme="light"])) .viz-root {
-      color-scheme: dark;
-      --surface-1: #1a1a19; --plane: #0d0d0d;
-      --text-primary: #ffffff; --text-secondary: #c3c2b7;
-      --grid: #2c2c2a; --baseline: #383835;
-      --ring: rgba(255,255,255,0.10);
-      --cat-tool: #3987e5; --cat-turn: #d95926; --cat-session: #199e70; --cat-mcp: #9d77e8; --cat-subagent: #d65c9f;
-      --tok-input: #3987e5; --tok-output: #d95926; --tok-cache-read: #199e70; --tok-cache-write: #9d77e8; --tok-thinking: #fab219;
-    }
-  }
-  :root[data-theme="dark"] .viz-root {
+.viz-root {
+  color-scheme: light;
+  --surface-1: #fcfcfb;
+  --plane: #f9f9f7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --baseline: #c3c2b7;
+  --ring: rgba(11, 11, 11, 0.1);
+  --cat-tool: #2a78d6;
+  --cat-turn: #eb6834;
+  --cat-session: #1baf7a;
+  --cat-mcp: #8a5cd6;
+  --cat-subagent: #c2448a;
+  --status-warning: #fab219;
+  --status-critical: #d03b3b;
+  --tool-claude: #d97757;
+  --tok-input: #2a78d6;
+  --tok-output: #eb6834;
+  --tok-cache-read: #1baf7a;
+  --tok-cache-write: #8a5cd6;
+  --tok-thinking: #b97f00;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
     color-scheme: dark;
-    --surface-1: #1a1a19; --plane: #0d0d0d;
-    --text-primary: #ffffff; --text-secondary: #c3c2b7;
-    --grid: #2c2c2a; --baseline: #383835;
-    --ring: rgba(255,255,255,0.10);
-    --cat-tool: #3987e5; --cat-turn: #d95926; --cat-session: #199e70; --cat-mcp: #9d77e8; --cat-subagent: #d65c9f;
-    --tok-input: #3987e5; --tok-output: #d95926; --tok-cache-read: #199e70; --tok-cache-write: #9d77e8; --tok-thinking: #fab219;
+    --surface-1: #1a1a19;
+    --plane: #0d0d0d;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --ring: rgba(255, 255, 255, 0.1);
+    --cat-tool: #3987e5;
+    --cat-turn: #d95926;
+    --cat-session: #199e70;
+    --cat-mcp: #9d77e8;
+    --cat-subagent: #d65c9f;
+    --tok-input: #3987e5;
+    --tok-output: #d95926;
+    --tok-cache-read: #199e70;
+    --tok-cache-write: #9d77e8;
+    --tok-thinking: #fab219;
   }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --surface-1: #1a1a19;
+  --plane: #0d0d0d;
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --grid: #2c2c2a;
+  --baseline: #383835;
+  --ring: rgba(255, 255, 255, 0.1);
+  --cat-tool: #3987e5;
+  --cat-turn: #d95926;
+  --cat-session: #199e70;
+  --cat-mcp: #9d77e8;
+  --cat-subagent: #d65c9f;
+  --tok-input: #3987e5;
+  --tok-output: #d95926;
+  --tok-cache-read: #199e70;
+  --tok-cache-write: #9d77e8;
+  --tok-thinking: #fab219;
+}
 
-  * { box-sizing: border-box; }
-  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-  .viz-root { background: var(--plane); color: var(--text-primary); min-height: 100vh; --sb-w: 300px; --fp-w: 320px; }
-  .main { padding: 0 32px 64px; min-width: 0; }
-  .viz-root[data-pin="pinned"] .main { margin-left: var(--sb-w); }
-  .viz-root[data-fpin="pinned"] .main { margin-right: var(--fp-w); }
-  /* The unpinned Filters handle is fixed at the right edge just below the header, over the legacy banner at the top of the page
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.viz-root {
+  background: var(--plane);
+  color: var(--text-primary);
+  min-height: 100vh;
+  --sb-w: 300px;
+  --fp-w: 320px;
+}
+.main {
+  padding: 0 32px 64px;
+  min-width: 0;
+}
+.viz-root[data-pin="pinned"] .main {
+  margin-left: var(--sb-w);
+}
+.viz-root[data-fpin="pinned"] .main {
+  margin-right: var(--fp-w);
+}
+/* The unpinned Filters handle is fixed at the right edge just below the header, over the legacy banner at the top of the page
      and over the usage row of the stuck Events head. It is ~85-100px wide (more with wide fonts); with .main's 32px this keeps both out from under it. */
-  .viz-root[data-fpin="unpinned"] .bar .usage { padding-right: 96px; }
-  .viz-root[data-fpin="unpinned"] .banner { margin-right: 96px; }
+.viz-root[data-fpin="unpinned"] .bar .usage {
+  padding-right: 96px;
+}
+.viz-root[data-fpin="unpinned"] .banner {
+  margin-right: 96px;
+}
 
-  header { position: sticky; top: 0; z-index: 3; background: var(--plane); padding: 16px 0 8px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
-  h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: .01em; }
-  .file { font-size: 12px; color: var(--muted); margin-top: 4px; word-break: break-all; }
+header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--plane);
+  padding: 16px 0 8px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+h1 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+.file {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+  word-break: break-all;
+}
 
-  .tiles { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 22px; }
-  .tile { background: var(--surface-1); border: 1px solid var(--ring); border-radius: 10px; padding: 12px 16px; min-width: 132px; }
-  .tile .k { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 7px; }
-  .tile .v { font-size: 24px; font-weight: 600; margin-top: 5px; }
-  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px var(--surface-1); }
+.tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.tile {
+  background: var(--surface-1);
+  border: 1px solid var(--ring);
+  border-radius: 10px;
+  padding: 12px 16px;
+  min-width: 132px;
+}
+.tile .k {
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.tile .v {
+  font-size: 24px;
+  font-weight: 600;
+  margin-top: 5px;
+}
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  box-shadow: 0 0 0 2px var(--surface-1);
+}
 
-  /* The Events head. In Tail mode older pages load above the table as you scroll up, so the view controls must stick or they are unreachable. */
-  .bar { position: sticky; top: var(--head-h, 0px); z-index: 2; background: var(--plane); padding-top: 10px; }
-  .bar .usage { margin: 0; }
-  .evline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 0 10px; }
-  .evl-total { font-size: 22px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
-  .evl-label { font-size: 13px; color: var(--text-secondary); }
-  .evl-span { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .evl-cats { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
-  .evl-cat { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-secondary); white-space: nowrap; }
-  .evl-cat b { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
-  .evl-sum { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; min-width: 0; }
-  .evl-sum button.ghost { padding: 3px 9px; }
-  .evl-sumt { min-width: 0; max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
-  input, select { font: inherit; font-size: 13px; padding: 7px 10px; border-radius: 8px;
-    border: 1px solid var(--baseline); background: var(--surface-1); color: var(--text-primary); }
-  .chip { --c: var(--text-secondary); display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; padding: 6px 11px;
-    border: 1px solid var(--baseline); border-radius: 999px; background: var(--surface-1);
-    color: var(--text-secondary); cursor: pointer; user-select: none; }
-  .chip .dot { background: var(--c); }
-  .chip[aria-pressed="true"], .chip[data-on] { color: var(--text-primary); border-color: var(--c);
-    background: color-mix(in srgb, var(--c) 15%, var(--surface-1)); }
-  .chip:disabled { opacity: .3; cursor: default; }
-  .seg { display: inline-flex; }
-  .seg .chip { border-radius: 0; }
-  .seg .chip + .chip { margin-left: -1px; }
-  .seg .chip:first-child { border-radius: 999px 0 0 999px; }
-  .seg .chip:last-child { border-radius: 0 999px 999px 0; }
-  .seg .chip[aria-pressed="true"] { position: relative; }
-  /* A popover would be clipped by the scrolling panel body, so the pickers expand inline. */
-  .mcp, .dd { display: block; }
-  .mcp[hidden] { display: none; }
-  .pop { margin-top: 6px; max-height: 60vh; overflow: auto; background: var(--surface-1); border: 1px solid var(--baseline); border-radius: 10px; padding: 10px; }
-  .pop .acts { display: flex; gap: 6px; margin: 8px 0; }
-  .pop label { display: flex; align-items: center; gap: 7px; font-size: 12.5px; padding: 3px 0; cursor: pointer; }
-  .pop label.t { padding-left: 22px; color: var(--text-secondary); }
-  .atree, .atree ul { list-style: none; margin: 0; padding: 0; }
-  .atree .node { display: flex; align-items: center; gap: 2px; padding-left: calc(var(--d) * 16px); }
-  .atree .node label.t { padding-left: 0; }
-  .atree .node > label { min-width: 0; }
-  .atree .lt { min-width: 0; max-width: 60ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .atree .ls { flex: none; white-space: nowrap; color: var(--muted); }
-  .atree .twisty { width: 18px; flex: none; padding: 0; border: 0; background: none; color: var(--text-secondary); cursor: pointer; font-size: 11px; }
-  .atree .twisty:disabled { cursor: default; }
-  .tl { display: inline-flex; align-items: center; gap: 7px; }
-  .spacer { flex: 1; }
-  .live { font-size: 12px; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 7px; }
+/* The Events head. In Tail mode older pages load above the table as you scroll up, so the view controls must stick or they are unreachable. */
+.bar {
+  position: sticky;
+  top: var(--head-h, 0px);
+  z-index: 2;
+  background: var(--plane);
+  padding-top: 10px;
+}
+.bar .usage {
+  margin: 0;
+}
+.evline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 0 10px;
+}
+.evl-total {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.evl-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.evl-span {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.evl-cats {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+.evl-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.evl-cat b {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.evl-sum {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  min-width: 0;
+}
+.evl-sum button.ghost {
+  padding: 3px 9px;
+}
+.evl-sumt {
+  min-width: 0;
+  max-width: 40ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+input,
+select {
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--baseline);
+  background: var(--surface-1);
+  color: var(--text-primary);
+}
+.chip {
+  --c: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  padding: 6px 11px;
+  border: 1px solid var(--baseline);
+  border-radius: 999px;
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.chip .dot {
+  background: var(--c);
+}
+.chip[aria-pressed="true"],
+.chip[data-on] {
+  color: var(--text-primary);
+  border-color: var(--c);
+  background: color-mix(in srgb, var(--c) 15%, var(--surface-1));
+}
+.chip:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.seg {
+  display: inline-flex;
+}
+.seg .chip {
+  border-radius: 0;
+}
+.seg .chip + .chip {
+  margin-left: -1px;
+}
+.seg .chip:first-child {
+  border-radius: 999px 0 0 999px;
+}
+.seg .chip:last-child {
+  border-radius: 0 999px 999px 0;
+}
+.seg .chip[aria-pressed="true"] {
+  position: relative;
+}
+/* A popover would be clipped by the scrolling panel body, so the pickers expand inline. */
+.mcp,
+.dd {
+  display: block;
+}
+.mcp[hidden] {
+  display: none;
+}
+.pop {
+  margin-top: 6px;
+  max-height: 60vh;
+  overflow: auto;
+  background: var(--surface-1);
+  border: 1px solid var(--baseline);
+  border-radius: 10px;
+  padding: 10px;
+}
+.pop .acts {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0;
+}
+.pop label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+.pop label.t {
+  padding-left: 22px;
+  color: var(--text-secondary);
+}
+.atree,
+.atree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.atree .node {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: calc(var(--d) * 16px);
+}
+.atree .node label.t {
+  padding-left: 0;
+}
+.atree .node > label {
+  min-width: 0;
+}
+.atree .lt {
+  min-width: 0;
+  max-width: 60ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.atree .ls {
+  flex: none;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.atree .twisty {
+  width: 18px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+}
+.atree .twisty:disabled {
+  cursor: default;
+}
+.tl {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.spacer {
+  flex: 1;
+}
+.live {
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
 
-  table { width: 100%; border-collapse: collapse; background: var(--surface-1);
-    border: 1px solid var(--ring); }
-  thead th { text-align: left; font-size: 11.5px; font-weight: 600; color: var(--muted);
-    text-transform: uppercase; letter-spacing: .05em; padding: 10px 14px; border-bottom: 1px solid var(--grid);
-    position: sticky; top: calc(var(--head-h, 0px) + var(--bar-h, 0px)); z-index: 1; background: var(--surface-1); }
-  tbody td { padding: 9px 14px; font-size: 13px; border-bottom: 1px solid var(--grid); vertical-align: top; }
-  tbody tr.row { cursor: pointer; }
-  tbody tr.row:hover { background: color-mix(in srgb, var(--text-primary) 4%, transparent); }
-  .num { font-variant-numeric: tabular-nums; color: var(--text-secondary); white-space: nowrap; }
-  .ev { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
-  .warnglyph { font-weight: 700; }
-  .badge { font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
-  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  /* Without min-width a long unbroken JSON line widens its column past the table. */
-  .split > div { min-width: 0; }
-  .split pre, .split .tree { max-height: 60vh; overflow: auto; }
-  .pane-h { font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px;
-    display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .pane-h button { font-size: 11px; padding: 2px 9px; text-transform: none; letter-spacing: 0; }
-  .tree { padding: 12px 14px 12px 26px; background: var(--plane); border-radius: 8px;
-    font-family: monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-  .tree .kids { padding-left: 2ch; }
-  .tree summary { list-style: none; cursor: pointer; }
-  .tree summary::-webkit-details-marker { display: none; }
-  .tree summary::before { content: '▾'; position: absolute; margin-left: -1.6ch; color: var(--muted); }
-  .tree details:not([open]) > summary::before { content: '▸'; }
-  .tree details[open] > summary > .sum, .tree details:not([open]) > summary > .o { display: none; }
-  .tree .sum { margin-left: 1ch; color: var(--muted); }
-  .tree .k { color: var(--cat-tool); }
-  .tree .s { color: var(--cat-session); }
-  .tree .n { color: var(--cat-turn); }
-  .tree .b { color: var(--cat-mcp); }
-  .tree .p { color: var(--muted); }
-  .bad, .bad .s { color: var(--status-critical); }
-  pre { margin: 0; padding: 12px 14px; background: var(--plane); border-radius: 8px;
-    font-size: 12px; line-height: 1.5; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
-  .empty { padding: 34px 14px; color: var(--muted); font-size: 13px; text-align: center; }
-  .empty code { word-break: break-all; color: var(--text-secondary); }
-  button.ghost { font: inherit; font-size: 12.5px; padding: 6px 11px; border-radius: 8px;
-    border: 1px solid var(--baseline); background: var(--surface-1); color: var(--text-secondary); cursor: pointer; }
-  .pill { position: fixed; left: 50%; transform: translateX(-50%); font: inherit; font-size: 12.5px; font-weight: 600;
-    padding: 7px 14px; border-radius: 999px; border: 1px solid var(--text-secondary); background: var(--surface-1);
-    color: var(--text-primary); cursor: pointer; box-shadow: 0 2px 8px var(--ring); }
-  .pill.tail { bottom: 20px; }
-  .pill.table { top: calc(var(--head-h, 0px) + var(--bar-h, 0px) + 56px); }
-  #sentinel { height: 1px; }
-  /* Tail mode anchors older-page inserts by hand; the browser's own scroll anchoring would shift the view a second time. */
-  html { overflow-anchor: none; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface-1);
+  border: 1px solid var(--ring);
+}
+thead th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--grid);
+  position: sticky;
+  top: calc(var(--head-h, 0px) + var(--bar-h, 0px));
+  z-index: 1;
+  background: var(--surface-1);
+}
+tbody td {
+  padding: 9px 14px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--grid);
+  vertical-align: top;
+}
+tbody tr.row {
+  cursor: pointer;
+}
+tbody tr.row:hover {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+.num {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.ev {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+.warnglyph {
+  font-weight: 700;
+}
+.badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+/* Without min-width a long unbroken JSON line widens its column past the table. */
+.split > div {
+  min-width: 0;
+}
+.split pre,
+.split .tree {
+  max-height: 60vh;
+  overflow: auto;
+}
+.pane-h {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pane-h button {
+  font-size: 11px;
+  padding: 2px 9px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.tree {
+  padding: 12px 14px 12px 26px;
+  background: var(--plane);
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tree .kids {
+  padding-left: 2ch;
+}
+.tree summary {
+  list-style: none;
+  cursor: pointer;
+}
+.tree summary::-webkit-details-marker {
+  display: none;
+}
+.tree summary::before {
+  content: "▾";
+  position: absolute;
+  margin-left: -1.6ch;
+  color: var(--muted);
+}
+.tree details:not([open]) > summary::before {
+  content: "▸";
+}
+.tree details[open] > summary > .sum,
+.tree details:not([open]) > summary > .o {
+  display: none;
+}
+.tree .sum {
+  margin-left: 1ch;
+  color: var(--muted);
+}
+.tree .k {
+  color: var(--cat-tool);
+}
+.tree .s {
+  color: var(--cat-session);
+}
+.tree .n {
+  color: var(--cat-turn);
+}
+.tree .b {
+  color: var(--cat-mcp);
+}
+.tree .p {
+  color: var(--muted);
+}
+.bad,
+.bad .s {
+  color: var(--status-critical);
+}
+pre {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--plane);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.empty {
+  padding: 34px 14px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+.empty code {
+  word-break: break-all;
+  color: var(--text-secondary);
+}
+button.ghost {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 6px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--baseline);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.pill {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--text-secondary);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  cursor: pointer;
+  box-shadow: 0 2px 8px var(--ring);
+}
+.pill.tail {
+  bottom: 20px;
+}
+.pill.table {
+  top: calc(var(--head-h, 0px) + var(--bar-h, 0px) + 56px);
+}
+#sentinel {
+  height: 1px;
+}
+/* Tail mode anchors older-page inserts by hand; the browser's own scroll anchoring would shift the view a second time. */
+html {
+  overflow-anchor: none;
+}
 
-  .stats h2, .charts h2 { font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin: 4px 0 8px; }
-  .hscroll { overflow-x: auto; margin-bottom: 22px; }
-  table.stat thead th { position: static; } /* --bar-h belongs to the Events sticky bar and goes stale once it unmounts. */
-  table.stat .r { text-align: right; }
-  table.stat th, table.stat td { padding: 4px 5px; font-size: 12px; letter-spacing: 0; white-space: nowrap; }
-  /* max-width 0 lets the name column absorb the leftover width and truncate, instead of widening the table. */
-  table.stat td.name { width: 100%; max-width: 0; }
-  table.stat td.name span { display: block; max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .chart { margin-bottom: 18px; min-width: 0; }
-  .chart-s { min-width: 0; }
-  /* The legend is a <table>, so it would otherwise pick up the page's boxed table style. */
-  .chart .u-legend { width: auto; background: none; border: 0; font-size: 11.5px; color: var(--text-secondary); }
-  .chart .u-legend td, .chart .u-legend th { padding: 1px 3px; border: 0; }
-  .chart .u-legend .u-marker { width: 10px; height: 10px; }
-  .share { margin-bottom: 14px; }
-  .share-h { font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; }
-  .share-bar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; background: var(--grid); }
-  .share-l { list-style: none; margin: 6px 0 0; padding: 0; font-size: 12px; }
-  .share-l li { display: flex; align-items: center; gap: 7px; padding: 2px 0; }
-  .share-l .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stats h2,
+.charts h2 {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 4px 0 8px;
+}
+.hscroll {
+  overflow-x: auto;
+  margin-bottom: 22px;
+}
+table.stat thead th {
+  position: static;
+} /* --bar-h belongs to the Events sticky bar and goes stale once it unmounts. */
+table.stat .r {
+  text-align: right;
+}
+table.stat th,
+table.stat td {
+  padding: 4px 5px;
+  font-size: 12px;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+/* max-width 0 lets the name column absorb the leftover width and truncate, instead of widening the table. */
+table.stat td.name {
+  width: 100%;
+  max-width: 0;
+}
+table.stat td.name span {
+  display: block;
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chart {
+  margin-bottom: 18px;
+  min-width: 0;
+}
+.chart-s {
+  min-width: 0;
+}
+/* The legend is a <table>, so it would otherwise pick up the page's boxed table style. */
+.chart .u-legend {
+  width: auto;
+  background: none;
+  border: 0;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+.chart .u-legend td,
+.chart .u-legend th {
+  padding: 1px 3px;
+  border: 0;
+}
+.chart .u-legend .u-marker {
+  width: 10px;
+  height: 10px;
+}
+.share {
+  margin-bottom: 14px;
+}
+.share-h {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 5px;
+}
+.share-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--grid);
+}
+.share-l {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  font-size: 12px;
+}
+.share-l li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 0;
+}
+.share-l .n {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-  /* Fixed in both modes; pinned only reserves its width on .main, so the window keeps the one scroll the Events tail relies on. */
-  .panel { position: fixed; top: 0; bottom: 0; z-index: 5; background: var(--surface-1);
-    /* Hidden once slid out so its controls leave the tab order; visibility flips at the end of the
+/* Fixed in both modes; pinned only reserves its width on .main, so the window keeps the one scroll the Events tail relies on. */
+.panel {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  z-index: 5;
+  background: var(--surface-1);
+  /* Hidden once slid out so its controls leave the tab order; visibility flips at the end of the
        slide-out and at the start of the slide-in. Focus inside keeps it shown when the pointer leaves. */
-    visibility: hidden; transition: transform .16s ease-out, visibility 0s linear .16s; }
-  .panel[data-side=left] { left: 0; width: var(--sb-w); border-right: 1px solid var(--ring); transform: translateX(-100%); }
-  .panel[data-side=right] { right: 0; width: var(--fp-w); border-left: 1px solid var(--ring); transform: translateX(100%); }
-  /* Same specificity as the side rules, so it must come after them to win the transform. */
-  .panel[data-open], .panel:focus-within { transform: none; visibility: visible; transition: transform .16s ease-out, visibility 0s; }
-  .panel[data-side=left][data-open]:not([data-pinned]) { box-shadow: 4px 0 16px var(--ring); }
-  .panel[data-side=right][data-open]:not([data-pinned]) { box-shadow: -4px 0 16px var(--ring); }
-  /* z-index below the panel (5), so a visible panel covers its own trigger. */
-  .panel-edge { position: fixed; top: 0; bottom: 0; width: 6px; z-index: 4; }
-  .panel-edge[data-side=left] { left: 0; }
-  .panel-pin { position: absolute; top: 8px; z-index: 1; width: 24px; height: 24px; padding: 0; font: inherit; font-size: 15px; line-height: 1;
-    border: 1px solid var(--baseline); border-radius: 6px; background: var(--surface-1); color: var(--text-secondary); cursor: pointer; }
-  .panel[data-side=left] .panel-pin { right: 8px; }
-  .panel[data-side=right] .panel-pin { left: 8px; }
-  .panel-pin:hover { color: var(--text-primary); }
-  /* A short tab rather than a full-height strip: a right-edge strip would sit on the window scrollbar. Below the sticky header, so it never covers Toggle theme. */
-  .panel-handle { position: fixed; top: calc(var(--head-h, 0px) + 8px); right: 0; z-index: 4; font: inherit; font-size: 12.5px; padding: 6px 10px;
-    border: 1px solid var(--baseline); border-right: 0; border-radius: 8px 0 0 8px; background: var(--surface-1);
-    color: var(--text-secondary); cursor: pointer; box-shadow: 0 2px 8px var(--ring); }
-  .sidebar { display: flex; flex-direction: column; }
-  .fpanel { display: flex; flex-direction: column; }
-  .fp-h { margin: 0; padding: 12px 12px 8px 40px; font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
-  /* min-height 0 lets the body shrink below its content, so it scrolls instead of growing past the window. */
-  .fp-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 4px 12px 16px; }
-  .fp-s { align-self: stretch; }
-  .fp-s h3 { margin: 0 0 6px; font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
-  .fp-s .filters { gap: 6px; margin-bottom: 0; }
-  .fp-s .filters + .mcp { margin-top: 6px; }
-  .fp-range { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-secondary); }
-  .fp-range input { flex: 1; min-width: 0; }
-  .fp-s #nodur { margin-top: 6px; }
-  .fpanel input[type=search] { width: 100%; }
-  .fp-n { display: inline-block; margin-left: 2px; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 16px;
-    background: var(--cat-tool); color: #fff; }
-  .sb-top { flex: none; max-height: 50vh; overflow-y: auto; border-bottom: 1px solid var(--grid); }
-  /* min-height 0 lets the list shrink below its content, so it scrolls instead of growing the sidebar. */
-  .sb-list { flex: 1; min-height: 0; overflow-y: auto; }
-  .sb-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 40px 4px 12px; }
-  .sb-n { padding: 0 12px 6px; font-size: 12px; color: var(--text-secondary); }
-  .sb-f { display: flex; flex-direction: column; gap: 8px; padding: 0 12px 10px; }
-  .sb-fs { display: flex; flex-direction: column; gap: 8px; }
-  .sb-fs[hidden] { display: none; }
-  .sb-f button.fold { align-self: flex-start; }
-  button.fold { max-width: 100%; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .sb-chips .chip { padding: 3px 9px; font-size: 12px; }
-  .sb-g h2 { margin: 0; padding: 10px 12px 4px; font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase;
-    letter-spacing: .05em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sb-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 12px; cursor: pointer; text-align: left; font: inherit; color: inherit; background: none; border: 0; border-bottom: 1px solid var(--grid); }
-  .sb-row:hover { background: color-mix(in srgb, var(--text-primary) 4%, transparent); }
-  .sb-row[aria-checked="true"] { background: color-mix(in srgb, var(--cat-tool) 12%, var(--surface-1)); box-shadow: inset 3px 0 var(--cat-tool); }
-  .sb-row:focus-visible { outline: 2px solid var(--cat-tool); outline-offset: -2px; }
-  .sb-row .ck { flex: none; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; font-size: 11px; line-height: 1; border: 1.5px solid transparent; color: transparent; }
-  .sb-row:hover .ck, .sb-row:focus-visible .ck { border-color: var(--baseline); }
-  .sb-row[aria-checked="true"] .ck { background: var(--cat-tool); border-color: var(--cat-tool); color: #fff; }
-  .chip.pk { gap: 6px; max-width: 100%; }
-  .chip.pk .n { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sb-pk { padding: 0 12px 8px; }
-  .sb-tip { position: fixed; z-index: 20; box-sizing: border-box; padding: 10px 12px; background: var(--surface-1); color: var(--text-primary);
-    border: 1px solid var(--baseline); border-radius: 10px; box-shadow: 0 4px 16px var(--ring); font-size: 12.5px; line-height: 1.45; }
-  .sb-tip-p { white-space: pre-wrap; overflow-wrap: anywhere; max-height: min(60vh, 420px); overflow-y: auto; overscroll-behavior: contain; }
-  .sb-b { flex: 1; min-width: 0; }
-  .sb-b .t { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 500; }
-  .sb-b .t .dot { width: 7px; height: 7px; }
-  .sb-b .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sb-b .m { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 3px; font-size: 11.5px; }
-  .sb-b .m .num { margin-left: auto; }
-  .badge.ws { color: var(--cat-mcp); }
-  .badge.wt { color: var(--cat-turn); }
-  .badge.new { color: var(--cat-tool); }
+  visibility: hidden;
+  transition:
+    transform 0.16s ease-out,
+    visibility 0s linear 0.16s;
+}
+.panel[data-side="left"] {
+  left: 0;
+  width: var(--sb-w);
+  border-right: 1px solid var(--ring);
+  transform: translateX(-100%);
+}
+.panel[data-side="right"] {
+  right: 0;
+  width: var(--fp-w);
+  border-left: 1px solid var(--ring);
+  transform: translateX(100%);
+}
+/* Same specificity as the side rules, so it must come after them to win the transform. */
+.panel[data-open],
+.panel:focus-within {
+  transform: none;
+  visibility: visible;
+  transition:
+    transform 0.16s ease-out,
+    visibility 0s;
+}
+.panel[data-side="left"][data-open]:not([data-pinned]) {
+  box-shadow: 4px 0 16px var(--ring);
+}
+.panel[data-side="right"][data-open]:not([data-pinned]) {
+  box-shadow: -4px 0 16px var(--ring);
+}
+/* z-index below the panel (5), so a visible panel covers its own trigger. */
+.panel-edge {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  z-index: 4;
+}
+.panel-edge[data-side="left"] {
+  left: 0;
+}
+.panel-pin {
+  position: absolute;
+  top: 8px;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  border: 1px solid var(--baseline);
+  border-radius: 6px;
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.panel[data-side="left"] .panel-pin {
+  right: 8px;
+}
+.panel[data-side="right"] .panel-pin {
+  left: 8px;
+}
+.panel-pin:hover {
+  color: var(--text-primary);
+}
+/* A short tab rather than a full-height strip: a right-edge strip would sit on the window scrollbar. Below the sticky header, so it never covers Toggle theme. */
+.panel-handle {
+  position: fixed;
+  top: calc(var(--head-h, 0px) + 8px);
+  right: 0;
+  z-index: 4;
+  font: inherit;
+  font-size: 12.5px;
+  padding: 6px 10px;
+  border: 1px solid var(--baseline);
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  cursor: pointer;
+  box-shadow: 0 2px 8px var(--ring);
+}
+.sidebar {
+  display: flex;
+  flex-direction: column;
+}
+.fpanel {
+  display: flex;
+  flex-direction: column;
+}
+.fp-h {
+  margin: 0;
+  padding: 12px 12px 8px 40px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+/* min-height 0 lets the body shrink below its content, so it scrolls instead of growing past the window. */
+.fp-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 4px 12px 16px;
+}
+.fp-s {
+  align-self: stretch;
+}
+.fp-s h3 {
+  margin: 0 0 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.fp-s .filters {
+  gap: 6px;
+  margin-bottom: 0;
+}
+.fp-s .filters + .mcp {
+  margin-top: 6px;
+}
+.fp-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.fp-range input {
+  flex: 1;
+  min-width: 0;
+}
+.fp-s #nodur {
+  margin-top: 6px;
+}
+.fpanel input[type="search"] {
+  width: 100%;
+}
+.fp-n {
+  display: inline-block;
+  margin-left: 2px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  background: var(--cat-tool);
+  color: #fff;
+}
+.sb-top {
+  flex: none;
+  max-height: 50vh;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--grid);
+}
+/* min-height 0 lets the list shrink below its content, so it scrolls instead of growing the sidebar. */
+.sb-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.sb-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 40px 4px 12px;
+}
+.sb-n {
+  padding: 0 12px 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.sb-f {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px 10px;
+}
+.sb-fs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sb-fs[hidden] {
+  display: none;
+}
+.sb-f button.fold {
+  align-self: flex-start;
+}
+button.fold {
+  max-width: 100%;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sb-chips .chip {
+  padding: 3px 9px;
+  font-size: 12px;
+}
+.sb-g h2 {
+  margin: 0;
+  padding: 10px 12px 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sb-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 12px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--grid);
+}
+.sb-row:hover {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+.sb-row[aria-checked="true"] {
+  background: color-mix(in srgb, var(--cat-tool) 12%, var(--surface-1));
+  box-shadow: inset 3px 0 var(--cat-tool);
+}
+.sb-row:focus-visible {
+  outline: 2px solid var(--cat-tool);
+  outline-offset: -2px;
+}
+.sb-row .ck {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 11px;
+  line-height: 1;
+  border: 1.5px solid transparent;
+  color: transparent;
+}
+.sb-row:hover .ck,
+.sb-row:focus-visible .ck {
+  border-color: var(--baseline);
+}
+.sb-row[aria-checked="true"] .ck {
+  background: var(--cat-tool);
+  border-color: var(--cat-tool);
+  color: #fff;
+}
+.chip.pk {
+  gap: 6px;
+  max-width: 100%;
+}
+.chip.pk .n {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sb-pk {
+  padding: 0 12px 8px;
+}
+.sb-tip {
+  position: fixed;
+  z-index: 20;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  border: 1px solid var(--baseline);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px var(--ring);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.sb-tip-p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.sb-b {
+  flex: 1;
+  min-width: 0;
+}
+.sb-b .t {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.sb-b .t .dot {
+  width: 7px;
+  height: 7px;
+}
+.sb-b .n {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sb-b .m {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: 11.5px;
+}
+.sb-b .m .num {
+  margin-left: auto;
+}
+.badge.ws {
+  color: var(--cat-mcp);
+}
+.badge.wt {
+  color: var(--cat-turn);
+}
+.badge.new {
+  color: var(--cat-tool);
+}
 
-  .usage { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0 4px; }
-  .usage .tile { padding: 7px 12px; min-width: 104px; }
-  .usage .v { font-size: 17px; margin-top: 2px; }
-  .banner { margin: 10px 0 0; padding: 8px 12px; font-size: 13px; border-radius: 8px; border: 1px solid var(--status-warning);
-    background: color-mix(in srgb, var(--status-warning) 12%, var(--surface-1)); }
+.usage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 4px;
+}
+.usage .tile {
+  padding: 7px 12px;
+  min-width: 104px;
+}
+.usage .v {
+  font-size: 17px;
+  margin-top: 2px;
+}
+.banner {
+  margin: 10px 0 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 8px;
+  border: 1px solid var(--status-warning);
+  background: color-mix(in srgb, var(--status-warning) 12%, var(--surface-1));
+}
 
-  /* Sessions: one block per picked session. */
-  .sessions { margin-top: 18px; }
-  .sblock { margin-bottom: 18px; padding: 14px 16px 4px; background: var(--surface-1); border: 1px solid var(--ring); border-radius: 10px; }
-  .sblock .tile { background: var(--plane); }
-  .sblock-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
-  .sblock-h h2 { margin: 0; font-size: 14px; font-weight: 600; min-width: 0; max-width: 60ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sblock-h .p { font-size: 12px; color: var(--text-secondary); }
-  .sblock-h .id { margin-left: auto; font-size: 11.5px; color: var(--muted); }
-  .sblock .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 0 20px; }
-  table.stat tr.ag { cursor: pointer; }
-  table.stat tr.ag:hover { background: color-mix(in srgb, var(--text-primary) 4%, transparent); }
-  .ag-b { all: unset; cursor: pointer; }
-  .ag-b:focus-visible { outline: 2px solid var(--cat-tool); outline-offset: 1px; border-radius: 2px; }
-  .ag-b[aria-expanded="true"] { font-weight: 600; }
-  table.stat tr.ag-x > td { padding: 6px 10px 10px; white-space: normal; }
-  .ag-x dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px 16px; margin: 0; }
-  .ag-x dt { font-size: 11px; color: var(--text-secondary); }
-  .ag-x dd { margin: 1px 0 0; font-size: 13px; }
-  /* width:0 + min-width:100% keeps the canvases from setting the table's min width, so it can still shrink. */
-  .ag-x .ag-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 0 20px; margin-top: 12px; width: 0; min-width: 100%; }
-  .ag-x .ag-note { margin-top: 10px; font-size: 12px; color: var(--muted); }
+/* Sessions: one block per picked session. */
+.sessions {
+  margin-top: 18px;
+}
+.sblock {
+  margin-bottom: 18px;
+  padding: 14px 16px 4px;
+  background: var(--surface-1);
+  border: 1px solid var(--ring);
+  border-radius: 10px;
+}
+.sblock .tile {
+  background: var(--plane);
+}
+.sblock-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.sblock-h h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 0;
+  max-width: 60ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sblock-h .p {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.sblock-h .id {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.sblock .charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: 0 20px;
+}
+table.stat tr.ag {
+  cursor: pointer;
+}
+table.stat tr.ag:hover {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+.ag-b {
+  all: unset;
+  cursor: pointer;
+}
+.ag-b:focus-visible {
+  outline: 2px solid var(--cat-tool);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+.ag-b[aria-expanded="true"] {
+  font-weight: 600;
+}
+table.stat tr.ag-x > td {
+  padding: 6px 10px 10px;
+  white-space: normal;
+}
+.ag-x dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px 16px;
+  margin: 0;
+}
+.ag-x dt {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.ag-x dd {
+  margin: 1px 0 0;
+  font-size: 13px;
+}
+/* width:0 + min-width:100% keeps the canvases from setting the table's min width, so it can still shrink. */
+.ag-x .ag-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
+  gap: 0 20px;
+  margin-top: 12px;
+  width: 0;
+  min-width: 100%;
+}
+.ag-x .ag-note {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}

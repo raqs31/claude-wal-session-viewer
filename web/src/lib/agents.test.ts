@@ -27,9 +27,21 @@ test('one session: main on top, children nested, summaries as a leaf per owner',
 })
 
 test('two sessions: a session level with title and short id; untitled falls back', () => {
-  assert.deepEqual(two.map((x) => x.label), ['Fix the bug · aaaaaaaa', 'untitled · bbbbbbbb'])
-  assert.deepEqual(two.map((x) => x.children[0]!.key), [`${A}:main`, `${B}:main`])
-  assert.deepEqual(two.map((x) => [x.name, x.tag]), [['Fix the bug', '· aaaaaaaa'], ['untitled', '· bbbbbbbb']])
+  assert.deepEqual(
+    two.map((x) => x.label),
+    ['Fix the bug · aaaaaaaa', 'untitled · bbbbbbbb'],
+  )
+  assert.deepEqual(
+    two.map((x) => x.children[0]!.key),
+    [`${A}:main`, `${B}:main`],
+  )
+  assert.deepEqual(
+    two.map((x) => [x.name, x.tag]),
+    [
+      ['Fix the bug', '· aaaaaaaa'],
+      ['untitled', '· bbbbbbbb'],
+    ],
+  )
   assert.equal(two[0]!.self, null)
 })
 

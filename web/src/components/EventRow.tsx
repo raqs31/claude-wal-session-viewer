@@ -8,7 +8,12 @@ import { RecordViewer } from './RecordViewer.tsx'
 
 type Detail = { rec: RecordResponse } | { text: string } | null
 
-interface Props { r: Row; gens: Record<string, number> | null; format: Format; requery: () => Promise<void> }
+interface Props {
+  r: Row
+  gens: Record<string, number> | null
+  format: Format
+  requery: () => Promise<void>
+}
 
 export const EventRow = memo(function EventRow({ r, gens, format, requery }: Props) {
   const [open, setOpen] = useState(false)
@@ -48,21 +53,34 @@ export const EventRow = memo(function EventRow({ r, gens, format, requery }: Pro
         <td>
           <span className="ev">
             <span className="dot" style={{ background: meta.color }} />
-            {meta.glyph && <span className="warnglyph" style={{ color: meta.color }}>{meta.glyph}</span>}
+            {meta.glyph && (
+              <span className="warnglyph" style={{ color: meta.color }}>
+                {meta.glyph}
+              </span>
+            )}
             {r.event ?? 'Unknown'}
-            {label && <span className="badge" style={{ color: r.err ? 'var(--status-critical)' : 'var(--cat-mcp)' }}>{label}</span>}
+            {label && (
+              <span className="badge" style={{ color: r.err ? 'var(--status-critical)' : 'var(--cat-mcp)' }}>
+                {label}
+              </span>
+            )}
           </span>
         </td>
         <td>
-          {r.tool == null ? '—' : <span className="tl"><span className="dot" style={{ background: toolColor(r.tool) }} />{r.tool}</span>}
+          {r.tool == null ? (
+            '—'
+          ) : (
+            <span className="tl">
+              <span className="dot" style={{ background: toolColor(r.tool) }} />
+              {r.tool}
+            </span>
+          )}
         </td>
-        <td className="num">{r.dur == null ? '—' : r.dur + ' ms'}</td>
+        <td className="num">{r.dur == null ? '—' : `${r.dur} ms`}</td>
         <td className="num">{short(r.sess)}</td>
       </tr>
       <tr hidden={!open}>
-        <td colSpan={6}>
-          {detail && ('rec' in detail ? <RecordViewer rec={detail.rec} format={shownFmt} /> : <pre>{detail.text}</pre>)}
-        </td>
+        <td colSpan={6}>{detail && ('rec' in detail ? <RecordViewer rec={detail.rec} format={shownFmt} /> : <pre>{detail.text}</pre>)}</td>
       </tr>
     </>
   )

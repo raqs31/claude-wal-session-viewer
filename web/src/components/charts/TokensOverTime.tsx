@@ -18,23 +18,25 @@ export function TokensOverTime({ series, agent, markers = true }: { series: Sess
     // A live setData resets the x scale, which would silently undo a drag zoom.
     cursor: { points: { show: false }, drag: { x: false } },
     hooks: {
-      draw: [(u) => {
-        const { ctx, bbox } = u
-        const [min, max] = [u.scales.x!.min!, u.scales.x!.max!]
-        ctx.save()
-        ctx.strokeStyle = css('--muted')
-        ctx.lineWidth = devicePixelRatio
-        ctx.setLineDash([3 * devicePixelRatio, 3 * devicePixelRatio])
-        for (const t of turns.current) {
-          if (t < min || t > max) continue
-          const x = Math.round(u.valToPos(t, 'x', true)) + 0.5
-          ctx.beginPath()
-          ctx.moveTo(x, bbox.top)
-          ctx.lineTo(x, bbox.top + bbox.height)
-          ctx.stroke()
-        }
-        ctx.restore()
-      }],
+      draw: [
+        (u) => {
+          const { ctx, bbox } = u
+          const [min, max] = [u.scales.x!.min!, u.scales.x!.max!]
+          ctx.save()
+          ctx.strokeStyle = css('--muted')
+          ctx.lineWidth = devicePixelRatio
+          ctx.setLineDash([3 * devicePixelRatio, 3 * devicePixelRatio])
+          for (const t of turns.current) {
+            if (t < min || t > max) continue
+            const x = Math.round(u.valToPos(t, 'x', true)) + 0.5
+            ctx.beginPath()
+            ctx.moveTo(x, bbox.top)
+            ctx.lineTo(x, bbox.top + bbox.height)
+            ctx.stroke()
+          }
+          ctx.restore()
+        },
+      ],
     },
   })
   return <UPlot title={markers ? 'Cumulative tokens (dashed: turn starts)' : 'Cumulative tokens'} opts={opts} data={data} />

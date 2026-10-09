@@ -7,7 +7,10 @@ const totals: StatRow = { input: 1200, output: 3400, cacheRead: 2_000_000, cache
 const of = (u: UsageTotals | null) => Object.fromEntries(usageTiles(u).map((t) => [t.key, t]))
 
 test('no usage renders every tile as a dash', () => {
-  assert.deepEqual(usageTiles(null).map((t) => t.value), ['—', '—', '—', '—', '—', '—'])
+  assert.deepEqual(
+    usageTiles(null).map((t) => t.value),
+    ['—', '—', '—', '—', '—', '—'],
+  )
 })
 
 test('cache write sums 5m and 1h; tokens are compact', () => {

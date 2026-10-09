@@ -12,8 +12,10 @@ export function TurnBars({ series, agent, by = 'turn' }: { series: SessionSeries
   const data = useMemo((): uPlot.AlignedData => [cols[0].map((_, i) => i), ...cols.slice(1)], [cols])
   const label = (v: number) => String(turns.current[v] ?? '')
   const opts = (css: Css): Omit<uPlot.Options, 'width' | 'height'> => ({
-    series: [{ label: by === 'call' ? 'Call' : 'Turn', value: (_u, v) => (v === null ? '—' : label(v)) },
-      ...stackedSeries(css, uPlot.paths.bars!({ size: [0.8, 40], align: 0 }))],
+    series: [
+      { label: by === 'call' ? 'Call' : 'Turn', value: (_u, v) => (v === null ? '—' : label(v)) },
+      ...stackedSeries(css, uPlot.paths.bars!({ size: [0.8, 40], align: 0 })),
+    ],
     bands,
     scales: { x: { time: false, range: (_u, min, max) => [min - 0.5, max + 0.5] } },
     axes: [xAxis(css, { space: 30, values: (_u, splits) => splits.map((v) => (Number.isInteger(v) ? label(v) : '')) }), yAxis(css)],

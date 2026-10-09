@@ -10,7 +10,9 @@ export function useStoredJson<T>(key: string, valid: (v: unknown) => v is T, fal
       return fallback
     }
   })
-  useEffect(() => { localStorage.setItem(key, JSON.stringify(v)) }, [key, v])
+  useEffect(() => {
+    localStorage.setItem(key, JSON.stringify(v))
+  }, [key, v])
   // Another tab's write is adopted rather than overwritten by this tab's next one. Fires only in
   // the other tabs, and the write-back above stores the same string, so the tabs do not ping-pong.
   useEffect(() => {
@@ -19,7 +21,9 @@ export function useStoredJson<T>(key: string, valid: (v: unknown) => v is T, fal
       try {
         const parsed: unknown = JSON.parse(e.newValue)
         if (valid(parsed)) setV(parsed)
-      } catch { /* a foreign value keeps ours */ }
+      } catch {
+        /* a foreign value keeps ours */
+      }
     }
     addEventListener('storage', on)
     return () => removeEventListener('storage', on)

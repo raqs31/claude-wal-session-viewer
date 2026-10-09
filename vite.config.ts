@@ -10,6 +10,15 @@ export default defineConfig({
   build: { outDir: 'dist', emptyOutDir: true },
   server: {
     fs: { allow: ['..'] },
-    proxy: { '/events': api, '/events-stream': api, '/record': api, '/sessions': api, '/session': api, '/session-stream': api, '/usage': api, '/usage-stream': api },
+    proxy: {
+      '/events': api,
+      '/events-stream': api,
+      '/record': api,
+      '/sessions': api,
+      '/session': api,
+      '/session-stream': api,
+      '/usage': api,
+      '/usage-stream': api,
+    },
   },
 })

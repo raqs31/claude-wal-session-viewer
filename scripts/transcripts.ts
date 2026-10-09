@@ -69,10 +69,14 @@ const TAG_RE = /<\/?(?:command-name|command-message|command-args|local-command-c
 const WRAP_RE = /^<(?:command-|local-command-)/
 
 const clip = (s: unknown): string => {
-  const one = String(s ?? '').slice(0, 10 * MAX).replace(TAG_RE, ' ').replace(/\s+/g, ' ').trim()
+  const one = String(s ?? '')
+    .slice(0, 10 * MAX)
+    .replace(TAG_RE, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
   if (one.length <= MAX) return one
   const cut = one.slice(0, MAX - 1)
-  return (/[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut) + '…'
+  return `${/[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut}…`
 }
 // A slash command reads as `/name args`, not as its clipped wrapper with the command message.
 const titleOf = (c: string): string => {
@@ -80,8 +84,7 @@ const titleOf = (c: string): string => {
   const tag = (t: string): string => new RegExp(`<${t}>([\\s\\S]*?)</${t}>`).exec(c)?.[1] ?? ''
   return clip(`${tag('command-name')} ${tag('command-args')}`)
 }
-const firstString = (v: unknown): string =>
-  v && typeof v === 'object' ? String(Object.values(v).find((x) => typeof x === 'string') ?? '') : ''
+const firstString = (v: unknown): string => (v && typeof v === 'object' ? String(Object.values(v).find((x) => typeof x === 'string') ?? '') : '')
 
 const usageOf = (u: E): Usage => ({
   input: u.input_tokens ?? 0,
@@ -200,7 +203,10 @@ export const createParser = (agent: string, turn = 0, keepItems = true) => {
       add(e, t, src, kind, c)
     } else if (Array.isArray(c)) {
       for (const b of c) if (b.type === 'tool_result') result(b, e, src)
-      const text = c.filter((b: E) => b.type === 'text').map((b: E) => b.text).join(' ')
+      const text = c
+        .filter((b: E) => b.type === 'text')
+        .map((b: E) => b.text)
+        .join(' ')
       if (text) add(e, t, src, 'meta', text)
     }
   }
@@ -217,7 +223,11 @@ export const createParser = (agent: string, turn = 0, keepItems = true) => {
 
   const line = (text: string, src: Span): void => {
     let e: E
-    try { e = JSON.parse(text) } catch { return }
+    try {
+      e = JSON.parse(text)
+    } catch {
+      return
+    }
     if (!e || typeof e !== 'object') return
     const t = Date.parse(e.timestamp)
     if (!Number.isNaN(t) && (meta.first === null || t < meta.first)) meta.first = t
@@ -233,7 +243,12 @@ export const createParser = (agent: string, turn = 0, keepItems = true) => {
   }
 
   return {
-    items, usage, meta, turnStarts, tools, touched,
+    items,
+    usage,
+    meta,
+    turnStarts,
+    tools,
+    touched,
     /** Consumes complete lines only; decoding per whole line keeps a split multibyte char intact. */
     push(chunk: Buffer): void {
       const buf = pending.length ? Buffer.concat([pending, chunk]) : chunk
@@ -253,12 +268,10 @@ export type Parser = ReturnType<typeof createParser>
 const KEYS = ['input', 'output', 'cacheRead', 'cacheWrite5m', 'cacheWrite1h', 'thinking'] as const
 const ADDITIVE: AdditiveKey[] = ['input', 'output', 'cacheRead', 'cacheWrite5m', 'cacheWrite1h']
 
-const costOf = (u: Usage, p: Price | undefined): number | null => p
-  ? (u.input * p.input + u.output * p.output + u.cacheRead * p.cacheRead + u.cacheWrite5m * p.cacheWrite5m + u.cacheWrite1h * p.cacheWrite1h) / 1e6
-  : null
+const costOf = (u: Usage, p: Price | undefined): number | null =>
+  p ? (u.input * p.input + u.output * p.output + u.cacheRead * p.cacheRead + u.cacheWrite5m * p.cacheWrite5m + u.cacheWrite1h * p.cacheWrite1h) / 1e6 : null
 
-const inScope = (agent: string, scope: Scope): boolean =>
-  scope === 'all' || (scope === 'main' ? agent === 'main' : agent === scope.slice('agent:'.length))
+const inScope = (agent: string, scope: Scope): boolean => scope === 'all' || (scope === 'main' ? agent === 'main' : agent === scope.slice('agent:'.length))
 
 const row = (): StatRow => ({ input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, thinking: 0, requests: 0, cost: 0 })
 const addTo = (r: StatRow, u: UsageRecord, cost: number | null): void => {

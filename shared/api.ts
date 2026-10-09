@@ -6,12 +6,23 @@ export type McpRole = 'request' | 'response'
 
 // Also read by the page, to colour each event chip by its category.
 const OF: Record<string, Category> = {
-  PreToolUse: 'tool', PostToolUse: 'tool', PostToolBatch: 'tool',
-  UserPromptSubmit: 'turn', UserPromptExpansion: 'turn', Stop: 'turn',
-  PreCompact: 'turn', PostCompact: 'turn', MessageDisplay: 'turn',
-  SubagentStart: 'subagent', SubagentStop: 'subagent',
-  PermissionRequest: 'attn', 'MCP call': 'mcp',
-  PermissionDenied: 'fail', PostToolUseFailure: 'fail', StopFailure: 'fail', Unparseable: 'fail',
+  PreToolUse: 'tool',
+  PostToolUse: 'tool',
+  PostToolBatch: 'tool',
+  UserPromptSubmit: 'turn',
+  UserPromptExpansion: 'turn',
+  Stop: 'turn',
+  PreCompact: 'turn',
+  PostCompact: 'turn',
+  MessageDisplay: 'turn',
+  SubagentStart: 'subagent',
+  SubagentStop: 'subagent',
+  PermissionRequest: 'attn',
+  'MCP call': 'mcp',
+  PermissionDenied: 'fail',
+  PostToolUseFailure: 'fail',
+  StopFailure: 'fail',
+  Unparseable: 'fail',
 }
 export const catOf = (ev: string | undefined): Category => (ev !== undefined && OF[ev]) || 'session'
 

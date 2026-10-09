@@ -1,7 +1,11 @@
 import type { SessionView } from '../../../shared/api.ts'
 import { fmtDuration, fmtTokens, fmtUsd } from './tokens.ts'
 
-export interface Detail { k: string; v: string; title?: string }
+export interface Detail {
+  k: string
+  v: string
+  title?: string
+}
 
 const n = (v: number) => v.toLocaleString('en-US')
 
@@ -18,8 +22,7 @@ export function agentDetail(view: SessionView, id: string): Detail[] {
   const a = view.agents.find((x) => x.id === id)
   const r = view.stats.agents[id]
   const s = view.agentStats[id]
-  const tok = (k: Detail['k'], v: number | undefined): Detail =>
-    ({ k, v: v === undefined ? '—' : fmtTokens(v), title: v === undefined ? undefined : n(v) })
+  const tok = (k: Detail['k'], v: number | undefined): Detail => ({ k, v: v === undefined ? '—' : fmtTokens(v), title: v === undefined ? undefined : n(v) })
   return [
     { k: 'Type', v: id === 'main' ? 'main' : a?.type || '—' },
     { k: 'Model', v: id === 'main' ? mainModel(view) : a?.model || '—' },

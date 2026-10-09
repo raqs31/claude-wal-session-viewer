@@ -29,18 +29,7 @@ const MAX_LINE = Number(process.env.CLAUDE_WAL_MAX_LINE || 96_000)
 // Promoted to the top level of the record so the viewer can filter without walking `payload`.
 // `tool_use_id` and `prompt_id` are what let a WAL line be joined back to the transcript;
 // without them an event is an orphan observation.
-const PROMOTED = [
-  'hook_event_name',
-  'session_id',
-  'prompt_id',
-  'cwd',
-  'tool_name',
-  'tool_use_id',
-  'duration_ms',
-  'permission_mode',
-  'agent_id',
-  'agent_type',
-]
+const PROMOTED = ['hook_event_name', 'session_id', 'prompt_id', 'cwd', 'tool_name', 'tool_use_id', 'duration_ms', 'permission_mode', 'agent_id', 'agent_type']
 
 /** @returns {Promise<string>} */
 const readStdin = async () => {
@@ -58,9 +47,7 @@ const readStdin = async () => {
  */
 const clamp = (value, depth = 0) => {
   if (typeof value === 'string') {
-    return value.length > MAX_STRING
-      ? `${value.slice(0, MAX_STRING)}…[+${value.length - MAX_STRING} chars]`
-      : value
+    return value.length > MAX_STRING ? `${value.slice(0, MAX_STRING)}…[+${value.length - MAX_STRING} chars]` : value
   }
   if (value === null || typeof value !== 'object') return value
   if (depth >= 6) return '…[depth limit]'
@@ -69,9 +56,7 @@ const clamp = (value, depth = 0) => {
     if (value.length > MAX_ARRAY) head.push(`…[+${value.length - MAX_ARRAY} items]`)
     return head
   }
-  return Object.fromEntries(
-    Object.entries(value).map(([key, item]) => [key, clamp(item, depth + 1)]),
-  )
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, clamp(item, depth + 1)]))
 }
 
 /** @param {Record<string, unknown> | null} parsed */
@@ -119,9 +104,7 @@ const main = async () => {
     // rather than naming fields is deliberate: the documented name for the PostToolUse result
     // differs between sources (`tool_result` vs `tool_response`), and an allowlist would silently
     // drop whichever one this build actually sends.
-    const rest = Object.fromEntries(
-      Object.entries(parsed).filter(([key]) => !PROMOTED.includes(key)),
-    )
+    const rest = Object.fromEntries(Object.entries(parsed).filter(([key]) => !PROMOTED.includes(key)))
     if (Object.keys(rest).length > 0) record.payload = clamp(rest)
   } else {
     record.event = 'Unparseable'

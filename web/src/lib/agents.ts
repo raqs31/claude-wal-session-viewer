@@ -40,13 +40,25 @@ export const buildTree = (facet: readonly SessionAgents[], title: (sess: string)
   facet.length === 1
     ? [agentNode(facet[0]!.sess, facet[0]!.main)]
     : facet.map(({ sess, main }) => {
-      const name = title(sess) || 'untitled'
-      const tag = '· ' + sess.slice(0, 8)
-      return { key: `${sess}:*`, label: `${name} ${tag}`, name, tag, kind: 'session' as const, self: null, sub: `${sess}:*`, children: [agentNode(sess, main)] }
-    })
+        const name = title(sess) || 'untitled'
+        const tag = `· ${sess.slice(0, 8)}`
+        return {
+          key: `${sess}:*`,
+          label: `${name} ${tag}`,
+          name,
+          tag,
+          kind: 'session' as const,
+          self: null,
+          sub: `${sess}:*`,
+          children: [agentNode(sess, main)],
+        }
+      })
 
 const walk = function* (nodes: readonly PickNode[]): Generator<PickNode> {
-  for (const n of nodes) { yield n; yield* walk(n.children) }
+  for (const n of nodes) {
+    yield n
+    yield* walk(n.children)
+  }
 }
 
 /** Every node's tick state; a node covered by its own or an ancestor's subtree token is on. */
@@ -96,7 +108,11 @@ export const toggle = (tree: readonly PickNode[], sel: ReadonlySet<string>, key:
   if (!node) return new Set(sel)
   const on = ticked(tree, sel)
   const turnOn = checks(tree, sel).get(key) !== 'on'
-  for (const n of walk([node])) if (n.self !== null) { if (turnOn) on.add(n.self); else on.delete(n.self) }
+  for (const n of walk([node]))
+    if (n.self !== null) {
+      if (turnOn) on.add(n.self)
+      else on.delete(n.self)
+    }
   return compress(tree, on)
 }
 

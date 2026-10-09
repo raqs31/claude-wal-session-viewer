@@ -46,7 +46,7 @@ test('collapsed summaries use singular forms', () => {
 })
 
 test('a 1 MB string renders and copies quickly', () => {
-  const big = { tool_response: 'x'.repeat(1_000_000) + '\n' + 'y'.repeat(1000) }
+  const big = { tool_response: `${'x'.repeat(1_000_000)}\n${'y'.repeat(1000)}` }
   const t0 = performance.now()
   viewNodes(big, true)
   copyText(big, 'yaml')

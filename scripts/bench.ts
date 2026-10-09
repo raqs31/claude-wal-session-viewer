@@ -53,10 +53,10 @@ for (const [n, id] of ids.entries()) {
       // 'ż' is two bytes: start it on the last byte before the boundary so it is split across reads.
       const probe = record(i, 'MARK')
       const prefix = Buffer.byteLength(probe.slice(0, probe.indexOf('MARK')))
-      text = 'x'.repeat(CHUNK - 1 - offset - prefix) + 'żboundary'
+      text = `${'x'.repeat(CHUNK - 1 - offset - prefix)}żboundary`
       boundarySeq = i
     }
-    const buf = Buffer.from(record(i, text) + '\n')
+    const buf = Buffer.from(`${record(i, text)}\n`)
     writeSync(fd, buf)
     offset += buf.length
     lines++
@@ -68,7 +68,7 @@ for (const [n, id] of ids.entries()) {
 
 let fail = 0
 const check = (label: string, ok: boolean, detail = ''): void => {
-  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${label}${ok ? '' : ' — ' + detail}`)
+  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${label}${ok ? '' : ` — ${detail}`}`)
   if (!ok) fail = 1
 }
 const timed = async (path: string): Promise<{ ms: number; body: FirstPage }> => {
@@ -91,12 +91,18 @@ try {
   check('total equals generated lines', first.body.total === totalLines, `total ${first.body.total}`)
   check('first page ≤ 300 ms', first.ms <= 300)
 
-  const rec = (await (await fetch(`${BASE}/record?id=${ids[BOUNDARY_SESSION]}&gen=${first.body.gens[ids[BOUNDARY_SESSION]!]}&seq=${boundarySeq}`)).json()) as { payload?: { text?: string } }
+  const rec = (await (await fetch(`${BASE}/record?id=${ids[BOUNDARY_SESSION]}&gen=${first.body.gens[ids[BOUNDARY_SESSION]!]}&seq=${boundarySeq}`)).json()) as {
+    payload?: { text?: string }
+  }
   check('record across 8 MB boundary intact', rec.payload?.text?.endsWith('żboundary') ?? false, JSON.stringify(rec).slice(-40))
 
   const q = await timed(`${idsQ}&q=haystackrare`)
   console.log(`q (rare) query  ${q.ms} ms`)
-  check('q hits exactly the seeded record', q.body.total === 1 && q.body.rows[0]?.seq === RARE_LINE && q.body.rows[0]?.sess === ids[RARE_SESSION], `total ${q.body.total}`)
+  check(
+    'q hits exactly the seeded record',
+    q.body.total === 1 && q.body.rows[0]?.seq === RARE_LINE && q.body.rows[0]?.sess === ids[RARE_SESSION],
+    `total ${q.body.total}`,
+  )
   check('q query ≤ 3 s', q.ms <= 3000)
 
   const deep = await timed(`${idsQ}&q=needle&limit=200`)

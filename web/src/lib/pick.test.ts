@@ -4,8 +4,19 @@ import type { SessionMeta } from '../../../shared/api.ts'
 import { newest, prune, settlePick, toggle } from './pick.ts'
 
 const row = (id: string, last: number): SessionMeta => ({
-  id, project: { slug: 'p', cwd: null }, worktree: null, source: 'default', workspaces: ['default'], title: id, prompt: null,
-  started: null, last, live: false, walSize: 0, walLines: 0, transcriptSize: 0,
+  id,
+  project: { slug: 'p', cwd: null },
+  worktree: null,
+  source: 'default',
+  workspaces: ['default'],
+  title: id,
+  prompt: null,
+  started: null,
+  last,
+  live: false,
+  walSize: 0,
+  walLines: 0,
+  transcriptSize: 0,
 })
 const rows = [row('a', 10), row('b', 30), row('c', 20)]
 

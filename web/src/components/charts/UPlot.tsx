@@ -28,17 +28,24 @@ export const stackedSeries = (css: Css, paths?: uPlot.Series.PathBuilder): uPlot
     paths,
     points: { show: false },
     value: (u: uPlot, _v: number | null, si: number, di: number | null) =>
-      di === null ? '—' : fmtTokens((u.data[si]?.[di] ?? 0) - (si > 1 ? u.data[si - 1]?.[di] ?? 0 : 0)),
+      di === null ? '—' : fmtTokens((u.data[si]?.[di] ?? 0) - (si > 1 ? (u.data[si - 1]?.[di] ?? 0) : 0)),
   }))
 
 export const bands: uPlot.Band[] = LAYERS.slice(1).map((_, i) => ({ series: [i + 2, i + 1] }))
 
 export const yAxis = (css: Css): uPlot.Axis => ({
-  stroke: css('--text-secondary'), grid: { stroke: css('--grid'), width: 1 }, ticks: { show: false },
-  values: (_u, splits) => splits.map(fmtTokens), size: 44,
+  stroke: css('--text-secondary'),
+  grid: { stroke: css('--grid'), width: 1 },
+  ticks: { show: false },
+  values: (_u, splits) => splits.map(fmtTokens),
+  size: 44,
 })
-export const xAxis = (css: Css, a: uPlot.Axis = {}): uPlot.Axis =>
-  ({ stroke: css('--text-secondary'), grid: { show: false }, ticks: { stroke: css('--grid') }, ...a })
+export const xAxis = (css: Css, a: uPlot.Axis = {}): uPlot.Axis => ({
+  stroke: css('--text-secondary'),
+  grid: { show: false },
+  ticks: { stroke: css('--grid') },
+  ...a,
+})
 
 // Canvas ignores CSS variables, so a theme change means reading the colours again.
 function useTheme(): number {
@@ -49,7 +56,10 @@ function useTheme(): number {
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
     const mq = matchMedia('(prefers-color-scheme: dark)')
     mq.addEventListener('change', bump)
-    return () => { mo.disconnect(); mq.removeEventListener('change', bump) }
+    return () => {
+      mo.disconnect()
+      mq.removeEventListener('change', bump)
+    }
   }, [])
   return n
 }
@@ -78,9 +88,20 @@ export function UPlot({ title, opts, data }: { title: string; opts: (css: Css) =
     sync()
     const ro = new ResizeObserver(sync)
     ro.observe(box)
-    return () => { ro.disconnect(); u?.destroy(); chart.current = null }
+    return () => {
+      ro.disconnect()
+      u?.destroy()
+      chart.current = null
+    }
   }, [theme])
-  useEffect(() => { chart.current?.setData(data) }, [data])
+  useEffect(() => {
+    chart.current?.setData(data)
+  }, [data])
 
-  return <div className="chart-s"><h2>{title}</h2><div ref={el} className="chart" /></div>
+  return (
+    <div className="chart-s">
+      <h2>{title}</h2>
+      <div ref={el} className="chart" />
+    </div>
+  )
 }

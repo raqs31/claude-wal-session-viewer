@@ -23,5 +23,4 @@ export const settlePick = (pick: readonly string[] | null, sessions: readonly Se
 
 export const samePick = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((x, i) => x === b[i])
 
-export const toggle = (pick: readonly string[], id: string): string[] =>
-  pick.includes(id) ? pick.filter((x) => x !== id) : [...pick, id]
+export const toggle = (pick: readonly string[], id: string): string[] => (pick.includes(id) ? pick.filter((x) => x !== id) : [...pick, id])

@@ -28,9 +28,10 @@ export function EventTable({ rows, pending, view, follow, ready, next, pages, ch
   const io = useRef<IntersectionObserver>(null)
   const tail = view === 'tail'
 
-  const atEdge = () => tail
-    ? innerHeight + scrollY >= document.documentElement.scrollHeight - 40
-    : tbody.current!.getBoundingClientRect().top > thead.current!.getBoundingClientRect().bottom - 40
+  const atEdge = () =>
+    tail
+      ? innerHeight + scrollY >= document.documentElement.scrollHeight - 40
+      : tbody.current!.getBoundingClientRect().top > thead.current!.getBoundingClientRect().bottom - 40
   const toEdge = () => scrollTo(0, tail ? document.documentElement.scrollHeight : 0)
   const latest = useRef({ follow, pending, atEdge })
   latest.current = { follow, pending, atEdge }
@@ -42,27 +43,41 @@ export function EventTable({ rows, pending, view, follow, ready, next, pages, ch
     else if (change.kind !== 'live' || tail) toEdge()
   }, [change])
   // Live rows land in `pending`; they are shown at once only when following at the edge.
-  useLayoutEffect(() => { if (follow && pending.length && atEdge()) flush('live') }, [pending])
-  useEffect(() => { if (follow && pending.length && atEdge()) flush('flush') }, [follow])
+  useLayoutEffect(() => {
+    if (follow && pending.length && atEdge()) flush('live')
+  }, [pending])
+  useEffect(() => {
+    if (follow && pending.length && atEdge()) flush('flush')
+  }, [follow])
   useEffect(() => {
     const onScroll = () => {
       const l = latest.current
-      if (l.follow && l.pending.length && l.atEdge()) { l.pending = []; flush('flush') }
+      if (l.follow && l.pending.length && l.atEdge()) {
+        l.pending = []
+        flush('flush')
+      }
     }
     addEventListener('scroll', onScroll, { passive: true })
     return () => removeEventListener('scroll', onScroll)
   }, [flush])
 
   useEffect(() => {
-    const o = io.current = new IntersectionObserver((es) => { if (es[0]?.isIntersecting) void loadOlder() }, { rootMargin: '300px' })
+    const o = (io.current = new IntersectionObserver(
+      (es) => {
+        if (es[0]?.isIntersecting) void loadOlder()
+      },
+      { rootMargin: '300px' },
+    ))
     return () => o.disconnect()
   }, [loadOlder])
   // Re-observing reports the current intersection again, so a sentinel still on screen after a
   // short page keeps loading.
   useEffect(() => {
-    const o = io.current, s = sentinel.current
+    const o = io.current,
+      s = sentinel.current
     if (!o || !s) return
-    o.disconnect(); o.observe(s)
+    o.disconnect()
+    o.observe(s)
   }, [pages, view])
 
   const sentinelEl = <div id="sentinel" ref={sentinel} hidden={next === null} />
@@ -70,21 +85,27 @@ export function EventTable({ rows, pending, view, follow, ready, next, pages, ch
     <>
       {tail && sentinelEl}
       <table id="table">
-        <thead ref={thead}><tr>
-          <th style={{ width: '110px' }}>Date</th>
-          <th style={{ width: '120px' }}>Time</th>
-          <th style={{ width: '230px' }}>Event</th>
-          <th style={{ width: '150px' }}>Tool</th>
-          <th style={{ width: '90px' }}>Duration</th>
-          <th>Session</th>
-        </tr></thead>
+        <thead ref={thead}>
+          <tr>
+            <th style={{ width: '110px' }}>Date</th>
+            <th style={{ width: '120px' }}>Time</th>
+            <th style={{ width: '230px' }}>Event</th>
+            <th style={{ width: '150px' }}>Tool</th>
+            <th style={{ width: '90px' }}>Duration</th>
+            <th>Session</th>
+          </tr>
+        </thead>
         <tbody id="rows" ref={tbody}>
-          {rows.map((r) => <EventRow key={`${qid}:${r.sess}:${r.seq}`} r={r} gens={gens} format={format} requery={requery} />)}
+          {rows.map((r) => (
+            <EventRow key={`${qid}:${r.sess}:${r.seq}`} r={r} gens={gens} format={format} requery={requery} />
+          ))}
         </tbody>
       </table>
       {!tail && sentinelEl}
-      <div className="empty" id="empty" hidden={!ready || rows.length + pending.length > 0}>No events match this filter.</div>
-      <button className={'pill ' + view} id="pill" type="button" hidden={pending.length === 0} onClick={() => flush('flush')}>
+      <div className="empty" id="empty" hidden={!ready || rows.length + pending.length > 0}>
+        No events match this filter.
+      </div>
+      <button className={`pill ${view}`} id="pill" type="button" hidden={pending.length === 0} onClick={() => flush('flush')}>
         {`${tail ? '↓' : '↑'} ${pending.length} new`}
       </button>
     </>

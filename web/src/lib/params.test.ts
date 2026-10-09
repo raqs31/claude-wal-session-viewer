@@ -9,25 +9,40 @@ test('nothing selected sends only the pick', () => {
 })
 
 test('selected chips become include lists; text fields are trimmed; nodur only when on', () => {
-  const p = buildParams({
-    ...EMPTY_FILTERS,
-    q: '  needle ',
-    min_ms: '10',
-    cat: new Set(['fail'] as const),
-    tool: new Set(['Bash', '-']),
-    event: new Set(['SubagentStart', 'SubagentStop']),
-    agent: new Set(['s1:main', 's1:a1*']),
-    nodur: true,
-  }, ['s1'])
+  const p = buildParams(
+    {
+      ...EMPTY_FILTERS,
+      q: '  needle ',
+      min_ms: '10',
+      cat: new Set(['fail'] as const),
+      tool: new Set(['Bash', '-']),
+      event: new Set(['SubagentStart', 'SubagentStop']),
+      agent: new Set(['s1:main', 's1:a1*']),
+      nodur: true,
+    },
+    ['s1'],
+  )
   assert.equal(p.toString(), 'ids=s1&q=needle&min_ms=10&cat=fail&tool=Bash%2C-&event=SubagentStart%2CSubagentStop&agent=s1%3Amain%2Cs1%3Aa1*&nodur=include')
   assert.equal(p.has('session'), false)
 })
 
 test('summary lists only active filters, in bar order', () => {
   assert.deepEqual(filterSummary(EMPTY_FILTERS, []), [])
-  assert.deepEqual(filterSummary({
-    ...EMPTY_FILTERS, q: ' foo ', cat: new Set(['fail', 'tool'] as const), agent: new Set(['s1:main']), date_from: '2026-10-01', min_ms: '10', nodur: true,
-  }, buildTree([{ sess: 's1', main: { id: 'main', type: null, summaries: 0, children: [] } }])), ['cat: 2', 'agent: main', 'q: foo', 'date: 2026-10-01–', 'ms: 10– +none'])
+  assert.deepEqual(
+    filterSummary(
+      {
+        ...EMPTY_FILTERS,
+        q: ' foo ',
+        cat: new Set(['fail', 'tool'] as const),
+        agent: new Set(['s1:main']),
+        date_from: '2026-10-01',
+        min_ms: '10',
+        nodur: true,
+      },
+      buildTree([{ sess: 's1', main: { id: 'main', type: null, summaries: 0, children: [] } }]),
+    ),
+    ['cat: 2', 'agent: main', 'q: foo', 'date: 2026-10-01–', 'ms: 10– +none'],
+  )
 })
 
 const tree = buildTree([{ sess: 's1', main: { id: 'main', type: null, summaries: 0, children: [] } }])
@@ -40,7 +55,15 @@ test('prune keeps the same object when nothing drops', () => {
 })
 
 test('prune drops values the facets lack, keeping untouched sets', () => {
-  const f = { ...EMPTY_FILTERS, q: 'x', nodur: true, cat: new Set(['tool', 'fail'] as const), tool: new Set(['Bash', 'Read']), event: new Set(['PreToolUse', 'Stop']), agent: new Set(['s1:*', 's2:*']) }
+  const f = {
+    ...EMPTY_FILTERS,
+    q: 'x',
+    nodur: true,
+    cat: new Set(['tool', 'fail'] as const),
+    tool: new Set(['Bash', 'Read']),
+    event: new Set(['PreToolUse', 'Stop']),
+    agent: new Set(['s1:*', 's2:*']),
+  }
   const g = pruneFilters(f, facets)
   assert.deepEqual([...g.cat], ['tool'])
   assert.deepEqual([...g.tool], ['Bash'])

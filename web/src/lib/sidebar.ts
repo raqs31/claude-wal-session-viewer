@@ -17,8 +17,7 @@ export interface ProjectGroup {
   rows: SessionMeta[]
 }
 
-export const chipValues = (rows: readonly SessionMeta[]): string[] =>
-  [...new Set(rows.flatMap((r) => [r.source, ...r.workspaces]))].sort()
+export const chipValues = (rows: readonly SessionMeta[]): string[] => [...new Set(rows.flatMap((r) => [r.source, ...r.workspaces]))].sort()
 
 export const filterRows = (rows: readonly SessionMeta[], f: SidebarFilter): SessionMeta[] => {
   const words = f.text.toLowerCase().split(/\s+/).filter(Boolean)
@@ -38,7 +37,7 @@ export const groupByProject = (rows: readonly SessionMeta[], lastOf: (r: Session
   const groups = new Map<string, ProjectGroup>()
   for (const r of rows) {
     let g = groups.get(r.project.slug)
-    if (!g) groups.set(r.project.slug, g = { slug: r.project.slug, cwd: null, last: lastOf(r), rows: [] })
+    if (!g) groups.set(r.project.slug, (g = { slug: r.project.slug, cwd: null, last: lastOf(r), rows: [] }))
     g.rows.push(r)
     g.last = Math.max(g.last, lastOf(r))
   }

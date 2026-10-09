@@ -72,7 +72,22 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
   let pending = new Map<string, number>()
   const pos: { ino: number; offset: number; carry: Buffer } = { ino: 0, offset: 0, carry: Buffer.alloc(0) }
 
-  const ix: WalIndex = { id, path, gen: ++genSeed, entries: [], order: [], tools: new Set(), events: new Set(), cats: new Set(), agents: new Map(), parents: new Map(), about: new Map(), links: 0, tail, reader }
+  const ix: WalIndex = {
+    id,
+    path,
+    gen: ++genSeed,
+    entries: [],
+    order: [],
+    tools: new Set(),
+    events: new Set(),
+    cats: new Set(),
+    agents: new Map(),
+    parents: new Map(),
+    about: new Map(),
+    links: 0,
+    tail,
+    reader,
+  }
 
   const push = (e: IndexEntry): void => {
     const seq = ix.entries.length
@@ -287,8 +302,7 @@ export const createIndexes = (discovery: Pick<Discovery, 'locate'>, busy: (id: s
 // ---- queries over a pick ----
 
 // For cat, tool, event and agent, present-but-empty is a real filter (every chip off), not unset.
-const list = (p: URLSearchParams, name: string): Set<string> | null =>
-  p.has(name) ? new Set(p.get(name)!.split(',').filter(Boolean)) : null
+const list = (p: URLSearchParams, name: string): Set<string> | null => (p.has(name) ? new Set(p.get(name)!.split(',').filter(Boolean)) : null)
 const dayOf = (s: string | null): number | null => (s !== null && /^\d{4}-\d{2}-\d{2}$/.test(s) ? Number(s.replaceAll('-', '')) : null)
 const minuteOf = (s: string | null): number | null => {
   const m = /^(\d{1,2}):(\d{2})$/.exec(s ?? '')
@@ -318,7 +332,10 @@ export const parentOf = (ix: Tree, a: string): string | null => {
 
 // An agent and its tree ancestors as a linked chain shared between siblings, so a row walks its
 // lineage in O(depth) without re-checking spawn cycles at each step.
-interface Lineage { id: string; up: Lineage | null }
+interface Lineage {
+  id: string
+  up: Lineage | null
+}
 const lineages = new WeakMap<Tree, { links: number; of: Map<string, Lineage> }>()
 export const lineageOf = (ix: Tree, a: string): Lineage => {
   let c = lineages.get(ix)
@@ -434,12 +451,10 @@ export const summary = (ix: WalIndex, seq: number): Row => {
 }
 
 /** Total order of rows across sessions: by time, then session id, then seq. */
-export const cmp = (at: number, as: string, aq: number, bt: number, bs: string, bq: number): number =>
-  at - bt || (as < bs ? -1 : as > bs ? 1 : 0) || aq - bq
+export const cmp = (at: number, as: string, aq: number, bt: number, bs: string, bq: number): number => at - bt || (as < bs ? -1 : as > bs ? 1 : 0) || aq - bq
 
 /** `<sess>:<n>,…` — how far each index has been read; `/events` head, stream frame ids. */
-export const vector = (ixs: WalIndex[], at: (ix: WalIndex) => number = (ix) => ix.entries.length): string =>
-  ixs.map((ix) => `${ix.id}:${at(ix)}`).join(',')
+export const vector = (ixs: WalIndex[], at: (ix: WalIndex) => number = (ix) => ix.entries.length): string => ixs.map((ix) => `${ix.id}:${at(ix)}`).join(',')
 
 export const parseVector = (s: string | null | undefined): Map<string, number> | null => {
   if (s == null) return null
@@ -485,7 +500,10 @@ export const query = (ixs: WalIndex[], p: URLSearchParams, unknown: string[] = [
       let best = -1
       for (let i = 0; i < ixs.length; i++) {
         if (at[i]! < 0) continue
-        if (best === -1) { best = i; continue }
+        if (best === -1) {
+          best = i
+          continue
+        }
         const a = ixs[i]!
         const b = ixs[best]!
         const sa = a.order[at[i]!]!
@@ -525,7 +543,17 @@ export const query = (ixs: WalIndex[], p: URLSearchParams, unknown: string[] = [
     for (const ix of ixs) for (const ev of ix.events) events.add(ev)
     const live = ixs.filter((ix) => ix.entries.length > 0)
     const agents = live.map((ix) => ({ sess: ix.id, main: agentTree(ix) }))
-    return { ...page, total, counts, spans, tools: [...tools], events: [...events], cats: CATEGORIES.filter((c) => ixs.some((ix) => ix.cats.has(c))), agents, sessions: live.map((ix) => ix.id) }
+    return {
+      ...page,
+      total,
+      counts,
+      spans,
+      tools: [...tools],
+      events: [...events],
+      cats: CATEGORIES.filter((c) => ixs.some((ix) => ix.cats.has(c))),
+      agents,
+      sessions: live.map((ix) => ix.id),
+    }
   } finally {
     for (const r of readers) r.close()
   }

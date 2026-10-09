@@ -4,7 +4,10 @@ const isBlock = (b: unknown): b is { type: string; text?: unknown } =>
 export function normalize(v: unknown): unknown {
   if (typeof v === 'string') {
     const t = v.trim()
-    if (t[0] === '{' || t[0] === '[') try { return normalize(JSON.parse(t)) } catch {}
+    if (t[0] === '{' || t[0] === '[')
+      try {
+        return normalize(JSON.parse(t))
+      } catch {}
     return v
   }
   if (Array.isArray(v)) {

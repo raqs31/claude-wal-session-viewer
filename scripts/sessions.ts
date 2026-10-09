@@ -69,7 +69,11 @@ export const createStore = (discovery: Pick<Discovery, 'locate'>, busy: (id: str
       const id = /^agent-(.+)\.meta\.json$/.exec(name)?.[1]
       if (!id || !AGENT_RE.test(id) || s.agents.has(id) || !existsSync(join(sub, `agent-${id}.jsonl`))) continue
       let m: Record<string, any>
-      try { m = JSON.parse(readFileSync(join(sub, name), 'utf8')) } catch { continue }
+      try {
+        m = JSON.parse(readFileSync(join(sub, name), 'utf8'))
+      } catch {
+        continue
+      }
       // Nested agents are spawned from another subagent's transcript, not main's. A spawn not
       // flushed yet belongs to the turn in progress.
       const spawn = s.main.parser.tools.get(m.toolUseId) ?? [...s.agents.values()].map((a) => a.parser.tools.get(m.toolUseId)).find(Boolean)
@@ -107,7 +111,14 @@ export const createStore = (discovery: Pick<Discovery, 'locate'>, busy: (id: str
         open.delete(id)
         return null
       }
-      s = { id, gen: ++gen, version: ++clock, dir, main: { path: join(dir, `${id}.jsonl`), parser: createParser('main', 0, false), read: 0 }, agents: new Map() }
+      s = {
+        id,
+        gen: ++gen,
+        version: ++clock,
+        dir,
+        main: { path: join(dir, `${id}.jsonl`), parser: createParser('main', 0, false), read: 0 },
+        agents: new Map(),
+      }
       grow(s.main)
       discover(s)
     }

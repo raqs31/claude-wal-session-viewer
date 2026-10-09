@@ -44,7 +44,7 @@ export function App() {
   // The sticky Events head, its table header and the table pill sit below the sticky header.
   useEffect(() => {
     const h = head.current!
-    const o = new ResizeObserver(() => document.documentElement.style.setProperty('--head-h', h.offsetHeight + 'px'))
+    const o = new ResizeObserver(() => document.documentElement.style.setProperty('--head-h', `${h.offsetHeight}px`))
     o.observe(h)
     return () => o.disconnect()
   }, [])
@@ -52,28 +52,62 @@ export function App() {
 
   return (
     <div className="viz-root" data-pin={pin} data-fpin={events ? fpin : undefined}>
-      <Sidebar sessions={list.sessions} ready={list.ready} error={list.error} root={list.root} pick={pick ?? NONE} toggle={toggle} clear={clear} unseen={unseen}
-        pinned={pin === 'pinned'} onPin={() => setPin(pin === 'pinned' ? 'unpinned' : 'pinned')} tab={tab} onTab={setTab} />
+      <Sidebar
+        sessions={list.sessions}
+        ready={list.ready}
+        error={list.error}
+        root={list.root}
+        pick={pick ?? NONE}
+        toggle={toggle}
+        clear={clear}
+        unseen={unseen}
+        pinned={pin === 'pinned'}
+        onPin={() => setPin(pin === 'pinned' ? 'unpinned' : 'pinned')}
+        tab={tab}
+        onTab={setTab}
+      />
       <div className="main">
         <header ref={head}>
           <div>
             <h1>{tab === 'events' ? 'Claude Code event log' : 'Claude Code sessions'}</h1>
-            <div className="file" id="file">{tab === 'events' ? path : list.root}</div>
+            <div className="file" id="file">
+              {tab === 'events' ? path : list.root}
+            </div>
           </div>
           <span className="spacer" />
-          <button className="ghost" id="theme" type="button" onClick={toggleTheme}>Toggle theme</button>
+          <button className="ghost" id="theme" type="button" onClick={toggleTheme}>
+            Toggle theme
+          </button>
         </header>
         {/* On Events the tiles ride in the sticky head instead. */}
         {!events && <UsageTiles usage={usage.usage} live={usage.live} error={usage.error} picked={pick?.length ?? 0} />}
         <LegacyBanner count={list.legacy} />
-        {pick === null
-          ? <div className="empty">Loading sessions…</div>
-          : tab === 'events'
-          ? <EventsTab filters={filters} setFilters={setFilters} view={view} setView={setView} format={format} setFormat={setFormat}
-              follow={follow} setFollow={setFollow} onPath={setPath} ids={ids} onUnknown={forget} sessions={list.sessions}
-              usage={usage.usage} usageLive={usage.live} usageError={usage.error} picked={pick.length}
-              fpinned={fpin === 'pinned'} onFpin={() => setFpin(fpin === 'pinned' ? 'unpinned' : 'pinned')} />
-          : <SessionsTab ids={pick} sessions={list.sessions} onUnknown={forget} />}
+        {pick === null ? (
+          <div className="empty">Loading sessions…</div>
+        ) : tab === 'events' ? (
+          <EventsTab
+            filters={filters}
+            setFilters={setFilters}
+            view={view}
+            setView={setView}
+            format={format}
+            setFormat={setFormat}
+            follow={follow}
+            setFollow={setFollow}
+            onPath={setPath}
+            ids={ids}
+            onUnknown={forget}
+            sessions={list.sessions}
+            usage={usage.usage}
+            usageLive={usage.live}
+            usageError={usage.error}
+            picked={pick.length}
+            fpinned={fpin === 'pinned'}
+            onFpin={() => setFpin(fpin === 'pinned' ? 'unpinned' : 'pinned')}
+          />
+        ) : (
+          <SessionsTab ids={pick} sessions={list.sessions} onUnknown={forget} />
+        )}
       </div>
     </div>
   )

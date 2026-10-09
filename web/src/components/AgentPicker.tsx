@@ -37,11 +37,21 @@ export function AgentPicker({ tree, selected, onToggle, onClear }: Props) {
   }, [open])
   useEffect(() => {
     // The path, not `contains`: a click can re-render its own target out of the DOM before this runs.
-    const click = (e: MouseEvent) => { if (openRef.current && !e.composedPath().includes(root.current!)) setOpen(false) }
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape' && openRef.current) { setOpen(false); pill.current!.focus() } }
+    const click = (e: MouseEvent) => {
+      if (openRef.current && !e.composedPath().includes(root.current!)) setOpen(false)
+    }
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && openRef.current) {
+        setOpen(false)
+        pill.current!.focus()
+      }
+    }
     document.addEventListener('click', click)
     document.addEventListener('keydown', key)
-    return () => { document.removeEventListener('click', click); document.removeEventListener('keydown', key) }
+    return () => {
+      document.removeEventListener('click', click)
+      document.removeEventListener('keydown', key)
+    }
   }, [])
 
   const searching = q.trim() !== ''
@@ -49,13 +59,19 @@ export function AgentPicker({ tree, selected, onToggle, onClear }: Props) {
   const shown = searchTree(tree, q, selected, listed.current.keys)
   const state = checks(tree, selected)
   const isOpen = (n: PickNode, depth: number) => searching || openByDefault(n, depth) !== flipped.has(n.key)
-  const flip = (key: string) => setFlipped((f) => { const s = new Set(f); if (!s.delete(key)) s.add(key); return s })
+  const flip = (key: string) =>
+    setFlipped((f) => {
+      const s = new Set(f)
+      if (!s.delete(key)) s.add(key)
+      return s
+    })
   const visible: string[] = []
-  const collect = (ns: readonly PickNode[], depth: number): void => ns.forEach((n) => {
-    visible.push(n.key)
-    listed.current.keys.add(n.key)
-    if (n.children.length && isOpen(n, depth)) collect(n.children, depth + 1)
-  })
+  const collect = (ns: readonly PickNode[], depth: number): void =>
+    ns.forEach((n) => {
+      visible.push(n.key)
+      listed.current.keys.add(n.key)
+      if (n.children.length && isOpen(n, depth)) collect(n.children, depth + 1)
+    })
   collect(shown, 0)
   const stop = active !== null && visible.includes(active) ? active : visible[0]
   // Up/Down/Home/End move between visible rows; Space toggles natively on the focused checkbox.
@@ -83,14 +99,30 @@ export function AgentPicker({ tree, selected, onToggle, onClear }: Props) {
     return (
       <li key={n.key} role="treeitem" aria-expanded={branch ? expanded : undefined}>
         <div className="node" style={{ '--d': depth } as CSSProperties}>
-          {branch
-            ? <button className="twisty" type="button" tabIndex={-1} aria-label={`${expanded ? 'Collapse' : 'Expand'} ${n.label}`} disabled={searching}
-                onClick={() => flip(n.key)}>{expanded ? '▾' : '▸'}</button>
-            : <span className="twisty" />}
+          {branch ? (
+            <button
+              className="twisty"
+              type="button"
+              tabIndex={-1}
+              aria-label={`${expanded ? 'Collapse' : 'Expand'} ${n.label}`}
+              disabled={searching}
+              onClick={() => flip(n.key)}
+            >
+              {expanded ? '▾' : '▸'}
+            </button>
+          ) : (
+            <span className="twisty" />
+          )}
           <label className={n.kind === 'summaries' ? 't' : undefined} title={n.label}>
-            <TriBox state={state.get(n.key) ?? 'off'} tab={n.key === stop} onChange={() => onToggle(n.key)} onKeyDown={keys}
-              onFocus={() => setActive(n.key)} />
-            {n.name !== undefined ? <><span className="lt">{n.name}</span><span className="ls">{n.tag}</span></> : n.label}
+            <TriBox state={state.get(n.key) ?? 'off'} tab={n.key === stop} onChange={() => onToggle(n.key)} onKeyDown={keys} onFocus={() => setActive(n.key)} />
+            {n.name !== undefined ? (
+              <>
+                <span className="lt">{n.name}</span>
+                <span className="ls">{n.tag}</span>
+              </>
+            ) : (
+              n.label
+            )}
           </label>
         </div>
         {expanded && <ul role="group">{n.children.map((c) => row(c, depth + 1))}</ul>}
@@ -100,28 +132,55 @@ export function AgentPicker({ tree, selected, onToggle, onClear }: Props) {
 
   return (
     <span className="dd" id="agents" ref={root}>
-      <button className="chip" id="agentpill" type="button" ref={pill} aria-expanded={open} aria-haspopup="dialog" aria-controls="agentpop"
-        data-on={selected.size ? '' : undefined} style={{ '--c': 'var(--text-secondary)' } as CSSProperties} onClick={() => setOpen(!open)}>
-        <span className="dot" />{`agents: ${agentSelection(selected, tree)}`}
+      <button
+        className="chip"
+        id="agentpill"
+        type="button"
+        ref={pill}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-controls="agentpop"
+        data-on={selected.size ? '' : undefined}
+        style={{ '--c': 'var(--text-secondary)' } as CSSProperties}
+        onClick={() => setOpen(!open)}
+      >
+        <span className="dot" />
+        {`agents: ${agentSelection(selected, tree)}`}
       </button>
       <div className="pop" id="agentpop" ref={pop} role="dialog" aria-label="Filter by agent" hidden={!open}>
         {countNodes(tree) > SEARCH_FROM && (
           <input type="search" placeholder="Search agents…" aria-label="Search agents" value={q} onChange={(e) => setQ(e.target.value)} />
         )}
         <div className="acts">
-          <button className="ghost" type="button" disabled={!selected.size} onClick={onClear}>All agents</button>
+          <button className="ghost" type="button" disabled={!selected.size} onClick={onClear}>
+            All agents
+          </button>
         </div>
-        <ul className="atree" role="tree" aria-label="Agents" ref={list} onKeyDown={move}>{shown.map((n) => row(n, 0))}</ul>
+        <ul className="atree" role="tree" aria-label="Agents" ref={list} onKeyDown={move}>
+          {shown.map((n) => row(n, 0))}
+        </ul>
       </div>
     </span>
   )
 }
 
 // `indeterminate` exists only as a DOM property, so it is set after each render.
-function TriBox({ state, tab, onChange, onKeyDown, onFocus }: {
-  state: Check; tab: boolean; onChange: () => void; onKeyDown: (e: ReactKeyboardEvent) => void; onFocus: () => void
+function TriBox({
+  state,
+  tab,
+  onChange,
+  onKeyDown,
+  onFocus,
+}: {
+  state: Check
+  tab: boolean
+  onChange: () => void
+  onKeyDown: (e: ReactKeyboardEvent) => void
+  onFocus: () => void
 }) {
   const box = useRef<HTMLInputElement>(null)
-  useEffect(() => { box.current!.indeterminate = state === 'mixed' }, [state])
+  useEffect(() => {
+    box.current!.indeterminate = state === 'mixed'
+  }, [state])
   return <input type="checkbox" ref={box} tabIndex={tab ? 0 : -1} checked={state === 'on'} onChange={onChange} onKeyDown={onKeyDown} onFocus={onFocus} />
 }

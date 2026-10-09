@@ -38,7 +38,7 @@ const appendLines = (file: string, lines: string[]): void => {
       appendFileSync(file, batch)
       batch = ''
     }
-    batch += l + '\n'
+    batch += `${l}\n`
   }
   if (batch) appendFileSync(file, batch)
 }
@@ -63,10 +63,16 @@ const migrate = (path: string, locate: Discovery['locate'], say: (s: string) => 
   const dirs = new Map<string, string | null>()
   for (const line of lines) {
     const id = sessionOf(line)
-    if (id === null) { kept.push(line); continue }
+    if (id === null) {
+      kept.push(line)
+      continue
+    }
     if (!dirs.has(id)) dirs.set(id, locate(id))
     const dir = dirs.get(id)
-    if (!dir) { kept.push(line); continue }
+    if (!dir) {
+      kept.push(line)
+      continue
+    }
     const target = join(dir, `${id}.wal.jsonl`)
     const mine = byTarget.get(target) ?? []
     mine.push(line)
@@ -88,18 +94,28 @@ const migrate = (path: string, locate: Discovery['locate'], say: (s: string) => 
 
 export const runLegacy = async (discovery: Discovery, ask: Ask, say: (s: string) => void): Promise<void> => {
   const files = discovery.legacyFiles()
-  if (files.length === 0) { say('no legacy WAL files'); return }
+  if (files.length === 0) {
+    say('no legacy WAL files')
+    return
+  }
   for (const path of files) {
     const sources = sourcesOf(path)
     if (sources.length === 0) continue
     const text = sources.map((f) => readFileSync(f, 'utf8')).join('')
-    const sessions = new Set(text.split('\n').map(sessionOf).filter((s) => s !== null))
+    const sessions = new Set(
+      text
+        .split('\n')
+        .map(sessionOf)
+        .filter((s) => s !== null),
+    )
     say(`${path}  ${Buffer.byteLength(text)} bytes  ${sessions.size} sessions`)
     const a = (await ask('[m]igrate / [d]elete / [s]kip? ')).trim().toLowerCase()
     if (a === 'm' || a === 'migrate') migrate(path, discovery.locate, say)
     else if (a === 'd' || a === 'delete') {
-      if ((await ask(`type yes to delete ${path}: `)).trim() === 'yes') { for (const f of sources) rmSync(f, { force: true }); say(`deleted ${path}`) }
-      else say('skipped')
+      if ((await ask(`type yes to delete ${path}: `)).trim() === 'yes') {
+        for (const f of sources) rmSync(f, { force: true })
+        say(`deleted ${path}`)
+      } else say('skipped')
     } else say('skipped')
   }
 }

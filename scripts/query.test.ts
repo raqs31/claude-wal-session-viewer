@@ -20,7 +20,7 @@ const sid = (n: number): string => `aaaaaaaa-0000-4000-8000-${String(n).padStart
 const walOf = (id: string): string => join(proj, `${id}.wal.jsonl`)
 const session = (id: string, lines?: string[]): void => {
   writeFileSync(join(proj, `${id}.jsonl`), '')
-  if (lines) writeFileSync(walOf(id), lines.join('\n') + '\n')
+  if (lines) writeFileSync(walOf(id), `${lines.join('\n')}\n`)
 }
 
 // Day one ~23:30 lives in S1, day two in S2. Old single-file seqs map onto (sess, seq) by `at`:
@@ -61,7 +61,10 @@ const mrec = (min: string, event: string, tool: string, tuid: string, extra: Rec
 session(M1, [
   mrec('00', 'PreToolUse', FIND, 'tA', { payload: { tool_input: { searchText: 'milk' } } }),
   mrec('01', 'PreToolUse', 'Bash', 'tB', { payload: { tool_input: { command: 'ls' } } }),
-  mrec('02', 'PostToolUse', FIND, 'tA', { duration_ms: 120, payload: { tool_input: { searchText: 'milk' }, tool_response: [{ type: 'text', text: 'Buy milk' }] } }),
+  mrec('02', 'PostToolUse', FIND, 'tA', {
+    duration_ms: 120,
+    payload: { tool_input: { searchText: 'milk' }, tool_response: [{ type: 'text', text: 'Buy milk' }] },
+  }),
   mrec('03', 'PreToolUse', ADD, 'tC', { payload: { tool_input: { content: 'eggs' } } }),
   mrec('04', 'PreToolUse', 'mcp__srv__never', 'tD', { payload: { tool_input: {} } }),
   mrec('05', 'PostToolUseFailure', ADD, 'tC', { duration_ms: 50, payload: { tool_input: { content: 'eggs' }, error: 'boom quota', is_interrupt: false } }),
@@ -122,10 +125,7 @@ session(T1, [
   grec('28', 'PreToolUse', { agent_id: 'x1', agent_type: 'Plan', tool_name: 'Grep' }),
   grec('29', 'Stop'),
 ])
-session(T2, [
-  grec('30', 'PreToolUse', { agent_id: 'c1', agent_type: 'Explore', tool_name: 'Read' }),
-  grec('31', 'Stop'),
-])
+session(T2, [grec('30', 'PreToolUse', { agent_id: 'c1', agent_type: 'Explore', tool_name: 'Read' }), grec('31', 'Stop')])
 
 // A transcript without a WAL yet.
 const LATE = sid(8)
@@ -135,13 +135,17 @@ const { server, base: BASE } = await startServer([], { HOME: dir })
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 let fail = 0
 const check = (label: string, ok: boolean, detail = ''): void => {
-  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${label}${ok ? '' : ' — ' + detail}`)
+  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${label}${ok ? '' : ` — ${detail}`}`)
   if (!ok) fail = 1
 }
 
 const until = async <T>(fn: () => Promise<T>, tries = 60): Promise<T> => {
   for (let i = 0; i < tries; i++) {
-    try { return await fn() } catch { await wait(100) }
+    try {
+      return await fn()
+    } catch {
+      await wait(100)
+    }
   }
   throw new Error('timed out')
 }
@@ -178,13 +182,21 @@ try {
   check('total counts every row', all.total === 8, String(all.total))
   check('rows are newest first across both sessions', same(all.rows.map(key), [7, 6, 5, 4, 3, 2, 1, 0].map(at)), JSON.stringify(all.rows.map(key)))
   check('facets in first-seen order', same(all.tools, ['Bash', 'Read']) && same(all.sessions, [S1, S2]), JSON.stringify([all.tools, all.sessions]))
-  check('events facet in first-seen order', same(all.events, ['SessionStart', 'PreToolUse', 'PostToolUse', 'Unparseable', 'UserPromptSubmit', 'PostToolUseFailure']), JSON.stringify(all.events))
+  check(
+    'events facet in first-seen order',
+    same(all.events, ['SessionStart', 'PreToolUse', 'PostToolUse', 'Unparseable', 'UserPromptSubmit', 'PostToolUseFailure']),
+    JSON.stringify(all.events),
+  )
   check('gens per picked session', Object.keys(all.gens).join() === `${S1},${S2}` && all.gens[S1] !== all.gens[S2], JSON.stringify(all.gens))
   check('next is null when everything fits', all.next === null, String(all.next))
   const r3 = all.rows.find((r) => key(r) === at(3))
   const r2 = all.rows.find((r) => key(r) === at(2))!
   check('unparseable row summary', same(r3, { sess: S1, seq: 3, cat: 'fail', t: r2.t, event: 'Unparseable', tool: null, dur: null }), JSON.stringify(r3))
-  check('summary shape', same(r2, { sess: S1, seq: 2, cat: 'tool', t: Date.parse('2026-09-28T23:30:05.000Z'), event: 'PostToolUse', tool: 'Bash', dur: 1500 }), JSON.stringify(r2))
+  check(
+    'summary shape',
+    same(r2, { sess: S1, seq: 2, cat: 'tool', t: Date.parse('2026-09-28T23:30:05.000Z'), event: 'PostToolUse', tool: 'Bash', dur: 1500 }),
+    JSON.stringify(r2),
+  )
 
   await expectKeys('ids scopes to one session', `ids=${S1}`, [3, 2, 1, 0].map(at))
   await expectSeqs('cat single', 'cat=tool', [5, 4, 2, 1])
@@ -230,18 +242,30 @@ try {
   check('counts under a filter', same(s2.counts, { fail: 1, turn: 1, tool: 2 }), JSON.stringify(s2.counts))
   const lengthOf = (p: FirstPage): number => Object.values(p.spans).reduce((n, [a, b]) => n + b - a, 0)
   const ts = (s: string): number => Date.parse(`2026-09-${s}Z`)
-  check('spans: one session, first to last matching row past the limit', same(s2.spans, { [S2]: [ts('29T01:00:00'), ts('29T12:00:02')] }), JSON.stringify(s2.spans))
+  check(
+    'spans: one session, first to last matching row past the limit',
+    same(s2.spans, { [S2]: [ts('29T01:00:00'), ts('29T12:00:02')] }),
+    JSON.stringify(s2.spans),
+  )
   const summed = lengthOf(all)
   check('spans: two sessions sum their own spans', summed === ts('28T23:30:05') - ts('28T09:00:00') + ts('29T12:00:02') - ts('29T01:00:00'), String(summed))
   const read = await events(`${BOTH}&tool=Read`)
-  check('spans: a filter narrows them and drops sessions with no match', same(read.spans, { [S2]: [ts('29T01:00:00'), ts('29T01:00:01')] }) && lengthOf(read) === 1000, JSON.stringify(read.spans))
+  check(
+    'spans: a filter narrows them and drops sessions with no match',
+    same(read.spans, { [S2]: [ts('29T01:00:00'), ts('29T01:00:01')] }) && lengthOf(read) === 1000,
+    JSON.stringify(read.spans),
+  )
   const lone = await events(`${BOTH}&event=UserPromptSubmit`)
   check('spans: one matching row gives 0', lengthOf(lone) === 0 && Object.keys(lone.spans).join() === S2, JSON.stringify(lone.spans))
-  check('limit caps rows, next is the last row\'s cursor', s2.rows.length === 1 && s2.next === `${s2.rows[0]!.t}.${S2}.3`, JSON.stringify([s2.rows, s2.next]))
+  check("limit caps rows, next is the last row's cursor", s2.rows.length === 1 && s2.next === `${s2.rows[0]!.t}.${S2}.3`, JSON.stringify([s2.rows, s2.next]))
 
   const whole = await pageAll(BOTH, 2)
   check('paging returns every row exactly once', same(whole.seen, [7, 6, 5, 4, 3, 2, 1, 0].map(at)), JSON.stringify(whole.seen))
-  check('next-page responses carry no totals', !('total' in whole.last) && !('counts' in whole.last) && !('spans' in whole.last) && !('agents' in whole.last), JSON.stringify(whole.last))
+  check(
+    'next-page responses carry no totals',
+    !('total' in whole.last) && !('counts' in whole.last) && !('spans' in whole.last) && !('agents' in whole.last),
+    JSON.stringify(whole.last),
+  )
   const filtered = await pageAll(`${BOTH}&tool=-`, 2)
   check('paging under a filter', same(filtered.seen, [6, 3, 0].map(at)), JSON.stringify(filtered.seen))
   const b0 = all.rows.find((r) => key(r) === at(4))!
@@ -264,32 +288,54 @@ try {
 
   const GB = `ids=${G1},${G2}`
   const leaf = (id: string, type: string | null, summaries = 0, children: unknown[] = []) => ({ id, type, summaries, children })
-  await expectKeys('agent=<sess>:main matches that session\'s rows without agent_id', `${GB}&agent=${G1}:main`, [`${G1}:3`, `${G1}:0`])
+  await expectKeys("agent=<sess>:main matches that session's rows without agent_id", `${GB}&agent=${G1}:main`, [`${G1}:3`, `${G1}:0`])
   await expectKeys('main of both sessions', `${GB}&agent=${G1}:main,${G2}:main`, [`${G2}:2`, `${G1}:3`, `${G1}:0`])
   await expectKeys('agent=<sess>:<id> matches one subagent', `${GB}&agent=${G1}:ag1`, [`${G1}:2`, `${G1}:1`])
   await expectKeys('agent from the second session', `${GB}&agent=${G2}:ag2`, [`${G2}:1`, `${G2}:0`])
   await expectKeys('<sess>:* is the whole session', `${GB}&agent=${G2}:*`, [`${G2}:2`, `${G2}:1`, `${G2}:0`])
-  await expectKeys('only unscoped (stale) ids: no agent filter', `${GB}&agent=ag1,main`, [`${G2}:2`, `${G2}:1`, `${G2}:0`, `${G1}:3`, `${G1}:2`, `${G1}:1`, `${G1}:0`])
+  await expectKeys('only unscoped (stale) ids: no agent filter', `${GB}&agent=ag1,main`, [
+    `${G2}:2`,
+    `${G2}:1`,
+    `${G2}:0`,
+    `${G1}:3`,
+    `${G1}:2`,
+    `${G1}:1`,
+    `${G1}:0`,
+  ])
   await expectKeys('a stale id beside a valid token is ignored', `${GB}&agent=main,${G1}:ag1`, [`${G1}:2`, `${G1}:1`])
   await expectKeys('agent present but empty matches nothing', `${GB}&agent=`, [])
   await expectKeys('cat=subagent is SubagentStart and SubagentStop', `${GB}&cat=subagent`, [`${G2}:1`, `${G1}:1`])
   await expectKeys('event=SubagentStart lists only spawns', `${GB}&event=SubagentStart`, [`${G1}:1`])
   await expectKeys('agent combines with other filters', `${GB}&agent=${G1}:ag1,${G2}:ag2&tool=Read`, [`${G2}:0`])
   const g = await events(GB)
-  check('agents facet: a tree per session with rows', same(g.agents, [{ sess: G1, main: leaf('main', null, 0, [leaf('ag1', 'Explore')]) }, { sess: G2, main: leaf('main', null, 0, [leaf('ag2', 'Plan')]) }]), JSON.stringify(g.agents))
+  check(
+    'agents facet: a tree per session with rows',
+    same(g.agents, [
+      { sess: G1, main: leaf('main', null, 0, [leaf('ag1', 'Explore')]) },
+      { sess: G2, main: leaf('main', null, 0, [leaf('ag2', 'Plan')]) },
+    ]),
+    JSON.stringify(g.agents),
+  )
   check('agents facet ignores the filter', same((await events(`${GB}&agent=${G2}:ag2`)).agents, g.agents))
-  check('untyped subagents count as main\'s summaries; a type arriving later wins', same((await events(`ids=${G3}`)).agents, [{ sess: G3, main: leaf('main', null, 2, [leaf('ag3', 'Explore')]) }]), JSON.stringify((await events(`ids=${G3}`)).agents))
+  check(
+    "untyped subagents count as main's summaries; a type arriving later wins",
+    same((await events(`ids=${G3}`)).agents, [{ sess: G3, main: leaf('main', null, 2, [leaf('ag3', 'Explore')]) }]),
+    JSON.stringify((await events(`ids=${G3}`)).agents),
+  )
   await expectKeys('summaries:main matches every untyped subagent, not one typed later', `ids=${G3}&agent=${G3}:summaries:main`, [`${G3}:2`, `${G3}:0`])
   await expectKeys('summaries:main plus main', `ids=${G3}&agent=${G3}:summaries:main,${G3}:main`, [`${G3}:4`, `${G3}:2`, `${G3}:0`])
 
   const TB = `ids=${T1},${T2}`
   const t = (...n: number[]) => n.map((x) => `${T1}:${x}`)
   const tree = await events(TB)
-  check('tree: parent from the Agent call, nested spawn, summaries on the agent they describe',
+  check(
+    'tree: parent from the Agent call, nested spawn, summaries on the agent they describe',
     same(tree.agents, [
       { sess: T1, main: leaf('main', null, 1, [leaf('p1', 'general-purpose', 1, [leaf('c1', 'Explore', 1)]), leaf('x1', 'Plan')]) },
       { sess: T2, main: leaf('main', null, 0, [leaf('c1', 'Explore')]) },
-    ]), JSON.stringify(tree.agents))
+    ]),
+    JSON.stringify(tree.agents),
+  )
   await expectKeys('tree: an agent token is its own rows only', `${TB}&agent=${T1}:p1`, t(3, 2))
   await expectKeys('tree: a subtree token takes descendants and their summaries', `${TB}&agent=${T1}:p1*`, t(7, 5, 4, 3, 2))
   await expectKeys('tree: a leaf subtree is the leaf and its summaries', `${TB}&agent=${T1}:c1*`, t(5, 4))
@@ -309,7 +355,11 @@ try {
     const D = 3000
     const sess = sid(12)
     const agents = new Map<string, string | null>([['main', null]])
-    const parents = new Map<string, string | null>([['d0', null], ['y0', 'y1'], ['y1', 'y0']])
+    const parents = new Map<string, string | null>([
+      ['d0', null],
+      ['y0', 'y1'],
+      ['y1', 'y0'],
+    ])
     for (let i = 0; i < D; i++) agents.set(`d${i}`, 'Explore')
     for (let i = 1; i < D; i++) parents.set(`d${i}`, `d${i - 1}`)
     agents.set('y0', 'Plan').set('y1', 'Plan')
@@ -323,7 +373,10 @@ try {
     check('lineage: a subtree token reaches every row of a deep chain', n === D, String(n))
     check(`lineage: ${D} rows of a ${D}-deep chain match in under 1.5s (O(depth) per row)`, ms < 1500, `${ms.toFixed(0)}ms`)
     check('lineage: a spawn cycle ends at main', lineageOf(ix, 'y0').up === null && lineageOf(ix, 'y1').up === null)
-    check('lineage: cycle members match only their own subtree', hit(row('y0'), ix, () => '') === false && matcher(new URLSearchParams(`agent=${sess}:y1*`))(row('y1'), ix, () => '') === true)
+    check(
+      'lineage: cycle members match only their own subtree',
+      hit(row('y0'), ix, () => '') === false && matcher(new URLSearchParams(`agent=${sess}:y1*`))(row('y1'), ix, () => '') === true,
+    )
     const kids = agentTree(ix).children.map((c) => c.id)
     check('lineage: the tree hangs the chain and both cycle members off main', same(kids, ['d0', 'y0', 'y1']), JSON.stringify(kids))
     parents.set('y1', 'd5')
@@ -336,15 +389,43 @@ try {
   for (const qs of ['ids=', '']) {
     const every = await events(`${qs}${qs ? '&' : ''}limit=500`)
     const rowSess = [...new Set(every.rows.map((r) => r.sess))].sort()
-    check(`empty pick (${qs || 'no ids'}) is every session with a WAL`, same(rowSess, [...withWal].sort()) && same([...every.sessions].sort(), [...withWal].sort()), JSON.stringify([rowSess, every.sessions]))
-    check(`empty pick (${qs || 'no ids'}) skips a transcript-only session`, !every.sessions.includes(LATE) && !every.unknown.includes(LATE) && every.unknown.length === 0, JSON.stringify([every.sessions, every.unknown]))
+    check(
+      `empty pick (${qs || 'no ids'}) is every session with a WAL`,
+      same(rowSess, [...withWal].sort()) && same([...every.sessions].sort(), [...withWal].sort()),
+      JSON.stringify([rowSess, every.sessions]),
+    )
+    check(
+      `empty pick (${qs || 'no ids'}) skips a transcript-only session`,
+      !every.sessions.includes(LATE) && !every.unknown.includes(LATE) && every.unknown.length === 0,
+      JSON.stringify([every.sessions, every.unknown]),
+    )
   }
   const one = await events(`ids=${T1}&limit=500`)
-  check('facets are scoped to a one-session pick', same(one.agents.map((a) => a.sess), [T1]) && same(one.sessions, [T1]) && one.rows.every((r) => r.sess === T1) && same(one.tools, ['Agent', 'Read', 'Grep']) && !one.tools.includes('Bash') && !one.events.includes('UserPromptSubmit'), JSON.stringify([one.agents.map((a) => a.sess), one.sessions, one.tools, one.events]))
+  check(
+    'facets are scoped to a one-session pick',
+    same(
+      one.agents.map((a) => a.sess),
+      [T1],
+    ) &&
+      same(one.sessions, [T1]) &&
+      one.rows.every((r) => r.sess === T1) &&
+      same(one.tools, ['Agent', 'Read', 'Grep']) &&
+      !one.tools.includes('Bash') &&
+      !one.events.includes('UserPromptSubmit'),
+    JSON.stringify([one.agents.map((a) => a.sess), one.sessions, one.tools, one.events]),
+  )
   const ne = await events(`ids=${NE}&limit=500`)
-  check('cats include session for a row with no event', same(ne.cats, ['tool', 'session']) && ne.events.every((e) => catOf(e) !== 'session'), JSON.stringify([ne.cats, ne.events]))
+  check(
+    'cats include session for a row with no event',
+    same(ne.cats, ['tool', 'session']) && ne.events.every((e) => catOf(e) !== 'session'),
+    JSON.stringify([ne.cats, ne.events]),
+  )
   const m1 = await events(`ids=${M1}&limit=500`)
-  check('cats are scoped to the pick and ignore the filter', !ne.cats.includes('mcp') && same(m1.cats, ['tool', 'mcp', 'fail']) && same((await events(`ids=${M1}&cat=fail`)).cats, m1.cats), JSON.stringify([ne.cats, m1.cats]))
+  check(
+    'cats are scoped to the pick and ignore the filter',
+    !ne.cats.includes('mcp') && same(m1.cats, ['tool', 'mcp', 'fail']) && same((await events(`ids=${M1}&cat=fail`)).cats, m1.cats),
+    JSON.stringify([ne.cats, m1.cats]),
+  )
   check('invalid id is 400', (await status('/events?ids=../etc')) === 400)
   const partial = await events(`ids=${S1},${sid(99)}&limit=3`)
   check('unknown id is skipped and reported', same(partial.unknown, [sid(99)]) && partial.head === `${S1}:4` && partial.total === 4, JSON.stringify(partial))
@@ -383,9 +464,17 @@ try {
   check('static: unknown file is 404', (await status('/nope.js')) === 404)
   const home = await fetch(`${BASE}/`)
   const html = await home.text()
-  check('static: / serves the built page', home.status === 200 && (home.headers.get('content-type') ?? '').startsWith('text/html') && html.includes('id="root"'), `${home.status}`)
+  check(
+    'static: / serves the built page',
+    home.status === 200 && (home.headers.get('content-type') ?? '').startsWith('text/html') && html.includes('id="root"'),
+    `${home.status}`,
+  )
   const asset = /src="(\/assets\/[^"]+\.js)"/.exec(html)?.[1]
-  check('static: built script is served as JavaScript', !!asset && (await fetch(`${BASE}${asset}`)).headers.get('content-type')?.startsWith('text/javascript') === true, String(asset))
+  check(
+    'static: built script is served as JavaScript',
+    !!asset && (await fetch(`${BASE}${asset}`)).headers.get('content-type')?.startsWith('text/javascript') === true,
+    String(asset),
+  )
 
   const MB = `ids=${M1}`
   const mk = (seq: number): string => `${M1}:${seq}`
@@ -396,8 +485,16 @@ try {
   check('mcp: Post is marked response', row(2).mcp === 'response' && !('virtual' in row(2)), JSON.stringify(row(2)))
   check('mcp: Failure is a response with an error flag', row(6).mcp === 'response' && row(6).err === true && row(6).cat === 'fail', JSON.stringify(row(6)))
   check('mcp: non-mcp tool rows carry no marker', !('mcp' in row(1)) && !('mcp' in row(8)), JSON.stringify([row(1), row(8)]))
-  check('mcp: call row follows its Post', same(row(3), { sess: M1, seq: 3, cat: 'mcp', t: row(2).t, event: 'MCP call', tool: FIND, dur: 120, virtual: { pre: 0, post: 2 } }), JSON.stringify(row(3)))
-  check('mcp: failed call row carries err', row(7).event === 'MCP call' && row(7).err === true && row(7).dur === 50 && same(row(7).virtual, { pre: 4, post: 6 }), JSON.stringify(row(7)))
+  check(
+    'mcp: call row follows its Post',
+    same(row(3), { sess: M1, seq: 3, cat: 'mcp', t: row(2).t, event: 'MCP call', tool: FIND, dur: 120, virtual: { pre: 0, post: 2 } }),
+    JSON.stringify(row(3)),
+  )
+  check(
+    'mcp: failed call row carries err',
+    row(7).event === 'MCP call' && row(7).err === true && row(7).dur === 50 && same(row(7).virtual, { pre: 4, post: 6 }),
+    JSON.stringify(row(7)),
+  )
   check('mcp: orphan Pre stays a plain request row', row(5).mcp === 'request' && !m.rows.some((r) => r.virtual?.pre === 5), JSON.stringify(row(5)))
   check('mcp: Post without a Pre gets no call row', row(9).mcp === 'response' && m.rows.length === 10, JSON.stringify(row(9)))
   check('mcp: counts include the mcp category', m.counts.mcp === 2, JSON.stringify(m.counts))
@@ -411,19 +508,39 @@ try {
   check('mcp: pairing survives a merge with another session', (await events(`ids=${M1},${S1}&cat=mcp`)).total === 2)
 
   // Loose on purpose: one shape covers the plain record and the paired call record.
-  interface Part { event?: string; payload: { tool_input: { searchText: string }; tool_response: [{ text: string }]; error?: string } }
-  interface CallBody { virtual?: boolean; event?: string; pre: Part; post: Part }
+  interface Part {
+    event?: string
+    payload: { tool_input: { searchText: string }; tool_response: [{ text: string }]; error?: string }
+  }
+  interface CallBody {
+    virtual?: boolean
+    event?: string
+    pre: Part
+    post: Part
+  }
   const mrecord = async (seq: number) => (await (await record(M1, seq, m.gens[M1])).json()) as CallBody
   const call = await mrecord(3)
-  check('mcp: /record of a call row pairs both records', call.virtual === true && call.pre.payload.tool_input.searchText === 'milk' && call.post.payload.tool_response[0].text === 'Buy milk', JSON.stringify(call))
+  check(
+    'mcp: /record of a call row pairs both records',
+    call.virtual === true && call.pre.payload.tool_input.searchText === 'milk' && call.post.payload.tool_response[0].text === 'Buy milk',
+    JSON.stringify(call),
+  )
   const failed = await mrecord(7)
-  check('mcp: /record of a failed call carries the error', failed.pre.event === 'PreToolUse' && failed.post.payload.error === 'boom quota', JSON.stringify(failed))
+  check(
+    'mcp: /record of a failed call carries the error',
+    failed.pre.event === 'PreToolUse' && failed.post.payload.error === 'boom quota',
+    JSON.stringify(failed),
+  )
   const plain = await mrecord(2)
   check('mcp: /record of a raw Post is the plain record', plain.event === 'PostToolUse' && !('virtual' in plain), JSON.stringify(plain))
 
   const empty = await events(`ids=${LATE}`)
-  check('missing WAL: /events answers with nothing', empty.total === 0 && empty.head === `${LATE}:0` && empty.rows.length === 0 && same(empty.sessions, []), JSON.stringify(empty))
-  writeFileSync(walOf(LATE), JSON.stringify({ ts: '2026-09-30T10:00:00.000Z', event: 'SessionStart', session_id: LATE }) + '\n')
+  check(
+    'missing WAL: /events answers with nothing',
+    empty.total === 0 && empty.head === `${LATE}:0` && empty.rows.length === 0 && same(empty.sessions, []),
+    JSON.stringify(empty),
+  )
+  writeFileSync(walOf(LATE), `${JSON.stringify({ ts: '2026-09-30T10:00:00.000Z', event: 'SessionStart', session_id: LATE })}\n`)
   const first = await events(`ids=${LATE}`)
   check('missing WAL: a file created later is picked up', first.total === 1 && first.rows[0]?.event === 'SessionStart', JSON.stringify(first))
 } catch (err) {

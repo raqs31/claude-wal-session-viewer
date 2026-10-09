@@ -4,8 +4,20 @@ import type { SessionMeta } from '../../../shared/api.ts'
 import { chipValues, filterRows, groupByProject, pinPicked, sidebarSummary, type SidebarFilter } from './sidebar.ts'
 
 const row = (id: string, o: Partial<SessionMeta> = {}): SessionMeta => ({
-  id, project: { slug: 'p', cwd: '/w/p' }, worktree: null, source: 'default', workspaces: ['default'], title: `title ${id}`, prompt: null,
-  started: null, last: 0, live: false, walSize: 0, walLines: 0, transcriptSize: 0, ...o,
+  id,
+  project: { slug: 'p', cwd: '/w/p' },
+  worktree: null,
+  source: 'default',
+  workspaces: ['default'],
+  title: `title ${id}`,
+  prompt: null,
+  started: null,
+  last: 0,
+  live: false,
+  walSize: 0,
+  walLines: 0,
+  transcriptSize: 0,
+  ...o,
 })
 const NONE: SidebarFilter = { chips: new Set(), project: '', text: '' }
 const ids = (rs: readonly SessionMeta[]) => rs.map((r) => r.id)
@@ -50,7 +62,13 @@ test('groups by project, worktrees under the parent, newest group and row first'
     row('wt', { last: 9, worktree: 'feat', project: { slug: 'p', cwd: '/w/p/.ai/worktrees/feat' } }),
     row('mid', { last: 3 }),
   ])
-  assert.deepEqual(gs.map((g) => [g.slug, g.last, ids(g.rows)]), [['p', 9, ['wt', 'mid', 'old']], ['q', 5, ['q1']]])
+  assert.deepEqual(
+    gs.map((g) => [g.slug, g.last, ids(g.rows)]),
+    [
+      ['p', 9, ['wt', 'mid', 'old']],
+      ['q', 5, ['q1']],
+    ],
+  )
   assert.equal(gs[0]!.cwd, '/w/p')
 })
 
@@ -60,7 +78,13 @@ test('a tie keeps list order; a worktree-only group takes the worktree cwd; no c
     row('y1', { last: 2, worktree: 'w', project: { slug: 'y', cwd: '/w/y/wt' } }),
     row('y2', { last: 2, project: { slug: 'y', cwd: null } }),
   ])
-  assert.deepEqual(gs.map((g) => [g.slug, g.cwd, ids(g.rows)]), [['x', null, ['x']], ['y', '/w/y/wt', ['y1', 'y2']]])
+  assert.deepEqual(
+    gs.map((g) => [g.slug, g.cwd, ids(g.rows)]),
+    [
+      ['x', null, ['x']],
+      ['y', '/w/y/wt', ['y1', 'y2']],
+    ],
+  )
   assert.deepEqual(groupByProject([]), [])
 })
 
@@ -73,17 +97,35 @@ test('summary lists only active sidebar filters', () => {
 test('a frozen lastOf holds row and group order while `last` moves between polls', () => {
   const poll1 = [row('a', { last: 1 }), row('b', { last: 2 }), row('q1', { last: 3, project: { slug: 'q', cwd: '/w/q' } })]
   const poll2 = [row('a', { last: 10 }), row('b', { last: 2 }), row('q1', { last: 3, project: { slug: 'q', cwd: '/w/q' } })]
-  assert.deepEqual(groupByProject(poll2).map((g) => ids(g.rows)), [['a', 'b'], ['q1']])
+  assert.deepEqual(
+    groupByProject(poll2).map((g) => ids(g.rows)),
+    [['a', 'b'], ['q1']],
+  )
   const m = new Map(poll1.map((r) => [r.id, r.last]))
   const frozen = groupByProject(poll2, (r) => m.get(r.id) ?? 0)
-  assert.deepEqual(frozen.map((g) => [g.slug, ids(g.rows)]), groupByProject(poll1).map((g) => [g.slug, ids(g.rows)]))
-  assert.deepEqual(frozen.map((g) => [g.slug, ids(g.rows)]), [['q', ['q1']], ['p', ['b', 'a']]])
+  assert.deepEqual(
+    frozen.map((g) => [g.slug, ids(g.rows)]),
+    groupByProject(poll1).map((g) => [g.slug, ids(g.rows)]),
+  )
+  assert.deepEqual(
+    frozen.map((g) => [g.slug, ids(g.rows)]),
+    [
+      ['q', ['q1']],
+      ['p', ['b', 'a']],
+    ],
+  )
 })
 
 test('an id unknown to the frozen lastOf sinks to the bottom of its group', () => {
-  const m = new Map([['a', 1], ['b', 2]])
+  const m = new Map([
+    ['a', 1],
+    ['b', 2],
+  ])
   const gs = groupByProject([row('new', { last: 99 }), row('a', { last: 1 }), row('b', { last: 2 })], (r) => m.get(r.id) ?? 0)
-  assert.deepEqual(gs.map((g) => ids(g.rows)), [['b', 'a', 'new']])
+  assert.deepEqual(
+    gs.map((g) => ids(g.rows)),
+    [['b', 'a', 'new']],
+  )
 })
 
 test('pinPicked returns picked rows in pick order, skips missing ids, keeps the rest in input order', () => {

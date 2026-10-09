@@ -4,8 +4,19 @@ import type { SessionMeta } from '../../../shared/api.ts'
 import { advance, isBaselines, unseen } from './unseen.ts'
 
 const row = (id: string, walLines: number, transcriptSize = 100): SessionMeta => ({
-  id, project: { slug: 'p', cwd: null }, worktree: null, source: 'default', workspaces: ['default'], title: id, prompt: null,
-  started: null, last: 0, live: false, walSize: walLines * 10, walLines, transcriptSize,
+  id,
+  project: { slug: 'p', cwd: null },
+  worktree: null,
+  source: 'default',
+  workspaces: ['default'],
+  title: id,
+  prompt: null,
+  started: null,
+  last: 0,
+  live: false,
+  walSize: walLines * 10,
+  walLines,
+  transcriptSize,
 })
 
 test('first sight sets the baseline, so nothing shows as unseen', () => {

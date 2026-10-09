@@ -11,19 +11,25 @@ export function usePick(sessions: readonly SessionMeta[] | null) {
 
   useEffect(() => {
     if (sessions === null) return
-    setPick((p) => { const n = settlePick(p, sessions); return p !== null && samePick(p, n) ? p : n })
+    setPick((p) => {
+      const n = settlePick(p, sessions)
+      return p !== null && samePick(p, n) ? p : n
+    })
   }, [sessions])
 
   // For the `unknown` ids a query or stream reports. Keeping the old array spares consumers a requery.
-  const forget = useCallback((ids: readonly string[]) => {
-    if (ids.length && sessions !== null) {
-      setPick((p) => {
-        if (p === null) return p
-        const n = prune(p, sessions, ids)
-        return samePick(p, n) ? p : n
-      })
-    }
-  }, [sessions])
+  const forget = useCallback(
+    (ids: readonly string[]) => {
+      if (ids.length && sessions !== null) {
+        setPick((p) => {
+          if (p === null) return p
+          const n = prune(p, sessions, ids)
+          return samePick(p, n) ? p : n
+        })
+      }
+    },
+    [sessions],
+  )
   const clear = useCallback(() => setPick([]), [])
   const toggle = useCallback((id: string) => setPick((p) => flip(p ?? [], id)), [])
 

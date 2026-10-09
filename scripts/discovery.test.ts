@@ -5,7 +5,20 @@
 
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { appendFileSync, chmodSync, copyFileSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs'
 import { join, dirname } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -29,7 +42,7 @@ const ISO = '7f0c1a2b-3c4d-4e5f-8a9b-0c1d2e3f4a5b'
 
 const put = (path: string, lines: unknown[]): void => {
   mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(path, lines.map((l) => JSON.stringify(l) + '\n').join(''))
+  writeFileSync(path, lines.map((l) => `${JSON.stringify(l)}\n`).join(''))
 }
 const touch = (path: string, ms: number): void => utimesSync(path, new Date(ms), new Date(ms))
 const wal = (ws: string, event: string) => ({ ts: new Date().toISOString(), workspace: ws, event, session_id: 'x' })
@@ -53,7 +66,18 @@ mkdirSync(join(claude, 'workspaces', 'priv'), { recursive: true })
 symlinkSync(projects, join(claude, 'workspaces', 'priv', 'projects'))
 
 const isoFile = join(iso, '-repo', `${ISO}.jsonl`)
-put(isoFile, [{ type: 'user', uuid: 'u1', parentUuid: null, isSidechain: false, timestamp: '2026-10-01T10:00:00.000Z', cwd: repo, sessionId: ISO, message: { role: 'user', content: 'hello iso' } }])
+put(isoFile, [
+  {
+    type: 'user',
+    uuid: 'u1',
+    parentUuid: null,
+    isSidechain: false,
+    timestamp: '2026-10-01T10:00:00.000Z',
+    cwd: repo,
+    sessionId: ISO,
+    message: { role: 'user', content: 'hello iso' },
+  },
+])
 const isoWal = join(iso, '-repo', `${ISO}.wal.jsonl`)
 put(isoWal, [wal('iso', 'SessionStart'), wal('iso', 'SessionEnd')])
 touch(isoFile, OLD)
@@ -80,12 +104,18 @@ const row = (l: SessionList, id: string): SessionMeta => {
 
 test('sources: default, the isolated workspace and --source; the symlinked workspace collapses', async () => {
   const l = await list()
-  assert.deepEqual(l.sources.map((s) => s.label), ['default', 'iso', 'other'])
+  assert.deepEqual(
+    l.sources.map((s) => s.label),
+    ['default', 'iso', 'other'],
+  )
   assert.equal(l.sources[0]!.projectsDir, realpathSync(projects))
 })
 
 test('every session once, newest activity first, WAL files not listed as sessions', async () => {
-  assert.deepEqual((await list()).sessions.map((s) => s.id), [MAIN, ISO, CLEAR, TREE])
+  assert.deepEqual(
+    (await list()).sessions.map((s) => s.id),
+    [MAIN, ISO, CLEAR, TREE],
+  )
 })
 
 test('source label and project slug + cwd per row', async () => {
@@ -136,7 +166,7 @@ test('legacy counts distinct cwds holding .ai/logs/wal.jsonl', async () => {
 })
 
 test('walLines and workspaces follow appends; a partial line waits for its newline', async () => {
-  appendFileSync(mainWal, JSON.stringify(wal('iso', 'PreToolUse')) + '\n' + '{"ts":"x","workspace":"half')
+  appendFileSync(mainWal, `${JSON.stringify(wal('iso', 'PreToolUse'))}\n{"ts":"x","workspace":"half`)
   let m = row(await list(), MAIN)
   assert.equal(m.walLines, 4)
   assert.deepEqual(m.workspaces, ['default', 'priv', 'iso'])
@@ -154,7 +184,10 @@ test('a session found under a --source or workspace opens via /session', async (
 
 test('a WAL replaced by rename with a longer file is rescanned from its first byte', async () => {
   const tmp = join(projects, '-tmp-proj', 'rotate.tmp')
-  put(tmp, Array.from({ length: 6 }, () => wal('rotated', 'Stop')))
+  put(
+    tmp,
+    Array.from({ length: 6 }, () => wal('rotated', 'Stop')),
+  )
   renameSync(tmp, mainWal)
   const m = row(await list(), MAIN)
   assert.equal(m.walLines, 6)
@@ -169,7 +202,7 @@ test('a WAL line longer than one read chunk does not stall the scan', async () =
   let b = row(await list(), BIG)
   assert.equal(b.walLines, 2)
   assert.deepEqual(b.workspaces, ['huge', 'after'])
-  appendFileSync(bigWal, JSON.stringify(wal('later', 'Stop')) + '\n')
+  appendFileSync(bigWal, `${JSON.stringify(wal('later', 'Stop'))}\n`)
   b = row(await list(), BIG)
   assert.equal(b.walLines, 3)
   assert.deepEqual(b.workspaces, ['huge', 'after', 'later'])
@@ -200,7 +233,15 @@ test('title: the last ai-title in the tail, else one in the head; started is the
   // Earlier than the prompt, as an attachment logged after it can be.
   const attachment = { type: 'attachment', uuid: 'a1', timestamp: at(0), cwd: repo }
   // Mentions the type in a nested object, which must not count as a title entry.
-  const pad = Array.from({ length: 80 }, (_, i) => ({ type: 'assistant', uuid: `x${i}`, timestamp: at(10), message: { role: 'assistant', content: [{ type: 'tool_use', id: `t${i}`, name: 'Bash', input: { type: 'ai-title', aiTitle: 'nested', pad: 'y'.repeat(4000) } }] } }))
+  const pad = Array.from({ length: 80 }, (_, i) => ({
+    type: 'assistant',
+    uuid: `x${i}`,
+    timestamp: at(10),
+    message: {
+      role: 'assistant',
+      content: [{ type: 'tool_use', id: `t${i}`, name: 'Bash', input: { type: 'ai-title', aiTitle: 'nested', pad: 'y'.repeat(4000) } }],
+    },
+  }))
   const longFile = join(projects, '-tmp-proj', `${LONG}.jsonl`)
   put(longFile, [prompt, attachment, { type: 'ai-title', aiTitle: 'early' }, ...pad, { type: 'ai-title', aiTitle: 'late' }, { type: 'ai-title' }])
   appendFileSync(longFile, '{"type":"ai-title","aiTitle":"half')
@@ -243,10 +284,21 @@ test('name: the latest custom-title beats ai-title, from the tail or else the he
   const AUTO = 'a11ea11e-0000-4000-8000-000000000005'
   const at = (s: number): string => new Date(Date.UTC(2026, 9, 1, 10, 0, s)).toISOString()
   const prompt = { type: 'user', uuid: 'p1', timestamp: at(5), cwd: repo, message: { role: 'user', content: 'first prompt' } }
-  const pad = Array.from({ length: 80 }, (_, i) => ({ type: 'assistant', uuid: `x${i}`, timestamp: at(10), message: { role: 'assistant', content: [{ type: 'tool_use', id: `t${i}`, name: 'Bash', input: { type: 'custom-title', customTitle: 'nested', pad: 'y'.repeat(4000) } }] } }))
+  const pad = Array.from({ length: 80 }, (_, i) => ({
+    type: 'assistant',
+    uuid: `x${i}`,
+    timestamp: at(10),
+    message: {
+      role: 'assistant',
+      content: [{ type: 'tool_use', id: `t${i}`, name: 'Bash', input: { type: 'custom-title', customTitle: 'nested', pad: 'y'.repeat(4000) } }],
+    },
+  }))
   put(join(projects, '-tmp-proj', `${SMALL}.jsonl`), [
-    { type: 'custom-title', customTitle: 'old-name' }, prompt, { type: 'ai-title', aiTitle: 'auto' },
-    { type: 'custom-title', customTitle: 'new-name' }, { type: 'ai-title', aiTitle: 'auto later' },
+    { type: 'custom-title', customTitle: 'old-name' },
+    prompt,
+    { type: 'ai-title', aiTitle: 'auto' },
+    { type: 'custom-title', customTitle: 'new-name' },
+    { type: 'ai-title', aiTitle: 'auto later' },
   ])
   const bigFile = join(projects, '-tmp-proj', `${BIG}.jsonl`)
   put(bigFile, [{ type: 'custom-title', customTitle: 'head name' }, prompt, ...pad, { type: 'ai-title', aiTitle: 'tail auto' }])
@@ -264,7 +316,14 @@ test('prompt: the cleaned first message that opened a turn, meta skipped, capped
   const CMD = 'a11ea11e-0000-4000-8000-000000000007'
   const BIG = 'a11ea11e-0000-4000-8000-000000000008'
   const at = (s: number): string => new Date(Date.UTC(2026, 9, 1, 10, 0, s)).toISOString()
-  const user = (uuid: string, content: string, extra: object = {}) => ({ type: 'user', uuid, timestamp: at(5), cwd: repo, message: { role: 'user', content }, ...extra })
+  const user = (uuid: string, content: string, extra: object = {}) => ({
+    type: 'user',
+    uuid,
+    timestamp: at(5),
+    cwd: repo,
+    message: { role: 'user', content },
+    ...extra,
+  })
   const raw = 'line one\n<b>two</b>\n  three'
   put(join(projects, '-tmp-proj', `${RAW}.jsonl`), [user('m1', '<system-reminder>meta</system-reminder>', { isMeta: true }), user('p1', raw)])
   const markup = '<command-message>goal</command-message>\n<command-name>/goal</command-name>\n<command-args>ship it</command-args>'
@@ -277,29 +336,48 @@ test('prompt: the cleaned first message that opened a turn, meta skipped, capped
   assert.equal(row(l, RAW).prompt, 'line one\ntwo\n  three')
   assert.equal(row(l, RAW).title, 'line one two three')
   assert.equal(row(l, CMD).prompt, '⚡ /goal ship it')
-  assert.equal(row(l, BIG).prompt, 'x'.repeat(PROMPT_MAX) + '…')
+  assert.equal(row(l, BIG).prompt, `${'x'.repeat(PROMPT_MAX)}…`)
 })
 
 test('name: a cleared rename falls through to the auto title', async () => {
   const CLEARED = 'a11ea11e-0000-4000-8000-00000000000a'
-  const prompt = { type: 'user', uuid: 'p1', timestamp: new Date(Date.UTC(2026, 9, 1, 10)).toISOString(), cwd: repo, message: { role: 'user', content: 'first prompt' } }
-  put(join(projects, '-tmp-proj', `${CLEARED}.jsonl`), [prompt, { type: 'ai-title', aiTitle: 'auto' }, { type: 'custom-title', customTitle: 'named' }, { type: 'custom-title', customTitle: '' }])
+  const prompt = {
+    type: 'user',
+    uuid: 'p1',
+    timestamp: new Date(Date.UTC(2026, 9, 1, 10)).toISOString(),
+    cwd: repo,
+    message: { role: 'user', content: 'first prompt' },
+  }
+  put(join(projects, '-tmp-proj', `${CLEARED}.jsonl`), [
+    prompt,
+    { type: 'ai-title', aiTitle: 'auto' },
+    { type: 'custom-title', customTitle: 'named' },
+    { type: 'custom-title', customTitle: '' },
+  ])
   assert.equal(row(await list(), CLEARED).title, 'auto')
 })
 
 test('prompt: a surrogate pair split by the cap drops the lone high surrogate', async () => {
   const PAIR = 'a11ea11e-0000-4000-8000-00000000000b'
-  const content = 'x'.repeat(PROMPT_MAX - 1) + '😀' + 'tail'
-  put(join(projects, '-tmp-proj', `${PAIR}.jsonl`), [{ type: 'user', uuid: 'p1', timestamp: new Date(Date.UTC(2026, 9, 1, 10)).toISOString(), cwd: repo, message: { role: 'user', content } }])
+  const content = `${'x'.repeat(PROMPT_MAX - 1)}😀tail`
+  put(join(projects, '-tmp-proj', `${PAIR}.jsonl`), [
+    { type: 'user', uuid: 'p1', timestamp: new Date(Date.UTC(2026, 9, 1, 10)).toISOString(), cwd: repo, message: { role: 'user', content } },
+  ])
   const prompt = row(await list(), PAIR).prompt
-  assert.equal(prompt, 'x'.repeat(PROMPT_MAX - 1) + '…')
+  assert.equal(prompt, `${'x'.repeat(PROMPT_MAX - 1)}…`)
   assert.ok(!/[\uD800-\uDBFF]$/.test(prompt.slice(0, -1)))
 })
 
 test('name: a half-written last line is ignored', async () => {
   const HALF = 'a11ea11e-0000-4000-8000-00000000000c'
   const file = join(projects, '-tmp-proj', `${HALF}.jsonl`)
-  const prompt = { type: 'user', uuid: 'p1', timestamp: new Date(Date.UTC(2026, 9, 1, 10)).toISOString(), cwd: repo, message: { role: 'user', content: 'first prompt' } }
+  const prompt = {
+    type: 'user',
+    uuid: 'p1',
+    timestamp: new Date(Date.UTC(2026, 9, 1, 10)).toISOString(),
+    cwd: repo,
+    message: { role: 'user', content: 'first prompt' },
+  }
   put(file, [prompt, { type: 'custom-title', customTitle: 'done' }])
   appendFileSync(file, '{"type":"custom-title","customTitle":"half')
   assert.equal(row(await list(), HALF).title, 'done')
@@ -320,8 +398,14 @@ test('name: a slash-command session with no titles is named by its cleaned comma
 test('prompt: the cap applies after cleaning, and a message of only dropped blocks leaves no prompt', async () => {
   const LONG = 'a11ea11e-0000-4000-8000-00000000000e'
   const EMPTY = 'a11ea11e-0000-4000-8000-00000000000f'
-  const user = (content: string) => ({ type: 'user', uuid: 'p1', timestamp: new Date(Date.UTC(2026, 9, 1, 10)).toISOString(), cwd: repo, message: { role: 'user', content } })
-  put(join(projects, '-tmp-proj', `${LONG}.jsonl`), [user('<system-reminder>' + 'y'.repeat(PROMPT_MAX) + '</system-reminder>' + 'x'.repeat(PROMPT_MAX - 10))])
+  const user = (content: string) => ({
+    type: 'user',
+    uuid: 'p1',
+    timestamp: new Date(Date.UTC(2026, 9, 1, 10)).toISOString(),
+    cwd: repo,
+    message: { role: 'user', content },
+  })
+  put(join(projects, '-tmp-proj', `${LONG}.jsonl`), [user(`<system-reminder>${'y'.repeat(PROMPT_MAX)}</system-reminder>${'x'.repeat(PROMPT_MAX - 10)}`)])
   put(join(projects, '-tmp-proj', `${EMPTY}.jsonl`), [user('<system-reminder>only noise</system-reminder>')])
   const l = await list()
   assert.equal(row(l, LONG).prompt, 'x'.repeat(PROMPT_MAX - 10))
@@ -332,8 +416,10 @@ test('prompt: the cap applies after cleaning, and a message of only dropped bloc
 test('a rename appended after a list shows on the next list', async () => {
   const LATE = 'a11ea11e-0000-4000-8000-000000000009'
   const file = join(projects, '-tmp-proj', `${LATE}.jsonl`)
-  put(file, [{ type: 'user', uuid: 'p1', timestamp: new Date(Date.UTC(2026, 9, 1, 10)).toISOString(), cwd: repo, message: { role: 'user', content: 'before rename' } }])
+  put(file, [
+    { type: 'user', uuid: 'p1', timestamp: new Date(Date.UTC(2026, 9, 1, 10)).toISOString(), cwd: repo, message: { role: 'user', content: 'before rename' } },
+  ])
   assert.equal(row(await list(), LATE).title, 'before rename')
-  appendFileSync(file, JSON.stringify({ type: 'custom-title', customTitle: 'renamed later' }) + '\n')
+  appendFileSync(file, `${JSON.stringify({ type: 'custom-title', customTitle: 'renamed later' })}\n`)
   assert.equal(row(await list(), LATE).title, 'renamed later')
 })

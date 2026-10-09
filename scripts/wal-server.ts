@@ -91,10 +91,12 @@ const sessionTick = (): void => {
     for (const s of moved) client.sent.set(s.id, s.version)
     if (client.usage) {
       const ss = client.ids.map(at)
-      const body = store.usage(ss.filter((s) => s !== null), client.ids.filter((_, i) => ss[i] === null))
+      const body = store.usage(
+        ss.filter((s) => s !== null),
+        client.ids.filter((_, i) => ss[i] === null),
+      )
       client.res.write(`id: ${versions(client.sent)}\ndata: ${JSON.stringify(body)}\n\n`)
-    }
-    else for (const s of moved) client.res.write(`id: ${versions(client.sent)}\ndata: ${JSON.stringify(store.view(s, 'all'))}\n\n`)
+    } else for (const s of moved) client.res.write(`id: ${versions(client.sent)}\ndata: ${JSON.stringify(store.view(s, 'all'))}\n\n`)
   }
 }
 
@@ -158,11 +160,13 @@ const serveStatic = (pathname: string, res: ServerResponse): boolean => {
   } catch {
     return false
   }
-  const file = resolve(WEB, '.' + rel)
+  const file = resolve(WEB, `.${rel}`)
   if (!file.startsWith(WEB + sep) || !existsSync(file) || !statSync(file).isFile()) return false
   res.writeHead(200, { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream' })
   // The file can vanish or be unreadable after the stat; an unhandled stream error would kill the process.
-  createReadStream(file).on('error', () => res.destroy()).pipe(res)
+  createReadStream(file)
+    .on('error', () => res.destroy())
+    .pipe(res)
   return true
 }
 
@@ -174,7 +178,14 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
     // Acquiring tails every index, so `head` is exact and a stream started at `after=head` has no gap.
     // An empty pick means every session that has a WAL.
     const picked = idsOf(p)
-    const got = indexes.acquire(picked.length ? picked : discovery.list().sessions.filter((s) => s.walSize > 0).map((s) => s.id))
+    const got = indexes.acquire(
+      picked.length
+        ? picked
+        : discovery
+            .list()
+            .sessions.filter((s) => s.walSize > 0)
+            .map((s) => s.id),
+    )
     if (!got) return void res.writeHead(400).end('bad id')
     const { ixs, unknown } = got
 
@@ -193,7 +204,8 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
     writeUnknown(res, unknown)
     // `after` is the `head` vector from /events, the next seq to send per session. Frame ids are
     // the same vector, and the browser's reconnect reuses the original URL, so Last-Event-ID wins.
-    const pos = parseVector(req.headers['last-event-id'] as string | undefined) ?? parseVector(p.get('after')) ?? new Map(ixs.map((ix) => [ix.id, ix.entries.length]))
+    const pos =
+      parseVector(req.headers['last-event-id'] as string | undefined) ?? parseVector(p.get('after')) ?? new Map(ixs.map((ix) => [ix.id, ix.entries.length]))
     const gens = parseVector(p.get('gens')) ?? new Map(ixs.map((ix) => [ix.id, ix.gen]))
     const client: Client = { res, ixs, hit: matcher(p), pos, gens }
     clients.add(client)
