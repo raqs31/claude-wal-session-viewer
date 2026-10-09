@@ -1,13 +1,14 @@
 #!/usr/bin/env node
+
 // sessions.test.ts — the Sessions endpoints against a temp copy of the fixture projects under a
 // fake HOME: the list, /session stats and scopes, per-agent stats, and the multiplexed
 // /session-stream following growing transcripts.
 
-import { appendFileSync, copyFileSync, cpSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
-import { join, dirname } from 'node:path'
-import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
+import { appendFileSync, copyFileSync, cpSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { get, type IncomingMessage } from 'node:http'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { SessionList, SessionView } from '../shared/api.ts'
 import { startServer } from './test-server.ts'
@@ -57,6 +58,11 @@ const json = async <T>(path: string): Promise<T> => {
 }
 const status = async (path: string): Promise<number> => (await fetch(BASE + path)).status
 
+const must = <T>(v: T | undefined | null, what = 'value'): T => {
+  if (v == null) throw new Error(`missing ${what}`)
+  return v
+}
+
 interface Stream {
   frames: SessionView[]
   resets: number
@@ -74,8 +80,7 @@ const open = (qs: string, headers: Record<string, string> = {}): Promise<Stream>
       res.setEncoding('utf8')
       res.on('data', (c) => {
         pending += c
-        let end
-        while ((end = pending.indexOf('\n\n')) !== -1) {
+        for (let end = pending.indexOf('\n\n'); end !== -1; end = pending.indexOf('\n\n')) {
           const frame = pending.slice(0, end)
           pending = pending.slice(end + 2)
           const f: Record<string, string> = Object.fromEntries(
@@ -93,11 +98,12 @@ const open = (qs: string, headers: Record<string, string> = {}): Promise<Stream>
     })
   })
 const of = (s: Stream, id: string): SessionView[] => s.frames.filter((f) => f.id === id)
-const latest = (s: Stream, id: string): SessionView => of(s, id).at(-1)!
+const latest = (s: Stream, id: string): SessionView => must(of(s, id).at(-1), `${id} frame`)
 const vec = (...vs: SessionView[]): string => vs.map((v) => `${v.id}:${v.version}`).join(',')
 
 // Expected per-agent stats straight from the raw lines: one tool call per tool_use block of a
 // non-synthetic reply; a request's time is its first entry carrying usage.
+// biome-ignore lint/suspicious/noExplicitAny: raw transcript lines are schemaless JSON
 const raw = (file: string): Record<string, any>[] =>
   readFileSync(file, 'utf8')
     .split('\n')
@@ -123,7 +129,7 @@ try {
   )
   check(
     'list reports the default source',
-    list.sources.length === 1 && list.sources[0]!.label === 'default' && list.sources[0]!.projectsDir === root,
+    list.sources.length === 1 && list.sources[0]?.label === 'default' && list.sources[0]?.projectsDir === root,
     JSON.stringify(list.sources),
   )
   const [m, tree] = list.sessions
@@ -271,7 +277,7 @@ try {
     after.stats.totals.requests === all.stats.totals.requests + 1 && after.stats.totals.output === all.stats.totals.output + 20,
   )
   check('its tool call reaches agentStats', after.agentStats.main?.tools === em.tools + 1, JSON.stringify(after.agentStats.main))
-  check('frame versions only grow', of(quiet, MAIN).every((f, i, fs) => i === 0 || f.version > fs[i - 1]!.version) && after.version > all.version)
+  check('frame versions only grow', of(quiet, MAIN).every((f, i, fs) => i === 0 || f.version > must(fs[i - 1]).version) && after.version > all.version)
 
   copyFileSync(join(subDir, `agent-${SUB}.jsonl`), join(subDir, 'agent-bnew.jsonl'))
   copyFileSync(join(subDir, `agent-${SUB}.meta.json`), join(subDir, 'agent-bnew.meta.json'))

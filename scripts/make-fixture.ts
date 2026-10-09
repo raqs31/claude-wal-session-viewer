@@ -12,11 +12,11 @@
 // non-zero on any hit — it needs the real transcripts, so it lives here and not in a test.
 
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, hostname } from 'node:os'
 import { basename, join } from 'node:path'
 
-// `any` is deliberate: transcripts are schemaless JSON walked generically.
+// biome-ignore lint/suspicious/noExplicitAny: deliberate, transcripts are schemaless JSON walked generically.
 type E = Record<string, any>
 
 export const STRUCTURAL_KEYS = new Set([
@@ -124,8 +124,11 @@ const blank = (v: unknown, path: string[], cwd: string, gone: string[]): unknown
 
 // ---- edge classes, detected on the written (blanked) entries ----
 
-const content = (e: E): any => e.message?.content
-const blocks = (e: E): E[] => (Array.isArray(content(e)) ? content(e) : [])
+const content = (e: E): unknown => e.message?.content
+const blocks = (e: E): E[] => {
+  const c = content(e)
+  return Array.isArray(c) ? c : []
+}
 const isHuman = (e: E): boolean =>
   e.type === 'user' &&
   !e.isSidechain &&
@@ -177,7 +180,10 @@ const CLASSES: Classes = {
   },
   'non-monotonic timestamp pair (not re-parented)': (m) => {
     const u = m.filter((e) => e.uuid)
-    return u.filter((e, i) => i > 0 && e.timestamp < u[i - 1]!.timestamp && !e._reparented && !u[i - 1]!._reparented).length
+    return u.filter((e, i) => {
+      const p = u[i - 1]
+      return p !== undefined && e.timestamp < p.timestamp && !e._reparented && !p._reparented
+    }).length
   },
 }
 
@@ -205,8 +211,8 @@ const select = (all: E[], spawnId: string | null): Set<number> => {
   all.forEach((e, i) => {
     if (e.type === 'assistant') groups.set(e.message.id, [...(groups.get(e.message.id) ?? []), i])
   })
-  const split = [...groups.values()].find((g) => g.length >= 3)
-  if (split) anchors.push(split[0]!)
+  const split = [...groups.values()].find((g) => g.length >= 3)?.[0]
+  if (split !== undefined) anchors.push(split)
   const synth = (e: E): boolean => e.type === 'assistant' && e.message.model === '<synthetic>'
   if (all.some((e) => synth(e) && e.isApiErrorMessage)) first((e) => synth(e) && e.isApiErrorMessage)
   else first(synth)
@@ -228,7 +234,7 @@ const select = (all: E[], spawnId: string | null): Set<number> => {
   const cb = all.findIndex((e) => e.subtype === 'compact_boundary')
   if (cb >= 0) {
     anchors.push(cb, cb + 2)
-    const lp = all.findIndex((e) => e.uuid === all[cb]!.logicalParentUuid)
+    const lp = all.findIndex((e) => e.uuid === all[cb]?.logicalParentUuid)
     if (lp >= 0) anchors.push(lp)
   }
   if (spawnId) first((e) => agentSpawns(e).some((b) => b.id === spawnId))
@@ -245,7 +251,9 @@ const select = (all: E[], spawnId: string | null): Set<number> => {
   const titles = all.flatMap((e, i) => (e.type === 'ai-title' ? [i] : []))
   const last = titles.at(-1)
   // Blanking keeps only the length (capped), so "last wins" is testable only across distinct blanked lengths.
-  const other = titles.findLast((i) => X(all[i]!.aiTitle).length !== X(all[last!]!.aiTitle).length) ?? titles.at(-2)
+  // Unused when there is no title: findLast then never calls back.
+  const lastLen = last === undefined ? 0 : X(all[last]?.aiTitle).length
+  const other = titles.findLast((i) => X(all[i]?.aiTitle).length !== lastLen) ?? titles.at(-2)
   if (last !== undefined && other !== undefined) keep.add(other).add(last)
   const cost = all.findLastIndex((e) => e.type === 'cost-state')
   if (cost >= 0) keep.add(cost)
@@ -267,7 +275,8 @@ const select = (all: E[], spawnId: string | null): Set<number> => {
       }
     }
     for (const i of [...keep]) {
-      const e = all[i]!
+      const e = all[i]
+      if (e === undefined) continue
       if (e.type === 'assistant') for (const j of groups.get(e.message.id) ?? []) add(j)
       for (const b of blocks(e)) {
         if (b.type === 'tool_use' || b.type === 'server_tool_use') add(resultAt.get(b.id))
@@ -382,12 +391,13 @@ const synthesize = (kept: E[]): E[] => {
   const out = [...kept]
   const insertBefore = (target: E, entries: E[]): void => {
     out.splice(out.indexOf(target), 0, ...entries)
-    target.parentUuid = entries.at(-1)!.uuid
+    target.parentUuid = entries.at(-1)?.uuid
   }
   const prompts = out.filter(isHuman)
   const lastPrompt = prompts.at(-1)
   if (!out.some((e) => e.subtype === 'compact_boundary') && lastPrompt) {
-    const prev = out.slice(0, out.indexOf(lastPrompt)).findLast((e) => e.uuid)!
+    const prev = out.slice(0, out.indexOf(lastPrompt)).findLast((e) => e.uuid)
+    if (prev === undefined) throw new Error('no entry with a uuid before the last prompt')
     const u = out.slice(0, out.indexOf(lastPrompt)).findLast((e) => e.type === 'assistant' && e.message.usage)?.message.usage
     const pre = u ? u.input_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens + u.output_tokens : 100000
     insertBefore(lastPrompt, compaction(prev, pre))
@@ -502,7 +512,7 @@ const main = (): void => {
     // Real cwd/gitBranch values are rewritten, so they must not count as structure.
     if (typeof v === 'string') {
       if ((keepPath(path) || ID_RE.test(v)) && !REWRITTEN_KEYS.has(path.at(-1) ?? '')) keptSrc.push(v)
-    } else if (Array.isArray(v)) v.forEach((x) => collectKept(x, path))
+    } else if (Array.isArray(v)) for (const x of v) collectKept(x, path)
     else if (v && typeof v === 'object')
       for (const [k, x] of Object.entries(v)) {
         if (keyKept(k)) keptSrc.push(k)
@@ -510,7 +520,7 @@ const main = (): void => {
       }
   }
   const write = (file: string, entries: E[], cwd: string): E[] => {
-    entries.forEach((e) => collectKept(e, []))
+    for (const e of entries) collectKept(e, [])
     const out = entries.map((e) => {
       const { _reparented, ...rest } = e
       const b = blank(rest, [], cwd, gone) as E

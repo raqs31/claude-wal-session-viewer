@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import type { AgentInfo, SessionView, StatRow, Usage } from '../../../shared/api.ts'
 import { agentDetail } from '../lib/agentStats.ts'
 import { short } from '../lib/format.ts'
@@ -140,30 +140,33 @@ export function ByAgent({ view }: { view: SessionView }) {
         <table className="stat">
           <Head recorded={false} />
           <tbody>
-            {ids.map((id) => (
-              <AgentRow
-                key={id}
-                span={COLS.length + 3}
-                open={open.has(id)}
-                onToggle={() => flip(id)}
-                detail={() => agentDetail(view, id)}
-                charts={
-                  id !== 'main' && (view.stats.agents[id]?.requests ?? 0) > 0
-                    ? () => (
-                        <AgentCharts
-                          sess={view.id}
-                          agent={id}
-                          stamp={((r) => `${r.requests}:${r.input + r.output + r.cacheRead + r.cacheWrite5m + r.cacheWrite1h}`)(view.stats.agents[id]!)}
-                        />
-                      )
-                    : undefined
-                }
-                cells={(toggle) => {
-                  const name = agentName(view.agents, id)
-                  return <Cells name={name} label={toggle(name)} r={view.stats.agents[id]} />
-                }}
-              />
-            ))}
+            {ids.map((id) => {
+              const r = view.stats.agents[id]
+              return (
+                <AgentRow
+                  key={id}
+                  span={COLS.length + 3}
+                  open={open.has(id)}
+                  onToggle={() => flip(id)}
+                  detail={() => agentDetail(view, id)}
+                  charts={
+                    id !== 'main' && r && r.requests > 0
+                      ? () => (
+                          <AgentCharts
+                            sess={view.id}
+                            agent={id}
+                            stamp={`${r.requests}:${r.input + r.output + r.cacheRead + r.cacheWrite5m + r.cacheWrite1h}`}
+                          />
+                        )
+                      : undefined
+                  }
+                  cells={(toggle) => {
+                    const name = agentName(view.agents, id)
+                    return <Cells name={name} label={toggle(name)} r={r} />
+                  }}
+                />
+              )
+            })}
           </tbody>
         </table>
       </div>

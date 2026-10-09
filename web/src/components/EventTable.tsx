@@ -28,26 +28,31 @@ export function EventTable({ rows, pending, view, follow, ready, next, pages, ch
   const io = useRef<IntersectionObserver>(null)
   const tail = view === 'tail'
 
-  const atEdge = () =>
-    tail
-      ? innerHeight + scrollY >= document.documentElement.scrollHeight - 40
-      : tbody.current!.getBoundingClientRect().top > thead.current!.getBoundingClientRect().bottom - 40
-  const toEdge = () => scrollTo(0, tail ? document.documentElement.scrollHeight : 0)
-  const latest = useRef({ follow, pending, atEdge })
-  latest.current = { follow, pending, atEdge }
+  const atEdge = () => {
+    if (tail) return innerHeight + scrollY >= document.documentElement.scrollHeight - 40
+    const b = tbody.current,
+      h = thead.current
+    return !!b && !!h && b.getBoundingClientRect().top > h.getBoundingClientRect().bottom - 40
+  }
+  // The effects below each re-run on one value only; the rest they read here, current as of the last render.
+  const latest = useRef({ tail, follow, pending, atEdge, flush })
+  latest.current = { tail, follow, pending, atEdge, flush }
 
   // Runs before paint, so neither a prepended page nor a live row is ever drawn at the wrong offset.
   useLayoutEffect(() => {
     if (!change) return
+    const { tail } = latest.current
     if (change.kind === 'older') scrollBy(0, document.documentElement.scrollHeight - change.h)
-    else if (change.kind !== 'live' || tail) toEdge()
+    else if (change.kind !== 'live' || tail) scrollTo(0, tail ? document.documentElement.scrollHeight : 0)
   }, [change])
   // Live rows land in `pending`; they are shown at once only when following at the edge.
   useLayoutEffect(() => {
-    if (follow && pending.length && atEdge()) flush('live')
+    const l = latest.current
+    if (l.follow && pending.length && l.atEdge()) l.flush('live')
   }, [pending])
   useEffect(() => {
-    if (follow && pending.length && atEdge()) flush('flush')
+    const l = latest.current
+    if (follow && l.pending.length && l.atEdge()) l.flush('flush')
   }, [follow])
   useEffect(() => {
     const onScroll = () => {
@@ -62,16 +67,19 @@ export function EventTable({ rows, pending, view, follow, ready, next, pages, ch
   }, [flush])
 
   useEffect(() => {
-    const o = (io.current = new IntersectionObserver(
+    const o = new IntersectionObserver(
       (es) => {
         if (es[0]?.isIntersecting) void loadOlder()
       },
       { rootMargin: '300px' },
-    ))
+    )
+    io.current = o
     return () => o.disconnect()
   }, [loadOlder])
   // Re-observing reports the current intersection again, so a sentinel still on screen after a
   // short page keeps loading.
+  // biome-ignore lint/correctness/useExhaustiveDependencies(pages): re-run trigger, a page landed.
+  // biome-ignore lint/correctness/useExhaustiveDependencies(view): re-run trigger, the sentinel moved to the other end.
   useEffect(() => {
     const o = io.current,
       s = sentinel.current

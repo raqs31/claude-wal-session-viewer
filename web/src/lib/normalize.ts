@@ -13,7 +13,7 @@ export function normalize(v: unknown): unknown {
   if (Array.isArray(v)) {
     if (!v.length || !v.every(isBlock)) return v.map(normalize)
     const out = v.map((b) => (b.type === 'text' && typeof b.text === 'string' ? normalize(b.text) : normalize(b)))
-    return out.length === 1 && v[0]!.type === 'text' ? out[0] : out
+    return out.length === 1 && v[0]?.type === 'text' ? out[0] : out
   }
   if (v !== null && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, normalize(x)]))
   return v

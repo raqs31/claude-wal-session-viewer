@@ -1,7 +1,7 @@
-import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { test } from 'node:test'
 import { buildTree } from './agents.ts'
-import { EMPTY_FILTERS, buildParams, filterSummary, pruneFilters, sameRows } from './params.ts'
+import { buildParams, EMPTY_FILTERS, filterSummary, pruneFilters, sameRows } from './params.ts'
 
 test('nothing selected sends only the pick', () => {
   assert.equal(buildParams(EMPTY_FILTERS, ['s1', 's2']).toString(), 'ids=s1%2Cs2')

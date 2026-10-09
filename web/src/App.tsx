@@ -1,4 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import { EventsTab } from './components/EventsTab.tsx'
+import { LegacyBanner } from './components/LegacyBanner.tsx'
+import { SessionsTab } from './components/SessionsTab.tsx'
+import { Sidebar } from './components/Sidebar.tsx'
+import { UsageTiles } from './components/UsageTiles.tsx'
 import { EMPTY_FILTERS, type Filters } from './lib/params.ts'
 import { FORMATS } from './lib/tree.ts'
 import { VIEWS } from './useEvents.ts'
@@ -6,11 +11,6 @@ import { usePick, useUnseen } from './usePick.ts'
 import { useSessions } from './useSessions.ts'
 import { useStored } from './useStored.ts'
 import { useUsage } from './useUsage.ts'
-import { EventsTab } from './components/EventsTab.tsx'
-import { LegacyBanner } from './components/LegacyBanner.tsx'
-import { SessionsTab } from './components/SessionsTab.tsx'
-import { Sidebar } from './components/Sidebar.tsx'
-import { UsageTiles } from './components/UsageTiles.tsx'
 
 const TABS = ['events', 'sessions'] as const
 const PINS = ['pinned', 'unpinned'] as const
@@ -43,7 +43,8 @@ export function App() {
   const head = useRef<HTMLElement>(null)
   // The sticky Events head, its table header and the table pill sit below the sticky header.
   useEffect(() => {
-    const h = head.current!
+    const h = head.current
+    if (!h) return
     const o = new ResizeObserver(() => document.documentElement.style.setProperty('--head-h', `${h.offsetHeight}px`))
     o.observe(h)
     return () => o.disconnect()

@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { type Dispatch, type SetStateAction, useEffect, useState } from 'react'
 
 // A stored value that fails `valid` (absent, unparseable, an older shape) reads as `fallback`.
 export function useStoredJson<T>(key: string, valid: (v: unknown) => v is T, fallback: T): [T, Dispatch<SetStateAction<T>>] {

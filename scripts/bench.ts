@@ -4,9 +4,9 @@
 // The generator puts a multibyte character across the first 8 MB chunk boundary, so /record on
 // that line is the only check of the partial line carried between chunk reads.
 
-import { mkdirSync, mkdtempSync, openSync, writeSync, closeSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync, writeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { FirstPage } from '../shared/api.ts'
 import { startServer } from './test-server.ts'
 
@@ -29,7 +29,7 @@ const T0 = Date.parse('2026-09-01T00:00:00Z')
 // "needle" appears in every 5th line (frequent) and "haystackrare" in exactly one.
 const filler = 'lorem ipsum dolor sit amet zażółć gęślą jaźń — '.repeat(20)
 const record = (i: number, text: string): string => {
-  const event = EVENTS[i % EVENTS.length]!
+  const event = EVENTS[i % EVENTS.length] ?? ''
   const rec: Record<string, unknown> = { ts: new Date(T0 + i * 800).toISOString(), event, session_id: `s${i % 7}`, payload: { text } }
   // A real id on every tool row, so RSS includes the per-entry tuid the index keeps.
   if (event.includes('Tool')) Object.assign(rec, { tool_name: TOOLS[i % TOOLS.length], tool_use_id: `toolu_01${String(i).padStart(22, '0')}` })
@@ -77,7 +77,7 @@ const timed = async (path: string): Promise<{ ms: number; body: FirstPage }> => 
   const body = (await r.json()) as FirstPage
   return { ms: Math.round(performance.now() - t), body }
 }
-const rssMb = (): number => Number(/VmRSS:\s+(\d+)/.exec(readFileSync(`/proc/${server.pid}/status`, 'utf8'))![1]) / 1024
+const rssMb = (): number => Number(/VmRSS:\s+(\d+)/.exec(readFileSync(`/proc/${server.pid}/status`, 'utf8'))?.[1]) / 1024
 
 console.log(`bench: ${SESSIONS} sessions, ${(total / 1048576).toFixed(0)} MB, ${totalLines} lines`)
 const { server, base: BASE } = await startServer([], { HOME: dir })
@@ -91,7 +91,9 @@ try {
   check('total equals generated lines', first.body.total === totalLines, `total ${first.body.total}`)
   check('first page ≤ 300 ms', first.ms <= 300)
 
-  const rec = (await (await fetch(`${BASE}/record?id=${ids[BOUNDARY_SESSION]}&gen=${first.body.gens[ids[BOUNDARY_SESSION]!]}&seq=${boundarySeq}`)).json()) as {
+  const rec = (await (
+    await fetch(`${BASE}/record?id=${ids[BOUNDARY_SESSION]}&gen=${first.body.gens[ids[BOUNDARY_SESSION] ?? '']}&seq=${boundarySeq}`)
+  ).json()) as {
     payload?: { text?: string }
   }
   check('record across 8 MB boundary intact', rec.payload?.text?.endsWith('żboundary') ?? false, JSON.stringify(rec).slice(-40))

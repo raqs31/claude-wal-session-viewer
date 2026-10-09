@@ -6,9 +6,9 @@
 // and intact, truncation of one file resetting the feed, and the per-client filter on live rows.
 
 import { appendFileSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { tmpdir } from 'node:os'
 import { get, type IncomingMessage } from 'node:http'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { FirstPage, Row, WalRecord } from '../shared/api.ts'
 import { startServer } from './test-server.ts'
 
@@ -66,6 +66,10 @@ const gensOf = (p: FirstPage): string =>
     .join(',')
 // The stream query for "everything after this page", as the page builds it.
 const after = (p: FirstPage, qs = BOTH): string => `${qs}&after=${p.head}&gens=${gensOf(p)}`
+const must = <T>(v: T | undefined | null, what = 'value'): T => {
+  if (v == null) throw new Error(`missing ${what}`)
+  return v
+}
 
 // Frames are buffered to the blank line that ends them: `id:` and `data:` can arrive in separate
 // chunks.
@@ -86,15 +90,14 @@ const open = (qs: string, headers: Record<string, string> = {}): Promise<Stream>
       res.setEncoding('utf8')
       res.on('data', (c) => {
         pending += c
-        let end
-        while ((end = pending.indexOf('\n\n')) !== -1) {
+        for (let end = pending.indexOf('\n\n'); end !== -1; end = pending.indexOf('\n\n')) {
           const frame = pending.slice(0, end)
           pending = pending.slice(end + 2)
           const f: Record<string, string> = Object.fromEntries(
             frame.split('\n').map((l) => [l.slice(0, l.indexOf(':')), l.slice(l.indexOf(':') + 1).trimStart()]),
           )
           if (f.event === 'reset') s.resets++
-          else if (f.event === 'unknown') s.unknown = JSON.parse(f.data!) as string[]
+          else if (f.event === 'unknown') s.unknown = JSON.parse(must(f.data, 'unknown event data')) as string[]
           else if (f.data) {
             s.rows.push(...(JSON.parse(f.data) as Row[]))
             s.lastId = f.id ?? null
@@ -153,7 +156,7 @@ try {
   check('reassembled line is intact', (await record(first, s.rows[6])).duration_ms === 42)
 
   // The browser reconnects with the original URL; Last-Event-ID must stop the replay.
-  const again = await open(after(first), { 'last-event-id': s.lastId! })
+  const again = await open(after(first), { 'last-event-id': must(s.lastId, 'last event id') })
   await wait(600)
   check('Last-Event-ID resume replays nothing', again.rows.length === 0, `got ${again.rows.length}`)
   const behind = await open(after(first), { 'last-event-id': `${L1}:4,${L2}:2` })
@@ -240,7 +243,7 @@ try {
   const after1 = await events()
   check(
     're-query has a higher gen for the truncated file only',
-    after1.gens[L1]! > before.gens[L1]! && after1.gens[L2] === before.gens[L2],
+    must(after1.gens[L1]) > must(before.gens[L1]) && after1.gens[L2] === before.gens[L2],
     `${JSON.stringify(after1.gens)} vs ${JSON.stringify(before.gens)}`,
   )
   check(
@@ -255,7 +258,7 @@ try {
   // Shorter than the file it replaces: truncation is detected by the size shrinking.
   writeFileSync(wal1, rec({ event: 'Stop' }))
   const racer = await events()
-  check('/events reports the new gen', racer.gens[L1]! > after1.gens[L1]!, `${racer.gens[L1]} vs ${after1.gens[L1]}`)
+  check('/events reports the new gen', must(racer.gens[L1]) > must(after1.gens[L1]), `${racer.gens[L1]} vs ${after1.gens[L1]}`)
   await wait(600)
   check('truncation found by /events still resets', late.resets === 1 && late.rows.length === 0, `resets ${late.resets}, rows ${late.rows.length}`)
 
@@ -293,7 +296,9 @@ try {
   )
   check(
     '...and is re-indexed from its first byte',
-    renamed.gens[L1]! > across.gens[L1]! && renamed.head === `${L1}:4` && renamed.rows.map((r) => r.event).join() === 'SessionEnd,Stop,Stop,SessionStart',
+    must(renamed.gens[L1]) > must(across.gens[L1]) &&
+      renamed.head === `${L1}:4` &&
+      renamed.rows.map((r) => r.event).join() === 'SessionEnd,Stop,Stop,SessionStart',
     JSON.stringify(renamed.rows),
   )
 

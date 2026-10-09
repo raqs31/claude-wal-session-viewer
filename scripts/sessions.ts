@@ -5,7 +5,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AgentInfo, AgentStat, RecordedCost, Scope, SessionView, StatRow, UsageTotals } from '../shared/api.ts'
-import { readAt, SESSION_RE, type Discovery } from './discovery.ts'
+import { type Discovery, readAt, SESSION_RE } from './discovery.ts'
 import { aggregate, createParser, type Parser, type Pricing, type UsageRecord } from './transcripts.ts'
 
 const AGENT_RE = /^[A-Za-z0-9_-]+$/
@@ -68,7 +68,7 @@ export const createStore = (discovery: Pick<Discovery, 'locate'>, busy: (id: str
     for (const name of readdirSync(sub)) {
       const id = /^agent-(.+)\.meta\.json$/.exec(name)?.[1]
       if (!id || !AGENT_RE.test(id) || s.agents.has(id) || !existsSync(join(sub, `agent-${id}.jsonl`))) continue
-      let m: Record<string, any>
+      let m: { toolUseId: string; agentType?: string; description?: string; model?: string }
       try {
         m = JSON.parse(readFileSync(join(sub, name), 'utf8'))
       } catch {

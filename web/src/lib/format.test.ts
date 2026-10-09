@@ -1,5 +1,5 @@
-import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { test } from 'node:test'
 import { fmtAgo } from './format.ts'
 
 test('fmtAgo picks the coarsest whole unit', () => {

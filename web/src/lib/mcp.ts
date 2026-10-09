@@ -7,7 +7,7 @@ export const mcpParts = (t: string): [server: string, tool: string] | null => {
 }
 export const hue = (s: string): number => {
   let h = 0
-  for (const c of s) h = (h * 31 + c.codePointAt(0)!) >>> 0
+  for (const c of s) h = (h * 31 + (c.codePointAt(0) ?? 0)) >>> 0
   return h % 360
 }
 export const toolColor = (t: string): string => {
@@ -23,7 +23,9 @@ export const groupMcp = (tools: readonly string[], q: string): { server: string;
   for (const t of tools) {
     const m = mcpParts(t)
     if (!m || (q && !m[0].toLowerCase().includes(q) && !m[1].toLowerCase().includes(q))) continue
-    groups.has(m[0]) ? groups.get(m[0])!.push(t) : groups.set(m[0], [t])
+    const g = groups.get(m[0])
+    if (g) g.push(t)
+    else groups.set(m[0], [t])
   }
-  return [...groups.keys()].sort().map((server) => ({ server, tools: groups.get(server)!.sort() }))
+  return [...groups].sort(([a], [b]) => (a < b ? -1 : 1)).map(([server, tools]) => ({ server, tools: tools.sort() }))
 }

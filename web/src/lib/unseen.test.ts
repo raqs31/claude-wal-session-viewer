@@ -1,5 +1,5 @@
-import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { test } from 'node:test'
 import type { SessionMeta } from '../../../shared/api.ts'
 import { advance, isBaselines, unseen } from './unseen.ts'
 
@@ -44,7 +44,7 @@ test('a transcript-only change moves a viewed baseline', () => {
   const b0 = advance({}, [], [row('a', 1, 100)])
   const b1 = advance(b0, ['a'], [row('a', 1, 200)])
   assert.notEqual(b1, b0)
-  assert.equal(b1.a!.transcriptSize, 200)
+  assert.equal(b1.a?.transcriptSize, 200)
 })
 
 test('nothing moved returns the same object; an unlisted session is pruned', () => {

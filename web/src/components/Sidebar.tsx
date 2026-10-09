@@ -1,9 +1,9 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { SessionMeta } from '../../../shared/api.ts'
 import { fmtAgo, short } from '../lib/format.ts'
-import { fmtDuration } from '../lib/tokens.ts'
 import { chipValues, filterRows, groupByProject, pinPicked, sidebarSummary } from '../lib/sidebar.ts'
+import { fmtDuration } from '../lib/tokens.ts'
 import { useStored } from '../useStored.ts'
 import { Chip } from './Chip.tsx'
 import { SidePanel } from './SidePanel.tsx'
@@ -43,11 +43,10 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, uns
   const all = useMemo(() => groupByProject(sessions), [sessions])
   // A 5 s poll re-sorts live sessions by `last`, which would move rows under the pointer between aim and click.
   const [frozen, setFrozen] = useState<ReadonlyMap<string, number> | null>(null)
-  const lastOf = frozen ? (r: SessionMeta) => frozen.get(r.id) ?? 0 : undefined
   const rows = useMemo(() => filterRows(sessions, { chips, project, text }), [sessions, chips, project, text])
   const top = useMemo(() => pinPicked(sessions, pick).picked, [sessions, pick])
   const rest = useMemo(() => pinPicked(rows, pick).rest, [rows, pick])
-  const groups = useMemo(() => groupByProject(rest, lastOf), [rest, frozen])
+  const groups = useMemo(() => groupByProject(rest, frozen ? (r) => frozen.get(r.id) ?? 0 : undefined), [rest, frozen])
   const picked = new Set(pick)
   const shown = top.length + groups.reduce((n, g) => n + g.rows.length, 0)
   const now = Date.now()
@@ -66,24 +65,25 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, uns
   const timer = useRef<number | undefined>(undefined)
   const asideRef = useRef<HTMLElement>(null)
   const tipRef = useRef<HTMLDivElement>(null)
-  const stop = () => window.clearTimeout(timer.current)
+  const stop = useCallback(() => window.clearTimeout(timer.current), [])
   const later = (fn: () => void, ms: number) => {
     stop()
     timer.current = window.setTimeout(fn, ms)
   }
-  const hide = () => {
+  const hide = useCallback(() => {
     stop()
     setTip(null)
-  }
-  useEffect(() => stop, [])
+  }, [stop])
+  useEffect(() => stop, [stop])
+  const tipUp = tip !== null
   useEffect(() => {
-    if (tip === null) return
+    if (!tipUp) return
     const esc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') hide()
     }
     window.addEventListener('keydown', esc)
     return () => window.removeEventListener('keydown', esc)
-  }, [tip !== null])
+  }, [tipUp, hide])
   const how = useRef<'pointer' | 'focus'>('pointer')
   const cur = tip && sessions.find((s) => s.id === tip.id)
   const bubble = tip && cur && cur.prompt !== null && tip.el.isConnected ? { prompt: cur.prompt } : null
@@ -105,12 +105,13 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, uns
   const placeRef = useRef(place)
   placeRef.current = place
   useLayoutEffect(place)
+  const bubbleUp = bubble !== null
   useEffect(() => {
-    if (bubble === null) return
+    if (!bubbleUp) return
     const on = () => placeRef.current()
     window.addEventListener('resize', on)
     return () => window.removeEventListener('resize', on)
-  }, [bubble !== null])
+  }, [bubbleUp])
   useEffect(() => {
     if (tip && !tip.el.isConnected) hide()
   })
@@ -120,6 +121,7 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, uns
     const k = unseen(r)
     const on = picked.has(r.id)
     return (
+      // biome-ignore lint/a11y/useSemanticElements: a two-line row with badges cannot be an <input>; the button keeps it focusable and clickable.
       <button
         key={r.id}
         type="button"
@@ -198,14 +200,14 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, uns
       {/* Only .sb-list scrolls: the tabs and filters above it stay put. */}
       <div className="sb-top">
         <div className="sb-h">
-          <span className="seg" id="tabs" role="group" aria-label="View">
+          <fieldset className="seg" id="tabs" aria-label="View">
             <button className="chip" type="button" aria-pressed={tab === 'events'} onClick={() => onTab('events')}>
               Events
             </button>
             <button className="chip" type="button" aria-pressed={tab === 'sessions'} onClick={() => onTab('sessions')}>
               Sessions
             </button>
-          </span>
+          </fieldset>
         </div>
         <div className="sb-n">
           {error !== null

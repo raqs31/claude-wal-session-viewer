@@ -1,18 +1,19 @@
 #!/usr/bin/env node
+
 // wal-server.ts — serves the WAL viewer and streams new events to it as they are appended.
 //
 // Binds loopback only. The WAL carries prompts, file contents and command output, so this
 // must never be reachable off the machine.
 
+import { closeSync, createReadStream, existsSync, openSync, readSync, statSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { createReadStream, existsSync, statSync, openSync, readSync, closeSync } from 'node:fs'
+import type { AddressInfo } from 'node:net'
 import { dirname, extname, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { AddressInfo } from 'node:net'
 import type { RecordResponse, Row, WalRecord } from '../shared/api.ts'
 import { createDiscovery } from './discovery.ts'
-import { createStore, parseScope, validId, type Session } from './sessions.ts'
-import { cmp, createIndexes, matcher, parseVector, query, summary, vector, type IndexEntry, type Matcher, type WalIndex } from './wal-index.ts'
+import { createStore, parseScope, type Session, validId } from './sessions.ts'
+import { cmp, createIndexes, type IndexEntry, type Matcher, matcher, parseVector, query, type Reader, summary, vector, type WalIndex } from './wal-index.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const WEB = resolve(HERE, '..', 'web', 'dist')
@@ -74,16 +75,17 @@ const sessionTick = (): void => {
   // Each session is advanced once per tick, however many streams pick it.
   const seen = new Map<string, Session | null>()
   const at = (id: string): Session | null => {
-    if (!seen.has(id)) {
-      // One broken transcript must not stall the WAL stream or the other sessions.
-      try {
-        seen.set(id, store.get(id))
-      } catch (err) {
-        seen.set(id, null)
-        console.error(`wal-server: session tick ${id}: ${(err as Error).message}`)
-      }
+    const known = seen.get(id)
+    if (known !== undefined) return known
+    let s: Session | null = null
+    // One broken transcript must not stall the WAL stream or the other sessions.
+    try {
+      s = store.get(id)
+    } catch (err) {
+      console.error(`wal-server: session tick ${id}: ${(err as Error).message}`)
     }
-    return seen.get(id)!
+    seen.set(id, s)
+    return s
   }
   for (const client of sessionClients) {
     const moved = client.ids.map(at).filter((s): s is Session => s !== null && s.version !== client.sent.get(s.id))
@@ -127,18 +129,24 @@ const walTick = (): void => {
       continue
     }
     // One reader per index per tick, so no fd or window outlives a truncation.
-    const readers = client.ixs.map((ix) => ix.reader(true))
+    const readers: Reader[] = []
     try {
       const rows: Row[] = []
-      client.ixs.forEach((ix, i) => {
+      for (const ix of client.ixs) {
+        const reader = ix.reader(true)
+        readers.push(reader)
         const from = client.pos.get(ix.id) ?? 0
-        for (let seq = from; seq < ix.entries.length; seq++) if (client.hit(ix.entries[seq]!, ix, readers[i]!.text)) rows.push(summary(ix, seq))
+        for (let seq = from; seq < ix.entries.length; seq++) {
+          const e = ix.entries[seq]
+          if (e && client.hit(e, ix, reader.text)) rows.push(summary(ix, seq))
+        }
         // Advanced past misses too, or a `q` stream re-reads them from disk every tick.
         client.pos.set(ix.id, ix.entries.length)
-      })
+      }
       if (rows.length === 0) continue
       rows.sort((a, b) => cmp(a.t, a.sess, a.seq, b.t, b.sess, b.seq))
-      client.res.write(`id: ${vector(client.ixs, (ix) => client.pos.get(ix.id)!)}\ndata: ${JSON.stringify(rows)}\n\n`)
+      // Every picked index was just given a position above.
+      client.res.write(`id: ${vector(client.ixs, (ix) => client.pos.get(ix.id) ?? 0)}\ndata: ${JSON.stringify(rows)}\n\n`)
     } catch (err) {
       console.error(`wal-server: tick: ${(err as Error).message}`)
     } finally {
@@ -171,7 +179,8 @@ const serveStatic = (pathname: string, res: ServerResponse): boolean => {
 }
 
 const handle = (req: IncomingMessage, res: ServerResponse): void => {
-  const url = new URL(req.url!, 'http://localhost')
+  // An http.Server request always has a url; only a client-side IncomingMessage lacks one.
+  const url = new URL(req.url ?? '/', 'http://localhost')
 
   if (url.pathname === '/events' || url.pathname === '/events-stream') {
     const p = url.searchParams
@@ -232,7 +241,8 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
     }
     let body: RecordResponse
     try {
-      body = r.virtual ? { virtual: true, pre: read(ix.entries[r.virtual.pre]!), post: read(r) } : read(r)
+      const pre = r.virtual === null ? undefined : ix.entries[r.virtual.pre]
+      body = pre ? { virtual: true, pre: read(pre), post: read(r) } : read(r)
     } finally {
       closeSync(fd)
     }

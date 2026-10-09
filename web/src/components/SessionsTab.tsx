@@ -3,10 +3,10 @@ import type { SessionMeta, SessionView } from '../../../shared/api.ts'
 import { short } from '../lib/format.ts'
 import { groupByProject } from '../lib/sidebar.ts'
 import { useSessionViews } from '../useSession.ts'
-import { agentName, ByAgent, ByModel, Totals } from './SessionStats.tsx'
 import { ShareBars } from './charts/ShareBars.tsx'
 import { TokensOverTime } from './charts/TokensOverTime.tsx'
 import { TurnBars } from './charts/TurnBars.tsx'
+import { agentName, ByAgent, ByModel, Totals } from './SessionStats.tsx'
 
 const base = (p: string) => p.replace(/\/+$/, '').split('/').pop() || p
 
@@ -17,14 +17,17 @@ function Charts({ view }: { view: SessionView }) {
   const height = useRef<number | undefined>(undefined)
   const [near, setNear] = useState(false)
   useEffect(() => {
+    const box = el.current
+    if (!box) return
     const io = new IntersectionObserver(
       ([e]) => {
-        if (!e!.isIntersecting) height.current = el.current!.offsetHeight
-        setNear(e!.isIntersecting)
+        if (!e) return
+        if (!e.isIntersecting) height.current = box.offsetHeight
+        setNear(e.isIntersecting)
       },
       { rootMargin: '100% 0px' },
     )
-    io.observe(el.current!)
+    io.observe(box)
     return () => io.disconnect()
   }, [])
   return (
@@ -139,9 +142,10 @@ export function SessionsTab({ ids, sessions, onUnknown }: { ids: readonly string
           {error !== null ? `could not load sessions (${error})` : live === null ? 'connecting' : live ? 'live' : 'disconnected'}
         </span>
       </div>
-      {ids.map((id) => (
-        <Block key={id} id={id} meta={props.get(id)!.meta} project={props.get(id)!.project} view={views[id]} unknown={unknown.includes(id)} />
-      ))}
+      {ids.map((id) => {
+        const p = props.get(id)
+        return <Block key={id} id={id} meta={p?.meta} project={p?.project} view={views[id]} unknown={unknown.includes(id)} />
+      })}
     </div>
   )
 }

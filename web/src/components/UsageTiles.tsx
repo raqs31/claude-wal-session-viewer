@@ -12,7 +12,7 @@ export function UsageTiles({ usage, live, error, picked }: Props) {
   const status =
     error !== null ? `could not load usage (${error})` : picked === 0 ? 'no session picked' : live === null ? 'connecting' : live ? 'live' : 'disconnected'
   return (
-    <div className="usage" aria-label="Usage over the pick">
+    <section className="usage" aria-label="Usage over the pick">
       {usageTiles(usage).map((t) => (
         <div key={t.key} className="tile" title={t.title}>
           <div className="k">
@@ -27,6 +27,6 @@ export function UsageTiles({ usage, live, error, picked }: Props) {
         {status}
         {picked > 0 && ` · ${picked} session${picked === 1 ? '' : 's'}`}
       </span>
-    </div>
+    </section>
   )
 }

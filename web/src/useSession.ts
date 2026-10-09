@@ -76,6 +76,7 @@ export function useAgentSeries(sess: string, agent: string, stamp: string) {
   const [error, setError] = useState<string | null>(null)
   const last = useRef('')
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(stamp): re-run trigger, a stamp change means the agent's series changed.
   useEffect(() => {
     const key = `${sess}\n${agent}`
     if (last.current !== key) {

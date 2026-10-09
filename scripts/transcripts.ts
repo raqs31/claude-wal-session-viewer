@@ -9,7 +9,7 @@
 
 import type { AdditiveKey, Scope, SessionSeries, SessionStats, StatRow, Usage } from '../shared/api.ts'
 
-// `any` is deliberate: transcripts are schemaless JSON.
+// biome-ignore lint/suspicious/noExplicitAny: deliberate, transcripts are schemaless JSON.
 type E = Record<string, any>
 
 export type Span = [off: number, len: number]
@@ -132,8 +132,10 @@ export const createParser = (agent: string, turn = 0, keepItems = true) => {
     turnStarts.push(t)
     meta.firstPrompt ??= title
     for (let i = from; i < items.length; i++) {
-      items[i]!.turn = turn
-      touched.add(items[i]!)
+      const it = items[i]
+      if (it === undefined) continue
+      it.turn = turn
+      touched.add(it)
     }
     command = null
   }
@@ -167,9 +169,15 @@ export const createParser = (agent: string, turn = 0, keepItems = true) => {
     const u = m.usage ? usageOf(m.usage) : null
     const key = m.id ?? e.uuid
     let reply = replies.get(key)
-    if (!reply) replies.set(key, (reply = { rec: null, item: null }))
+    if (!reply) {
+      reply = { rec: null, item: null }
+      replies.set(key, reply)
+    }
     if (u && reply.rec) Object.assign(reply.rec, u)
-    else if (u) usage.push((reply.rec = { id: key, t, agent, model: m.model, turn, ...u }))
+    else if (u) {
+      reply.rec = { id: key, t, agent, model: m.model, turn, ...u }
+      usage.push(reply.rec)
+    }
     blocks.forEach((b, i) => {
       let it: ParsedItem | null = null
       if (b.type === 'text') it = add(e, t, src, 'text', b.text, {}, i)
@@ -274,6 +282,14 @@ const costOf = (u: Usage, p: Price | undefined): number | null =>
 const inScope = (agent: string, scope: Scope): boolean => scope === 'all' || (scope === 'main' ? agent === 'main' : agent === scope.slice('agent:'.length))
 
 const row = (): StatRow => ({ input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, thinking: 0, requests: 0, cost: 0 })
+const rowOf = (rows: Record<string, StatRow>, key: string): StatRow => {
+  let r = rows[key]
+  if (!r) {
+    r = row()
+    rows[key] = r
+  }
+  return r
+}
 const addTo = (r: StatRow, u: UsageRecord, cost: number | null): void => {
   for (const k of KEYS) r[k] += u[k]
   r.requests++
@@ -296,8 +312,8 @@ export const aggregate = (records: UsageRecord[], scope: Scope, pricing: Pricing
   for (const r of rs) {
     const cost = costOf(r, pricing.models[r.model])
     addTo(totals, r, cost)
-    addTo((agents[r.agent] ??= row()), r, cost)
-    addTo((models[r.model] ??= row()), r, cost)
+    addTo(rowOf(agents, r.agent), r, cost)
+    addTo(rowOf(models, r.model), r, cost)
     t.push(r.t)
     for (const k of ADDITIVE) {
       cumulative[k].push((cumulative[k].at(-1) ?? 0) + r[k])
@@ -305,8 +321,10 @@ export const aggregate = (records: UsageRecord[], scope: Scope, pricing: Pricing
     }
     worked.add(r.turn)
   }
+  const first = rs[0]
+  const last = rs.at(-1)
   return {
-    stats: { totals, agents, models, turns: scope.startsWith('agent:') ? worked.size : turnStarts.length, duration: rs.length ? rs.at(-1)!.t - rs[0]!.t : 0 },
+    stats: { totals, agents, models, turns: scope.startsWith('agent:') ? worked.size : turnStarts.length, duration: first && last ? last.t - first.t : 0 },
     series: { t, cumulative, perTurn, turnStarts },
   }
 }

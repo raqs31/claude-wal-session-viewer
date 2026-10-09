@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from 'react'
 import type { SessionMeta, UsageTotals } from '../../../shared/api.ts'
 import { buildTree } from '../lib/agents.ts'
-import { EMPTY_FILTERS, filterSummary, pruneFilters, type Filters } from '../lib/params.ts'
+import { EMPTY_FILTERS, type Filters, filterSummary, pruneFilters } from '../lib/params.ts'
 import { FORMATS, type Format } from '../lib/tree.ts'
 import { useEvents, type View } from '../useEvents.ts'
 import { EventTable } from './EventTable.tsx'
@@ -13,7 +13,7 @@ import { UsageTiles } from './UsageTiles.tsx'
 const FORMAT_LABEL: Record<Format, string> = { json: 'JSON', yaml: 'YAML', raw: 'Raw' }
 
 const FormatSeg = ({ format, onFormat }: { format: Format; onFormat: (f: Format) => void }) => (
-  <span className="seg" id="format" role="group" aria-label="Record format">
+  <fieldset className="seg" id="format" aria-label="Record format">
     {FORMATS.map((f) => (
       <button
         key={f}
@@ -28,7 +28,7 @@ const FormatSeg = ({ format, onFormat }: { format: Format; onFormat: (f: Format)
         {FORMAT_LABEL[f]}
       </button>
     ))}
-  </span>
+  </fieldset>
 )
 
 interface Props {
@@ -80,7 +80,8 @@ export function EventsTab({
   const ev = useEvents(filters, view, ids)
   const tree = useMemo(() => buildTree(ev.agents, (id) => sessions.find((x) => x.id === id)?.title), [ev.agents, sessions])
   useEffect(() => {
-    const b = bar.current!
+    const b = bar.current
+    if (!b) return
     const o = new ResizeObserver(() => document.documentElement.style.setProperty('--bar-h', `${b.offsetHeight}px`))
     o.observe(b)
     return () => o.disconnect()
@@ -163,9 +164,9 @@ export function EventsTab({
           <FormatSeg format={format} onFormat={setFormat} />
           <span className="live">
             <span className="dot" id="livedot" style={ev.live === null ? undefined : { background: ev.live ? 'var(--cat-session)' : 'var(--muted)' }} />
-            <span id="livetext" onClick={() => void ev.requery()}>
+            <button id="livetext" type="button" onClick={() => void ev.requery()}>
               {ev.live === null ? 'connecting' : ev.live ? 'live' : 'disconnected'}
-            </span>
+            </button>
           </span>
         </div>
       </div>

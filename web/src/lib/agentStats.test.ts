@@ -1,5 +1,5 @@
-import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { test } from 'node:test'
 import type { SessionView, StatRow } from '../../../shared/api.ts'
 import { agentDetail } from './agentStats.ts'
 
@@ -42,7 +42,7 @@ test('main shows turns, no model, its own tokens, cost, duration and tool calls'
 
 test('main names the model only when the session used exactly one', () => {
   const withModels = (models: string[]) => ({ ...view, stats: { ...view.stats, models: Object.fromEntries(models.map((m) => [m, row({})])) } }) as SessionView
-  const model = (v: SessionView) => agentDetail(v, 'main').find((d) => d.k === 'Model')!.v
+  const model = (v: SessionView) => agentDetail(v, 'main').find((d) => d.k === 'Model')?.v
   assert.equal(model(withModels(['claude-opus'])), 'claude-opus')
   assert.equal(model(withModels(['claude-opus', 'claude-haiku'])), 'mixed (see By model)')
   assert.equal(model(withModels([])), '—')
@@ -72,7 +72,7 @@ test('a subagent shows type, model, requests, an unpriced cost and its full toke
   assert.equal(m.Model, 'claude-haiku')
   assert.equal(m.Requests, '3')
   assert.equal(m.Output, '2.5M')
-  assert.equal(d.find((x) => x.k === 'Output')!.title, '2,500,000')
+  assert.equal(d.find((x) => x.k === 'Output')?.title, '2,500,000')
   assert.equal(m['Cost (estimated)'], '—')
   assert.equal(m['Tool calls'], '1,234')
 })

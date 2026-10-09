@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react'
 import type uPlot from 'uplot'
 import type { SessionSeries } from '../../../../shared/api.ts'
 import { overTime, turnMarkers } from '../../lib/series.ts'
-import { bands, stackedSeries, UPlot, xAxis, yAxis, type Css } from './UPlot.tsx'
+import { bands, type Css, stackedSeries, UPlot, xAxis, yAxis } from './UPlot.tsx'
 
 export function TokensOverTime({ series, agent, markers = true }: { series: SessionSeries; agent: boolean; markers?: boolean }) {
   const data = useMemo(() => overTime(series), [series])
@@ -21,7 +21,7 @@ export function TokensOverTime({ series, agent, markers = true }: { series: Sess
       draw: [
         (u) => {
           const { ctx, bbox } = u
-          const [min, max] = [u.scales.x!.min!, u.scales.x!.max!]
+          const [min, max] = [u.scales.x?.min ?? -Infinity, u.scales.x?.max ?? Infinity]
           ctx.save()
           ctx.strokeStyle = css('--muted')
           ctx.lineWidth = devicePixelRatio

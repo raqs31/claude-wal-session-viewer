@@ -1,9 +1,9 @@
 #!/usr/bin/env node
+
 // discovery.test.ts — /sessions across config dirs, against a fake HOME: realpath dedupe of a
 // workspace symlinked to the default projects, an isolated workspace, a --source, and the
 // per-row fields read from each session's WAL.
 
-import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   appendFileSync,
@@ -19,11 +19,12 @@ import {
   utimesSync,
   writeFileSync,
 } from 'node:fs'
-import { join, dirname } from 'node:path'
 import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import type { SessionList, SessionMeta } from '../shared/api.ts'
-import { PROMPT_MAX, cleanPrompt } from './discovery.ts'
+import { cleanPrompt, PROMPT_MAX } from './discovery.ts'
 import { startServer } from './test-server.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -108,7 +109,7 @@ test('sources: default, the isolated workspace and --source; the symlinked works
     l.sources.map((s) => s.label),
     ['default', 'iso', 'other'],
   )
-  assert.equal(l.sources[0]!.projectsDir, realpathSync(projects))
+  assert.equal(l.sources[0]?.projectsDir, realpathSync(projects))
 })
 
 test('every session once, newest activity first, WAL files not listed as sessions', async () => {

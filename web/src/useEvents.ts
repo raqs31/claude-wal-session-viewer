@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Category, FirstPage, Page, Row, SessionAgents } from '../../shared/api.ts'
 import { buildTree } from './lib/agents.ts'
-import { buildParams, pruneFilters, sameRows, type Filters } from './lib/params.ts'
+import { buildParams, type Filters, pruneFilters, sameRows } from './lib/params.ts'
 
 export type View = 'tail' | 'table'
 export const VIEWS: readonly View[] = ['tail', 'table']
@@ -133,7 +133,8 @@ export function useEvents(filters: Filters, view: View, ids: readonly string[] |
         .map(([id, g]) => `${id}:${g}`)
         .join(','),
     )
-    const es = (s.es = new EventSource(`/events-stream?${p}`))
+    const es = new EventSource(`/events-stream?${p}`)
+    s.es = es
     es.onopen = () => setLive(true)
     es.onerror = () => setLive(false)
     // The server sends nothing after a reset but leaves the socket open, so it must be closed here.
@@ -223,6 +224,9 @@ export function useEvents(filters: Filters, view: View, ids: readonly string[] |
     if (buildParams(filters, pickRef.current ? pickRef.current.split(',') : []).toString() === s.sent) return
     s.timer = setTimeout(() => void query(), 250)
   }, [filters, s, query])
+  // query reads view and pick through refs, so requery and the stream's reset see the latest too.
+  // biome-ignore lint/correctness/useExhaustiveDependencies(view): re-run trigger, a new view needs a fresh first page.
+  // biome-ignore lint/correctness/useExhaustiveDependencies(pick): re-run trigger, a new pick needs a fresh first page.
   useEffect(() => {
     if (started.current) void query()
   }, [view, pick, query])

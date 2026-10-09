@@ -1,7 +1,7 @@
-import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { test } from 'node:test'
 import type { AgentNode, SessionAgents } from '../../../shared/api.ts'
-import { agentSelection, buildTree, checks, countNodes, pruneAgents, searchTree, toggle, type PickNode } from './agents.ts'
+import { agentSelection, buildTree, checks, countNodes, type PickNode, pruneAgents, searchTree, toggle } from './agents.ts'
 
 const A = 'aaaaaaaa-0000-4000-8000-000000000001'
 const B = 'bbbbbbbb-0000-4000-8000-000000000002'
@@ -16,12 +16,13 @@ const s = (...xs: string[]) => new Set(xs)
 
 test('one session: main on top, children nested, summaries as a leaf per owner', () => {
   assert.equal(one.length, 1)
-  assert.equal(one[0]!.label, 'main')
+  assert.equal(one[0]?.label, 'main')
   assert.deepEqual(keys(one), [`${A}:main`, `${A}:p1aaaaaa`, `${A}:c1bbbbbb`, `${A}:summaries:p1aaaaaa`, `${A}:x1cccccc`, `${A}:summaries:main`])
-  const p1 = one[0]!.children[0]!
+  const p1 = one[0]?.children[0]
+  assert.ok(p1)
   assert.equal(p1.label, 'Explore p1aaaa')
-  assert.equal(p1.children[1]!.label, 'summaries (2)')
-  assert.equal(one[0]!.sub, `${A}:*`)
+  assert.equal(p1.children[1]?.label, 'summaries (2)')
+  assert.equal(one[0]?.sub, `${A}:*`)
   assert.equal(p1.sub, `${A}:p1aaaaaa*`)
   assert.equal(countNodes(one), 6)
 })
@@ -32,7 +33,7 @@ test('two sessions: a session level with title and short id; untitled falls back
     ['Fix the bug · aaaaaaaa', 'untitled · bbbbbbbb'],
   )
   assert.deepEqual(
-    two.map((x) => x.children[0]!.key),
+    two.map((x) => x.children[0]?.key),
     [`${A}:main`, `${B}:main`],
   )
   assert.deepEqual(
@@ -42,7 +43,7 @@ test('two sessions: a session level with title and short id; untitled falls back
       ['untitled', '· bbbbbbbb'],
     ],
   )
-  assert.equal(two[0]!.self, null)
+  assert.equal(two[0]?.self, null)
 })
 
 test('ticking a node ticks its subtree as one subtree token', () => {

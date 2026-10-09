@@ -29,23 +29,15 @@ export const perCall = (s: SessionSeries): Columns => [s.t.map((_, i) => i + 1),
 
 const workedTurns = (s: SessionSeries): Set<number> => {
   const cols = LAYERS.map((k) => layer(s.perTurn, k))
-  return new Set(s.perTurn.input.map((_, i) => i).filter((i) => cols.some((c) => c[i]! > 0)))
+  return new Set(s.perTurn.input.map((_, i) => i).filter((i) => cols.some((c) => (c[i] ?? 0) > 0)))
 }
 
 // x is the turn number; turn 0 is whatever ran before the first prompt. `onlyWorked` (an agent scope,
 // which spends tokens in only the main turn(s) it ran in) drops the turns where the scope spent nothing.
 export const perTurn = (s: SessionSeries, onlyWorked = false): Columns => {
   const w = onlyWorked ? workedTurns(s) : null
-  const keep = s.perTurn.input.map((_, i) => i).filter((i) => !w || w.has(i))
-  return [
-    keep,
-    ...stack(
-      LAYERS.map((k) => {
-        const c = layer(s.perTurn, k)
-        return keep.map((i) => c[i]!)
-      }),
-    ),
-  ]
+  const kept = (_: number, i: number) => !w || w.has(i)
+  return [s.perTurn.input.map((_, i) => i).filter(kept), ...stack(LAYERS.map((k) => layer(s.perTurn, k).filter(kept)))]
 }
 
 // Turn i + 1 starts at turnStarts[i].

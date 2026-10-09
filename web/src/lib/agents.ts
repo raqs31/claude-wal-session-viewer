@@ -36,9 +36,10 @@ const agentNode = (sess: string, a: AgentNode): PickNode => {
 }
 
 /** One session: its main at the top. Two or more: a level per session above each main. */
-export const buildTree = (facet: readonly SessionAgents[], title: (sess: string) => string | undefined = () => undefined): PickNode[] =>
-  facet.length === 1
-    ? [agentNode(facet[0]!.sess, facet[0]!.main)]
+export const buildTree = (facet: readonly SessionAgents[], title: (sess: string) => string | undefined = () => undefined): PickNode[] => {
+  const [only] = facet
+  return only && facet.length === 1
+    ? [agentNode(only.sess, only.main)]
     : facet.map(({ sess, main }) => {
         const name = title(sess) || 'untitled'
         const tag = `· ${sess.slice(0, 8)}`
@@ -53,6 +54,7 @@ export const buildTree = (facet: readonly SessionAgents[], title: (sess: string)
           children: [agentNode(sess, main)],
         }
       })
+}
 
 const walk = function* (nodes: readonly PickNode[]): Generator<PickNode> {
   for (const n of nodes) {
@@ -128,7 +130,8 @@ export const agentSelection = (sel: ReadonlySet<string>, tree: readonly PickNode
   if (!sel.size) return 'all'
   const on = ticked(tree, sel)
   const names = [...walk(tree)].filter((n) => n.self !== null && on.has(n.self)).map((n) => n.label)
-  return names.length === 1 ? names[0]! : String(names.length)
+  const [only] = names
+  return only !== undefined && names.length === 1 ? only : String(names.length)
 }
 
 /**

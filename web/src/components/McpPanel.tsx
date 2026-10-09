@@ -1,15 +1,11 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { type CSSProperties, Fragment, useEffect, useRef, useState } from 'react'
 import { groupMcp, mcpParts, toolColor } from '../lib/mcp.ts'
 
 type SetTools = (ts: readonly string[], on: boolean) => void
 
-function Box({ ts, selected, onSet }: { ts: readonly string[]; selected: ReadonlySet<string>; onSet: SetTools }) {
-  const ref = useRef<HTMLInputElement>(null)
-  const on = ts.filter((t) => selected.has(t)).length
-  useLayoutEffect(() => {
-    ref.current!.indeterminate = on > 0 && on < ts.length
-  })
-  return <input type="checkbox" ref={ref} checked={on === ts.length} onChange={(e) => onSet(ts, e.target.checked)} />
+// `indeterminate` exists only as a DOM property; a fresh ref callback sets it on every commit.
+const mixed = (on: boolean) => (el: HTMLInputElement | null) => {
+  if (el) el.indeterminate = on
 }
 
 export function McpPanel({ tools, selected, onSet }: { tools: readonly string[]; selected: ReadonlySet<string>; onSet: SetTools }) {
@@ -27,16 +23,16 @@ export function McpPanel({ tools, selected, onSet }: { tools: readonly string[];
   const visible = groups.flatMap((g) => g.tools)
 
   useEffect(() => {
-    if (open) search.current!.focus()
+    if (open) search.current?.focus()
   }, [open])
   useEffect(() => {
     const click = (e: MouseEvent) => {
-      if (openRef.current && !root.current!.contains(e.target as Node)) setOpen(false)
+      if (openRef.current && !root.current?.contains(e.target as Node)) setOpen(false)
     }
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && openRef.current) {
         setOpen(false)
-        pill.current!.focus()
+        pill.current?.focus()
       }
     }
     document.addEventListener('click', click)
@@ -81,21 +77,29 @@ export function McpPanel({ tools, selected, onSet }: { tools: readonly string[];
           </button>
         </div>
         <div id="mcplist">
-          {groups.map((g) => (
-            <Fragment key={g.server}>
-              <label>
-                <Box ts={g.tools} selected={selected} onSet={onSet} />
-                <span className="dot" style={{ background: toolColor(g.tools[0]!) }} />
-                {g.server}
-              </label>
-              {g.tools.map((t) => (
-                <label key={t} className="t">
-                  <Box ts={[t]} selected={selected} onSet={onSet} />
-                  {mcpParts(t)![1]}
+          {groups.map((g) => {
+            const on = g.tools.filter((t) => selected.has(t)).length
+            return (
+              <Fragment key={g.server}>
+                <label>
+                  <input
+                    type="checkbox"
+                    ref={mixed(on > 0 && on < g.tools.length)}
+                    checked={on === g.tools.length}
+                    onChange={(e) => onSet(g.tools, e.target.checked)}
+                  />
+                  <span className="dot" style={{ background: toolColor(g.tools[0] ?? '') }} />
+                  {g.server}
                 </label>
-              ))}
-            </Fragment>
-          ))}
+                {g.tools.map((t) => (
+                  <label key={t} className="t">
+                    <input type="checkbox" checked={selected.has(t)} onChange={(e) => onSet([t], e.target.checked)} />
+                    {mcpParts(t)?.[1]}
+                  </label>
+                ))}
+              </Fragment>
+            )
+          })}
         </div>
       </div>
     </span>

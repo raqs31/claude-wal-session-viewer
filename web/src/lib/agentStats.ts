@@ -14,8 +14,8 @@ const n = (v: number) => v.toLocaleString('en-US')
 // Main has no AgentInfo and the view no per-agent model split, so only a single-model session
 // names main's model for certain.
 const mainModel = (view: SessionView): string => {
-  const ms = Object.keys(view.stats.models)
-  return ms.length === 1 ? ms[0]! : ms.length ? 'mixed (see By model)' : '—'
+  const [m, ...rest] = Object.keys(view.stats.models)
+  return m === undefined ? '—' : rest.length ? 'mixed (see By model)' : m
 }
 
 export function agentDetail(view: SessionView, id: string): Detail[] {

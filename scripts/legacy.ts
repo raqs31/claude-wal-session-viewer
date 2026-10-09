@@ -6,7 +6,7 @@
 import { appendFileSync, closeSync, existsSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
-import { createDiscovery, SESSION_RE, SNAP, snapshotsOf, type Discovery } from './discovery.ts'
+import { createDiscovery, type Discovery, SESSION_RE, SNAP, snapshotsOf } from './discovery.ts'
 
 export type Ask = (question: string) => Promise<string>
 

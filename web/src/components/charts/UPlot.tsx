@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
-import { fmtTokens } from '../../lib/tokens.ts'
 import { LAYERS, type Layer } from '../../lib/series.ts'
+import { fmtTokens } from '../../lib/tokens.ts'
 
 export type Css = (name: string) => string
 type Opts = Omit<uPlot.Options, 'width' | 'height'>
@@ -64,15 +64,31 @@ function useTheme(): number {
   return n
 }
 
-export function UPlot({ title, opts, data }: { title: string; opts: (css: Css) => Opts; data: uPlot.AlignedData }) {
+interface ChartProps {
+  opts: (css: Css) => Opts
+  data: uPlot.AlignedData
+}
+
+export function UPlot({ title, ...props }: ChartProps & { title: string }) {
+  // Keyed by theme: a theme change remounts the chart, which rebuilds it with the colours read again.
+  const theme = useTheme()
+  return (
+    <div className="chart-s">
+      <h2>{title}</h2>
+      <Chart key={theme} {...props} />
+    </div>
+  )
+}
+
+function Chart({ opts, data }: ChartProps) {
   const el = useRef<HTMLDivElement>(null)
   const chart = useRef<uPlot | null>(null)
   const latest = useRef({ opts, data })
   latest.current = { opts, data }
-  const theme = useTheme()
 
   useEffect(() => {
-    const box = el.current!
+    const box = el.current
+    if (!box) return
     let u: uPlot | null = null
     // Inside a closed <details> the box is 0 wide, and uPlot built at 0 computes a negative plot size;
     // so build on the first positive width (now or when the panel opens) and only resize after that.
@@ -93,15 +109,10 @@ export function UPlot({ title, opts, data }: { title: string; opts: (css: Css) =
       u?.destroy()
       chart.current = null
     }
-  }, [theme])
+  }, [])
   useEffect(() => {
     chart.current?.setData(data)
   }, [data])
 
-  return (
-    <div className="chart-s">
-      <h2>{title}</h2>
-      <div ref={el} className="chart" />
-    </div>
-  )
+  return <div ref={el} className="chart" />
 }

@@ -1,11 +1,11 @@
-import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { test } from 'node:test'
 import { isAllowedString } from './make-fixture.ts'
 import { aggregate, createParser, type Pricing, type UsageRecord } from './transcripts.ts'
 
-// `any` is deliberate: raw fixture entries are schemaless JSON.
+// biome-ignore lint/suspicious/noExplicitAny: raw fixture entries are schemaless JSON
 type E = Record<string, any>
 
 const ROOT = join(import.meta.dirname, 'fixtures/projects')
@@ -22,6 +22,10 @@ const entries = (b: Buffer): E[] =>
     .split('\n')
     .filter(Boolean)
     .map((l) => JSON.parse(l) as E)
+const must = <T>(v: T | undefined | null, what = 'value'): T => {
+  assert.ok(v != null, `missing ${what}`)
+  return v
+}
 const mainRaw = entries(mainBytes)
 const subRaw = entries(subBytes)
 
@@ -44,7 +48,7 @@ test('fixture holds only allowlisted strings and no home path', () => {
   const walk = (v: unknown, path: string[], file: string): void => {
     if (typeof v === 'string') {
       if (!isAllowedString(path, v) || v.includes('/home/')) bad.push(`${file}: ${path.join('.')}`)
-    } else if (Array.isArray(v)) v.forEach((x) => walk(x, path, file))
+    } else if (Array.isArray(v)) for (const x of v) walk(x, path, file)
     else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) walk(x, [...path, k], file)
   }
   const files = readdirSync(ROOT, { recursive: true, encoding: 'utf8' }).filter((f) => f.endsWith('.jsonl') || f.endsWith('.json'))
@@ -74,7 +78,7 @@ test('file order agrees with the parent chain even where timestamps drop; items 
     fileOrder.filter((u) => uids.includes(u)),
   )
   const stamped = mainRaw.filter((e) => e.uuid)
-  const drop = stamped.findIndex((e, i) => i > 0 && e.timestamp < stamped[i - 1]!.timestamp)
+  const drop = stamped.findIndex((e, i) => i > 0 && e.timestamp < must(stamped[i - 1]).timestamp)
   assert.ok(drop > 0)
 })
 
@@ -83,25 +87,29 @@ test('a split reply is counted once; a subagent reply takes its final streamed u
   const mg = groups(mainRaw)
   assert.equal(main.usage.length, mg.size)
   assert.equal(new Set(main.usage.map((r) => r.id)).size, mg.size)
-  const [id, split] = [...mg].find(([, g]) => g.length >= 3)!
-  assert.equal(main.usage.find((r) => r.id === id)!.output, split[0]!.message.usage.output_tokens)
+  const [id, split] = must(
+    [...mg].find(([, g]) => g.length >= 3),
+    'split reply',
+  )
+  const head = must(split[0])
+  assert.equal(must(main.usage.find((r) => r.id === id)).output, head.message.usage.output_tokens)
   const carriers = main.items.filter((i) => i.usage)
   assert.equal(carriers.length, mg.size)
-  assert.equal(carriers.find((i) => i.uid === split[0]!.uuid)?.model, split[0]!.message.model)
+  assert.equal(carriers.find((i) => i.uid === head.uuid)?.model, head.message.model)
 
   const sg = groups(subRaw)
-  const streamed = [...sg].filter(([, g]) => g[0]!.message.usage.output_tokens !== g.at(-1)!.message.usage.output_tokens)
+  const streamed = [...sg].filter(([, g]) => must(g[0]).message.usage.output_tokens !== must(g.at(-1)).message.usage.output_tokens)
   assert.ok(streamed.length > 0)
   for (const [id, g] of sg) {
-    const rec = sub.usage.find((r) => r.id === id)!
-    assert.equal(rec.output, g.at(-1)!.message.usage.output_tokens)
-    assert.equal(sub.items.find((i) => i.uid === g[0]!.uuid)?.usage?.output, rec.output)
+    const rec = must(sub.usage.find((r) => r.id === id))
+    assert.equal(rec.output, must(g.at(-1)).message.usage.output_tokens)
+    assert.equal(sub.items.find((i) => i.uid === must(g[0]).uuid)?.usage?.output, rec.output)
   }
 })
 
 test('a <synthetic> reply is an error item, never a request or tokens', () => {
   const { main } = open()
-  const synth = mainRaw.find((e) => e.message?.model === '<synthetic>')!
+  const synth = must(mainRaw.find((e) => e.message?.model === '<synthetic>'))
   assert.equal(kindOf(main.items, synth.uuid), 'error')
   assert.equal(main.items.find((i) => i.uid === synth.uuid)?.usage, undefined)
   assert.ok(main.usage.every((r) => r.model !== '<synthetic>' && r.id !== synth.message.id))
@@ -111,7 +119,7 @@ test('turns count human input the model answers: prompts and /goal, not /clear',
   const { main, sub } = open()
   const human = mainRaw.filter((e) => e.origin?.kind === 'human')
   assert.equal(human.length, 2)
-  const goal = mainRaw.find((e) => String(e.message?.content).includes('<command-name>/goal</command-name>'))!
+  const goal = must(mainRaw.find((e) => String(e.message?.content).includes('<command-name>/goal</command-name>')))
   assert.equal(goal.origin, undefined)
   assert.deepEqual(
     main.turnStarts,
@@ -125,9 +133,9 @@ test('turns count human input the model answers: prompts and /goal, not /clear',
     human.map((e) => e.uuid),
   )
   // /goal starts the first turn, so it is the fallback title, read as `/name args`.
-  assert.equal(main.meta.firstPrompt, `/goal ${/<command-args>(.*)<\/command-args>/.exec(goal.message.content)![1]}`)
+  assert.equal(main.meta.firstPrompt, `/goal ${must(/<command-args>(.*)<\/command-args>/.exec(goal.message.content))[1]}`)
   assert.equal(main.meta.cwd, '/tmp/proj')
-  const one = (p: (e: E) => boolean): string => mainRaw.find(p)!.uuid
+  const one = (p: (e: E) => boolean): string => must(mainRaw.find(p)).uuid
   assert.equal(
     kindOf(
       main.items,
@@ -163,16 +171,16 @@ test('turns count human input the model answers: prompts and /goal, not /clear',
     ),
     'command',
   )
-  assert.equal(kindOf(sub.items, subRaw[0]!.uuid), 'meta')
+  assert.equal(kindOf(sub.items, must(subRaw[0]).uuid), 'meta')
   assert.equal(sub.turnStarts.length, 0)
 
   const clear = createParser('main')
   const clearRaw = readFileSync(join(DIR, '149b4f57-914a-4248-b3b7-5f6f35ab44d1.jsonl'))
   clear.push(clearRaw)
   assert.equal(clear.turnStarts.length, 0)
-  const cmd = entries(clearRaw).find((e) => String(e.message?.content).includes('<command-name>/clear</command-name>'))!
+  const cmd = must(entries(clearRaw).find((e) => String(e.message?.content).includes('<command-name>/clear</command-name>')))
   assert.equal(kindOf(clear.items, cmd.uuid), 'command')
-  assert.match(clear.items.find((i) => i.uid === cmd.uuid)!.summary, /^\/clear/)
+  assert.match(must(clear.items.find((i) => i.uid === cmd.uuid)).summary, /^\/clear/)
 })
 
 test('toolCalls counts tool and Agent calls; keepItems false drops the timeline, not the stats', () => {
@@ -190,7 +198,7 @@ test('toolCalls counts tool and Agent calls; keepItems false drops the timeline,
 
 test('the Agent item links to its subagent, whose usage lands on the spawning turn', () => {
   const { main, sub, records } = open()
-  const spawn = main.tools.get(subMeta.toolUseId)!
+  const spawn = must(main.tools.get(subMeta.toolUseId))
   assert.equal(spawn.kind, 'agent')
   assert.equal(spawn.agentId, SUB)
   assert.equal(spawn.description, subMeta.description)
@@ -219,7 +227,7 @@ test('the Agent item links to its subagent, whose usage lands on the spawning tu
 
 test('compaction, tool errors and metadata', () => {
   const { main } = open()
-  const boundary = mainRaw.find((e) => e.subtype === 'compact_boundary')!
+  const boundary = must(mainRaw.find((e) => e.subtype === 'compact_boundary'))
   const c = boundary.compactMetadata
   assert.deepEqual(main.items.find((i) => i.uid === boundary.uuid)?.compact, { pre: c.preTokens, post: c.postTokens, trigger: c.trigger })
 
@@ -230,11 +238,11 @@ test('compaction, tool errors and metadata', () => {
   assert.ok(errIds.length > 0)
   assert.deepEqual(
     main.items.filter((i) => i.isError).map((i) => i.uid),
-    errIds.map((id: string) => main.tools.get(id)!.uid),
+    errIds.map((id: string) => must(main.tools.get(id)).uid),
   )
-  assert.ok(main.tools.get(errIds[0])!.resultSrc)
+  assert.ok(must(main.tools.get(errIds[0])).resultSrc)
 
-  const cost = mainRaw.findLast((e) => e.type === 'cost-state')!
+  const cost = must(mainRaw.findLast((e) => e.type === 'cost-state'))
   assert.equal(main.meta.costUsd, cost.totalCostUSD)
   assert.deepEqual(main.meta.costByModel, Object.fromEntries(Object.entries(cost.modelUsage).map(([m, u]) => [m, (u as E).costUSD])))
   assert.equal(main.meta.first, Math.min(...mainRaw.filter((e) => e.timestamp).map((e) => Date.parse(e.timestamp))))
@@ -243,7 +251,7 @@ test('compaction, tool errors and metadata', () => {
 })
 
 test('a partial last line waits for its newline; spans re-slice to their exact line', () => {
-  const target = mainRaw.findLast((e) => e.origin?.kind === 'human')!
+  const target = must(mainRaw.findLast((e) => e.origin?.kind === 'human'))
   const at = mainBytes.indexOf(`"uuid":"${target.uuid}"`)
   const p = createParser('main')
   p.push(mainBytes.subarray(0, at))
@@ -259,11 +267,11 @@ test('a partial last line waits for its newline; spans re-slice to their exact l
 })
 
 test('a tool result arriving in a later push pairs with its call', () => {
-  const result = mainRaw.find((e) => e.toolUseResult?.agentId === SUB)!
+  const result = must(mainRaw.find((e) => e.toolUseResult?.agentId === SUB))
   const at = mainBytes.indexOf(`"uuid":"${result.uuid}"`)
   const p = createParser('main')
   p.push(mainBytes.subarray(0, mainBytes.lastIndexOf(10, at) + 1))
-  const spawn = p.tools.get(subMeta.toolUseId)!
+  const spawn = must(p.tools.get(subMeta.toolUseId))
   assert.equal(spawn.agentId, undefined)
   assert.equal(spawn.resultSrc, undefined)
   p.touched.clear()
@@ -303,9 +311,10 @@ test('a chunk split inside a multibyte character, a 700 KB block and junk lines'
   assert.equal(p.items.length, 0)
   p.push(line.subarray(cut))
   assert.equal(p.items.length, 1)
-  const s = p.items[0]!.summary
+  const item = must(p.items[0])
+  const s = item.summary
   assert.ok(s.startsWith('zażółć 👍 aaa') && s.length <= 200 && s.endsWith('…'))
-  assert.deepEqual(p.items[0]!.src, [9, line.length - 10])
+  assert.deepEqual(item.src, [9, line.length - 10])
 })
 
 test('aggregate: exact cost for priced models, null when any model is unpriced', () => {
@@ -322,14 +331,14 @@ test('aggregate: exact cost for priced models, null when any model is unpriced',
     cacheWrite1h: 1e6,
     thinking: 1e6,
   })
-  const p = pricing.models['claude-opus-5-5']!
+  const p = must(pricing.models['claude-opus-5-5'])
   const unit = p.input + p.output + p.cacheRead + p.cacheWrite5m + p.cacheWrite1h
   const priced = aggregate([rec('claude-opus-5-5')], 'all', pricing, [])
-  assert.ok(Math.abs(priced.stats.totals.cost! - unit) < 1e-9)
+  assert.ok(Math.abs(must(priced.stats.totals.cost) - unit) < 1e-9)
   const mixed = aggregate([rec('claude-opus-5-5', 'main', 1), rec('claude-unpriced', 'main', 2)], 'all', pricing, [])
   assert.equal(mixed.stats.totals.cost, null)
-  assert.ok(Math.abs(mixed.stats.models['claude-opus-5-5']!.cost! - unit) < 1e-9)
-  assert.equal(mixed.stats.models['claude-unpriced']!.cost, null)
+  assert.ok(Math.abs(must(must(mixed.stats.models['claude-opus-5-5']).cost) - unit) < 1e-9)
+  assert.equal(must(mixed.stats.models['claude-unpriced']).cost, null)
   assert.equal(mixed.stats.totals.requests, 2)
 })
 
@@ -343,8 +352,8 @@ test('aggregate: scopes partition requests; series are ascending and sum to the 
   assert.equal(typeof all.stats.totals.cost, 'number')
   assert.equal(all.stats.turns, 3)
   const t = all.series.t
-  assert.ok(t.every((x, i) => i === 0 || x >= t[i - 1]!))
-  assert.equal(all.stats.duration, t.at(-1)! - t[0]!)
+  assert.ok(t.every((x, i) => i === 0 || x >= must(t[i - 1])))
+  assert.equal(all.stats.duration, must(t.at(-1)) - must(t[0]))
   assert.ok(!('thinking' in all.series.cumulative))
   for (const k of ['input', 'output', 'cacheRead', 'cacheWrite5m', 'cacheWrite1h'] as const) {
     assert.equal(all.series.cumulative[k].at(-1), all.stats.totals[k])

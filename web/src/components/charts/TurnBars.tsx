@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react'
 import uPlot from 'uplot'
 import type { SessionSeries } from '../../../../shared/api.ts'
 import { perCall, perTurn } from '../../lib/series.ts'
-import { bands, stackedSeries, UPlot, xAxis, yAxis, type Css } from './UPlot.tsx'
+import { bands, type Css, stackedSeries, UPlot, xAxis, yAxis } from './UPlot.tsx'
 
 export function TurnBars({ series, agent, by = 'turn' }: { series: SessionSeries; agent: boolean; by?: 'turn' | 'call' }) {
   const cols = useMemo(() => (by === 'call' ? perCall(series) : perTurn(series, agent)), [series, agent, by])
@@ -14,7 +14,7 @@ export function TurnBars({ series, agent, by = 'turn' }: { series: SessionSeries
   const opts = (css: Css): Omit<uPlot.Options, 'width' | 'height'> => ({
     series: [
       { label: by === 'call' ? 'Call' : 'Turn', value: (_u, v) => (v === null ? '—' : label(v)) },
-      ...stackedSeries(css, uPlot.paths.bars!({ size: [0.8, 40], align: 0 })),
+      ...stackedSeries(css, uPlot.paths.bars?.({ size: [0.8, 40], align: 0 })),
     ],
     bands,
     scales: { x: { time: false, range: (_u, min, max) => [min - 0.5, max + 0.5] } },

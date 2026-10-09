@@ -19,6 +19,7 @@ export const pretty = (v: unknown): string => (typeof v === 'string' ? v : JSON.
 // One walker feeds both the DOM tree and the copied text, so the two cannot disagree.
 // A node is a line (array of [class, text] segments) or a group {h, o, k, c, s}: head, opener, kids, closer, summary.
 const YQ =
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are exactly what forces YAML quoting
   /^$|^\s|\s$|^[-?:,[\]{}#&*!|>'"%@`]|: |\s#|:$|[\x00-\x1f\x7f]|^(true|false|yes|no|on|off|y|n|null|~)$|^[-+]?\.?\d|^[-+]?\.(inf|nan)$|^(<<|=)$|[\x85\u2028\u2029]/i
 // YAML 1.1 parsers fold a raw NEL/LS/PS even inside double quotes, so those must be escaped.
 const yq = (t: string): string =>
@@ -29,6 +30,7 @@ const scalar = (v: unknown, yaml: boolean): Seg =>
 function tree(v: unknown, yaml: boolean, head: Seg[] = [], item = false): TreeNode {
   const sp = yaml && head.length ? [P(' ')] : []
   // A literal block keeps newlines readable; leading whitespace or extra trailing newlines would need indicators and control or NEL/LS/PS chars are not allowed in a block, so those stay quoted.
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are exactly what a literal block cannot hold
   if (yaml && typeof v === 'string' && v.includes('\n') && !/^\s|\n\n$|[\x00-\x08\x0b-\x1f\x7f\x85\u2028\u2029]/.test(v)) {
     const nl = v.endsWith('\n'),
       ls = (nl ? v.slice(0, -1) : v).split('\n')
@@ -44,7 +46,7 @@ function tree(v: unknown, yaml: boolean, head: Seg[] = [], item = false): TreeNo
   const s = arr ? `[…] ${n} item${n === 1 ? '' : 's'}` : `{…} ${n} key${n === 1 ? '' : 's'}`
   if (!yaml) {
     // JSON groups always carry a closer.
-    for (const c of k.slice(0, -1)) (Array.isArray(c) ? c : c.c!).push(P(','))
+    for (const c of k.slice(0, -1)) (Array.isArray(c) ? c : c.c)?.push(P(','))
     return { h: head, o: P(arr ? '[' : '{'), k, c: [P(arr ? ']' : '}')], s }
   }
   const first = k[0]

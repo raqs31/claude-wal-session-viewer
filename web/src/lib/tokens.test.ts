@@ -1,5 +1,5 @@
-import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { test } from 'node:test'
 import { fmtBytes, fmtDuration, fmtTokens, fmtUsd } from './tokens.ts'
 
 test('tokens are compact with one decimal below 100 of a unit', () => {

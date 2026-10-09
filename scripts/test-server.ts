@@ -3,8 +3,8 @@
 // Port 0 lets the OS pick a free port, so no guess can land on one another service holds. Tests
 // pass `HOME` in `env`: discovery reads `~/.claude` through os.homedir(), which honours it.
 
-import { spawn, type ChildProcess } from 'node:child_process'
-import { join, dirname } from 'node:path'
+import { type ChildProcess, spawn } from 'node:child_process'
+import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
 
@@ -16,9 +16,9 @@ export const startServer = (args: string[], env: Record<string, string> = {}): P
     env: { ...process.env, TZ: 'UTC', ...env },
   })
   return new Promise((resolve, reject) => {
-    createInterface({ input: server.stdout! }).on('line', (l) => {
-      const m = /^wal viewer:\s+(http:\/\/\S+)/.exec(l)
-      if (m) resolve({ server, base: m[1]! })
+    createInterface({ input: server.stdout }).on('line', (l) => {
+      const base = /^wal viewer:\s+(http:\/\/\S+)/.exec(l)?.[1]
+      if (base) resolve({ server, base })
     })
     server.once('exit', (code) => reject(new Error(`server exited (${code}) before listening`)))
     setTimeout(() => {

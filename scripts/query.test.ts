@@ -1,16 +1,17 @@
 #!/usr/bin/env node
+
 // query.test.ts — proves the per-session indexes, their merge and every /events filter against
 // crafted per-session WALs under a fake HOME.
 //
 // The server runs with TZ=UTC so the local day and minute of each fixture record are fixed.
 
-import { request } from 'node:http'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { request } from 'node:http'
 import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { catOf, type FirstPage, type Row, type WalRecord } from '../shared/api.ts'
 import { startServer } from './test-server.ts'
-import { agentTree, lineageOf, matcher, type IndexEntry } from './wal-index.ts'
+import { agentTree, type IndexEntry, lineageOf, matcher } from './wal-index.ts'
 
 const dir = mkdtempSync(join(tmpdir(), 'walquery.'))
 const proj = join(dir, '.claude', 'projects', '-tmp-q')
@@ -157,6 +158,10 @@ const events = async (qs = ''): Promise<FirstPage> => {
 }
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)
 const key = (r: Row): string => `${r.sess}:${r.seq}`
+const must = <T>(v: T | undefined | null, what = 'value'): T => {
+  if (v == null) throw new Error(`missing ${what}`)
+  return v
+}
 const keysOf = async (qs: string): Promise<string[]> => (await events(`${qs}&limit=100`)).rows.map(key)
 const expectKeys = async (label: string, qs: string, want: string[]): Promise<void> => {
   const got = await keysOf(qs)
@@ -190,7 +195,10 @@ try {
   check('gens per picked session', Object.keys(all.gens).join() === `${S1},${S2}` && all.gens[S1] !== all.gens[S2], JSON.stringify(all.gens))
   check('next is null when everything fits', all.next === null, String(all.next))
   const r3 = all.rows.find((r) => key(r) === at(3))
-  const r2 = all.rows.find((r) => key(r) === at(2))!
+  const r2 = must(
+    all.rows.find((r) => key(r) === at(2)),
+    'row 2',
+  )
   check('unparseable row summary', same(r3, { sess: S1, seq: 3, cat: 'fail', t: r2.t, event: 'Unparseable', tool: null, dur: null }), JSON.stringify(r3))
   check(
     'summary shape',
@@ -257,7 +265,7 @@ try {
   )
   const lone = await events(`${BOTH}&event=UserPromptSubmit`)
   check('spans: one matching row gives 0', lengthOf(lone) === 0 && Object.keys(lone.spans).join() === S2, JSON.stringify(lone.spans))
-  check("limit caps rows, next is the last row's cursor", s2.rows.length === 1 && s2.next === `${s2.rows[0]!.t}.${S2}.3`, JSON.stringify([s2.rows, s2.next]))
+  check("limit caps rows, next is the last row's cursor", s2.rows.length === 1 && s2.next === `${s2.rows[0]?.t}.${S2}.3`, JSON.stringify([s2.rows, s2.next]))
 
   const whole = await pageAll(BOTH, 2)
   check('paging returns every row exactly once', same(whole.seen, [7, 6, 5, 4, 3, 2, 1, 0].map(at)), JSON.stringify(whole.seen))
@@ -268,7 +276,10 @@ try {
   )
   const filtered = await pageAll(`${BOTH}&tool=-`, 2)
   check('paging under a filter', same(filtered.seen, [6, 3, 0].map(at)), JSON.stringify(filtered.seen))
-  const b0 = all.rows.find((r) => key(r) === at(4))!
+  const b0 = must(
+    all.rows.find((r) => key(r) === at(4)),
+    'row 4',
+  )
   const exact = await events(`${BOTH}&limit=4&before=${b0.t}.${S2}.0`)
   check('exactly-full last page has next null', same(exact.rows.map(key), [3, 2, 1, 0].map(at)) && exact.next === null, JSON.stringify(exact))
 
@@ -283,7 +294,7 @@ try {
   }
   const tools = await pageAll(`${IB}&cat=tool`, 1)
   check('merge: paging under a filter', same(tools.seen, [`${I2}:2`, `${I2}:1`, `${I1}:1`, `${I1}:0`]), JSON.stringify(tools.seen))
-  const tie = merged.rows[3]!
+  const tie = must(merged.rows[3], 'tie row')
   await expectKeys('merge: cursor on a cross-session tie', `${IB}&before=${tie.t}.${I1}.2`, [`${I1}:1`, `${I2}:0`, `${I1}:0`])
 
   const GB = `ids=${G1},${G2}`
@@ -446,16 +457,16 @@ try {
   const rec3 = (await (await record(S1, 3)).json()) as WalRecord
   check('/record of an unparseable line', rec3.event === 'Unparseable' && rec3.payload?.line === 'this is not json', JSON.stringify(rec3))
   check('/record out of range is 404', (await record(S1, 99)).status === 404)
-  check('/record with a stale gen is 409', (await record(S2, 1, cur.gens[S2]! - 1)).status === 409)
+  check('/record with a stale gen is 409', (await record(S2, 1, must(cur.gens[S2]) - 1)).status === 409)
   check('/record with an invalid id is 400', (await status(`/record?id=nope&seq=0&gen=${cur.gens[S1]}`)) === 400)
   check('/record of an unknown session is 404', (await status(`/record?id=${sid(99)}&seq=0&gen=1`)) === 404)
 
   // fetch() normalises `%2e%2e` away before sending, so the guard only sees a raw path via node:http.
   const rawStatus = (path: string) =>
-    new Promise<number>((ok, fail) => {
+    new Promise<number | undefined>((ok, fail) => {
       const req = request({ host: '127.0.0.1', port: new URL(BASE).port, path }, (r) => {
         r.resume()
-        ok(r.statusCode!)
+        ok(r.statusCode)
       })
       req.on('error', fail).end()
     })
@@ -479,7 +490,11 @@ try {
   const MB = `ids=${M1}`
   const mk = (seq: number): string => `${M1}:${seq}`
   const m = await events(MB)
-  const row = (seq: number): Row => m.rows.find((r) => r.seq === seq)!
+  const row = (seq: number): Row =>
+    must(
+      m.rows.find((r) => r.seq === seq),
+      `row ${seq}`,
+    )
   check('mcp: head counts one call row per completed pair', m.head === `${M1}:10` && m.total === 10, `${m.head} ${m.total}`)
   check('mcp: Pre is marked request', row(0).mcp === 'request' && row(0).cat === 'tool' && !('err' in row(0)), JSON.stringify(row(0)))
   check('mcp: Post is marked response', row(2).mcp === 'response' && !('virtual' in row(2)), JSON.stringify(row(2)))

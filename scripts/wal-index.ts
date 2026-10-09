@@ -3,7 +3,7 @@
 
 import { closeSync, openSync, readSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { CATEGORIES, catOf, type AgentNode, type Category, type FirstPage, type McpRole, type Page, type Row } from '../shared/api.ts'
+import { type AgentNode, CATEGORIES, type Category, catOf, type FirstPage, type McpRole, type Page, type Row } from '../shared/api.ts'
 import type { Discovery } from './discovery.ts'
 import { validId } from './sessions.ts'
 
@@ -15,6 +15,25 @@ const CHUNK = 8 * 1024 * 1024
 // still holds hundreds of rows per disk read.
 const WINDOW = 1024 * 1024
 const OPEN_MAX = 8
+
+// The fields indexLine reads, typed as the hook writes them; a line is not validated against it.
+interface WalLine {
+  ts?: string
+  event?: string
+  tool_name?: string | null
+  tool_use_id?: string | null
+  agent_id?: unknown
+  agent_type?: unknown
+  duration_ms?: unknown
+  payload?: { tool_response?: { agentId?: unknown }; background_tasks?: unknown }
+}
+
+// Indexes in bounds by construction, which noUncheckedIndexedAccess cannot see.
+const nth = <T>(a: readonly T[], i: number): T => {
+  const v = a[i]
+  if (v === undefined) throw new RangeError(`index ${i} out of bounds`)
+  return v
+}
 
 // Seeded per process so a page reconnecting to a restarted server always sees a new gen, even
 // if the file was truncated while the server was down.
@@ -95,12 +114,13 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
     if (e.event !== undefined) ix.events.add(e.event)
     ix.cats.add(e.cat)
     const o = ix.order
-    if (!o.length || ix.entries[o[o.length - 1]!]!.t <= e.t) return void o.push(seq)
+    const top = o.at(-1)
+    if (top === undefined || nth(ix.entries, top).t <= e.t) return void o.push(seq)
     let lo = 0
     let hi = o.length
     while (lo < hi) {
       const mid = (lo + hi) >> 1
-      if (ix.entries[o[mid]!]!.t <= e.t) lo = mid + 1
+      if (nth(ix.entries, nth(o, mid)).t <= e.t) lo = mid + 1
       else hi = mid
     }
     o.splice(lo, 0, seq)
@@ -109,7 +129,7 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
   const indexLine = (buf: Buffer, off: number): void => {
     const line = buf.toString('utf8')
     if (!line.trim()) return
-    let rec: Record<string, any>
+    let rec: WalLine
     try {
       rec = Object(JSON.parse(line))
     } catch {
@@ -118,8 +138,9 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
     const { entries } = ix
     // Falling back to the previous row's time, not now, keeps old unparseable lines from looking
     // new after every restart.
-    let t = Date.parse(rec.ts)
-    if (Number.isNaN(t)) t = entries.length ? entries[entries.length - 1]!.t : Date.now()
+    // `?? ''` keeps Date.parse's NaN for a missing ts.
+    let t = Date.parse(rec.ts ?? '')
+    if (Number.isNaN(t)) t = entries.at(-1)?.t ?? Date.now()
     const d = new Date(t)
     const tool = rec.tool_name ?? null
     if (tool !== null) ix.tools.add(tool)
@@ -138,13 +159,14 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
         ix.links++
       }
     }
-    if (rec.event === 'SubagentStop' && agent !== null && Array.isArray(payload?.background_tasks)) {
+    const tasks = payload?.background_tasks
+    if (rec.event === 'SubagentStop' && agent !== null && Array.isArray(tasks)) {
       // With two subagents running the summary could be about either, so it stays unattributed.
-      const subs = payload.background_tasks.filter((b: any) => b?.type === 'subagent' && typeof b.id === 'string' && b.id)
+      const subs = tasks.filter((b) => b?.type === 'subagent' && typeof b.id === 'string' && b.id)
       if (subs.length === 1) ix.about.set(agent, subs[0].id)
     }
     const tuid = rec.tool_use_id ?? null
-    const mcp = (typeof tool === 'string' && tool.startsWith('mcp__') && MCP_ROLE[rec.event]) || null
+    const mcp = (typeof tool === 'string' && tool.startsWith('mcp__') && MCP_ROLE[rec.event ?? '']) || null
     // Every entry carries every key, so the index stays one hidden class.
     const entry: IndexEntry = {
       off,
@@ -167,9 +189,13 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
     if (tuid === null) return
     if (mcp === 'request') {
       pending.set(tuid, entries.length - 1)
-      if (pending.size > PENDING_MAX) pending.delete(pending.keys().next().value!)
-    } else if (mcp === 'response' && pending.has(tuid)) {
-      const pre = pending.get(tuid)!
+      if (pending.size > PENDING_MAX) {
+        const oldest = pending.keys().next().value
+        if (oldest !== undefined) pending.delete(oldest)
+      }
+    } else if (mcp === 'response') {
+      const pre = pending.get(tuid)
+      if (pre === undefined) return
       // Deleted on pairing, so a duplicate Post never yields a second call row.
       pending.delete(tuid)
       push({ ...entry, event: 'MCP call', cat: 'mcp', mcp: null, virtual: { pre, post: entries.length - 1 } })
@@ -220,7 +246,10 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
         const base = pos.offset - have
         pos.offset += n
         let start = 0
-        for (let nl: number; (nl = view.indexOf(0x0a, start)) !== -1; start = nl + 1) indexLine(view.subarray(start, nl), base + start)
+        for (let nl = view.indexOf(0x0a); nl !== -1; nl = view.indexOf(0x0a, start)) {
+          indexLine(view.subarray(start, nl), base + start)
+          start = nl + 1
+        }
         have = buf.copy(buf, 0, start, view.length)
       }
     } finally {
@@ -245,7 +274,8 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
           fd ??= openSync(path, 'r')
           let end = r.off + r.len
           if (asc) {
-            const last = ix.entries[ix.entries.length - 1]!
+            // `r` is itself indexed, so the fallback never applies.
+            const last = ix.entries.at(-1) ?? r
             start = r.off
             end = Math.max(end, Math.min(r.off + WINDOW, last.off + last.len))
           } else {
@@ -302,11 +332,17 @@ export const createIndexes = (discovery: Pick<Discovery, 'locate'>, busy: (id: s
 // ---- queries over a pick ----
 
 // For cat, tool, event and agent, present-but-empty is a real filter (every chip off), not unset.
-const list = (p: URLSearchParams, name: string): Set<string> | null => (p.has(name) ? new Set(p.get(name)!.split(',').filter(Boolean)) : null)
+const list = (p: URLSearchParams, name: string): Set<string> | null => {
+  const v = p.get(name)
+  return v === null ? null : new Set(v.split(',').filter(Boolean))
+}
 const dayOf = (s: string | null): number | null => (s !== null && /^\d{4}-\d{2}-\d{2}$/.test(s) ? Number(s.replaceAll('-', '')) : null)
 const minuteOf = (s: string | null): number | null => {
   const m = /^(\d{1,2}):(\d{2})$/.exec(s ?? '')
-  return m && +m[1]! < 24 && +m[2]! < 60 ? +m[1]! * 60 + +m[2]! : null
+  if (!m) return null
+  const h = Number(m[1])
+  const min = Number(m[2])
+  return h < 24 && min < 60 ? h * 60 + min : null
 }
 const num = (s: string | null | undefined): number | null => (s?.trim() && Number.isFinite(Number(s)) ? Number(s) : null)
 
@@ -339,7 +375,10 @@ interface Lineage {
 const lineages = new WeakMap<Tree, { links: number; of: Map<string, Lineage> }>()
 export const lineageOf = (ix: Tree, a: string): Lineage => {
   let c = lineages.get(ix)
-  if (!c || c.links !== ix.links) lineages.set(ix, (c = { links: ix.links, of: new Map() }))
+  if (!c || c.links !== ix.links) {
+    c = { links: ix.links, of: new Map() }
+    lineages.set(ix, c)
+  }
   const path: string[] = []
   let top: Lineage | null = null
   for (let q: string | null = a; q !== null; q = parentOf(ix, q)) {
@@ -347,8 +386,13 @@ export const lineageOf = (ix: Tree, a: string): Lineage => {
     if (top) break
     path.push(q)
   }
-  for (let i = path.length - 1; i >= 0; i--) c.of.set(path[i]!, (top = { id: path[i]!, up: top }))
-  return top!
+  for (const id of path.reverse()) {
+    top = { id, up: top }
+    c.of.set(id, top)
+  }
+  // The first step visits `a` itself, so it is either cached or on `path`.
+  if (!top) throw new Error(`no lineage for ${a}`)
+  return top
 }
 
 /** The subagent a progress summary describes, null when it names none or one this session never saw. */
@@ -362,14 +406,15 @@ export const agentTree = (ix: Tree): AgentNode => {
   const main: AgentNode = { id: 'main', type: null, summaries: 0, children: [] }
   const nodes = new Map<string, AgentNode>()
   for (const [id, type] of ix.agents) if (id !== 'main' && type !== null) nodes.set(id, { id, type, summaries: 0, children: [] })
-  for (const [id, type] of ix.agents) {
+  for (const id of ix.agents.keys()) {
     if (id === 'main') continue
-    if (type === null) {
+    const node = nodes.get(id)
+    if (node === undefined) {
       const o = ownerOf(ix, id)
-      ;(o ? nodes.get(o)! : main).summaries++
+      ;((o && nodes.get(o)) || main).summaries++
     } else {
       const p = lineageOf(ix, id).up?.id
-      ;(p ? nodes.get(p)! : main).children.push(nodes.get(id)!)
+      ;((p && nodes.get(p)) || main).children.push(node)
     }
   }
   return main
@@ -389,9 +434,15 @@ const agentMatch = (tokens: Set<string>): ((r: IndexEntry, ix: Tree & Pick<WalIn
   const by = new Map<string, Set<string>>()
   for (const t of tokens) {
     const m = TOKEN.exec(t)
-    if (!m) continue
-    if (!by.has(m[1]!)) by.set(m[1]!, new Set())
-    by.get(m[1]!)!.add(m[2] === 'main*' ? '*' : m[2]!)
+    const sess = m?.[1]
+    const agent = m?.[2]
+    if (sess === undefined || agent === undefined) continue
+    let set = by.get(sess)
+    if (!set) {
+      set = new Set()
+      by.set(sess, set)
+    }
+    set.add(agent === 'main*' ? '*' : agent)
   }
   if (tokens.size && !by.size) return null
   return (r, ix) => {
@@ -399,8 +450,8 @@ const agentMatch = (tokens: Set<string>): ((r: IndexEntry, ix: Tree & Pick<WalIn
     if (!spec) return false
     if (spec.has('*')) return true
     let node: string | null
-    if (isSummary(ix, r.agent)) {
-      node = ownerOf(ix, r.agent!)
+    if (r.agent !== null && isSummary(ix, r.agent)) {
+      node = ownerOf(ix, r.agent)
       if (spec.has(`summaries:${node ?? 'main'}`)) return true
     } else {
       node = r.agent
@@ -442,7 +493,7 @@ export const matcher = (p: URLSearchParams): Matcher => {
 }
 
 export const summary = (ix: WalIndex, seq: number): Row => {
-  const { cat, t, event, tool, dur, mcp, err, virtual } = ix.entries[seq]!
+  const { cat, t, event, tool, dur, mcp, err, virtual } = nth(ix.entries, seq)
   const s: Row = { sess: ix.id, seq, cat, t, event, tool, dur }
   if (mcp) s.mcp = mcp
   if (err) s.err = true
@@ -461,8 +512,9 @@ export const parseVector = (s: string | null | undefined): Map<string, number> |
   const out = new Map<string, number>()
   for (const part of s.split(',')) {
     const m = /^([0-9a-f-]{36}):(\d+)$/.exec(part)
-    if (!m) return null
-    out.set(m[1]!, Number(m[2]))
+    const id = m?.[1]
+    if (id === undefined) return null
+    out.set(id, Number(m?.[2]))
   }
   return out
 }
@@ -474,7 +526,8 @@ export const query = (ixs: WalIndex[], p: URLSearchParams, unknown: string[] = [
   const n = Math.floor(Number(p.get('limit')))
   const limit = n > 0 ? n : 200
   const c = CURSOR.exec(p.get('before') ?? '')
-  const before = c ? { t: Number(c[1]), sess: c[2]!, seq: Number(c[3]) } : null
+  const sess = c?.[2]
+  const before = sess === undefined ? null : { t: Number(c?.[1]), sess, seq: Number(c?.[3]) }
   const readers = ixs.map((ix) => ix.reader())
   try {
     // Per index, the next position in `order` to visit, walking down; -1 when exhausted.
@@ -485,8 +538,8 @@ export const query = (ixs: WalIndex[], p: URLSearchParams, unknown: string[] = [
       let hi = order.length
       while (lo < hi) {
         const mid = (lo + hi) >> 1
-        const e = entries[order[mid]!]!
-        if (cmp(e.t, ix.id, order[mid]!, before.t, before.sess, before.seq) < 0) lo = mid + 1
+        const seq = nth(order, mid)
+        if (cmp(nth(entries, seq).t, ix.id, seq, before.t, before.sess, before.seq) < 0) lo = mid + 1
         else hi = mid
       }
       return lo - 1
@@ -499,22 +552,25 @@ export const query = (ixs: WalIndex[], p: URLSearchParams, unknown: string[] = [
     for (;;) {
       let best = -1
       for (let i = 0; i < ixs.length; i++) {
-        if (at[i]! < 0) continue
+        const ai = nth(at, i)
+        if (ai < 0) continue
         if (best === -1) {
           best = i
           continue
         }
-        const a = ixs[i]!
-        const b = ixs[best]!
-        const sa = a.order[at[i]!]!
-        const sb = b.order[at[best]!]!
-        if (cmp(a.entries[sa]!.t, a.id, sa, b.entries[sb]!.t, b.id, sb) > 0) best = i
+        const a = nth(ixs, i)
+        const b = nth(ixs, best)
+        const sa = nth(a.order, ai)
+        const sb = nth(b.order, nth(at, best))
+        if (cmp(nth(a.entries, sa).t, a.id, sa, nth(b.entries, sb).t, b.id, sb) > 0) best = i
       }
       if (best === -1) break
-      const ix = ixs[best]!
-      const seq = ix.order[at[best]!--]!
-      const e = ix.entries[seq]!
-      if (!hit(e, ix, readers[best]!.text)) continue
+      const ix = nth(ixs, best)
+      const pos = nth(at, best)
+      at[best] = pos - 1
+      const seq = nth(ix.order, pos)
+      const e = nth(ix.entries, seq)
+      if (!hit(e, ix, nth(readers, best).text)) continue
       if (rows.length >= limit) {
         more = true
         if (before) break

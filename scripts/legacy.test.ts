@@ -1,12 +1,13 @@
 #!/usr/bin/env node
+
 // legacy.test.ts — `wal legacy` against a fake HOME: migrate splits by session, keeps what has no
 // transcript, reruns as a no-op; delete needs a literal yes. Never touches the real ~/.claude.
 
-import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
-import { join, dirname } from 'node:path'
 import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { after, test } from 'node:test'
 import { createDiscovery } from './discovery.ts'
 import { runLegacy } from './legacy.ts'
 

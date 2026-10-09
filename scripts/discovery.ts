@@ -3,8 +3,8 @@
 // `<id>.wal.jsonl`. Ids come from the page, so a path is only ever built from a directory listing.
 
 import { closeSync, existsSync, openSync, readdirSync, readSync, realpathSync, statSync } from 'node:fs'
-import { basename, dirname, join, resolve } from 'node:path'
 import { homedir } from 'node:os'
+import { basename, dirname, join, resolve } from 'node:path'
 import type { SessionList, SessionMeta, Source } from '../shared/api.ts'
 import { createParser } from './transcripts.ts'
 
@@ -143,7 +143,7 @@ export const cleanPrompt = (raw: string): string | null => {
   return tidy(s.replace(TAG, '')) || null
 }
 
-const unescape = (s: string): string => (s.includes('\\') ? JSON.parse(`"${s}"`) : s)
+const unescapeJson = (s: string): string => (s.includes('\\') ? JSON.parse(`"${s}"`) : s)
 
 /** Snapshots a `wal legacy` migrate left beside a legacy log; a rerun finishes them. */
 export const SNAP = '.snap-'
@@ -218,14 +218,14 @@ export const createDiscovery = (extra: string[]) => {
       const chunk = readAt(path, off, HEAD_CHUNK)
       const buf = pending.length ? Buffer.concat([pending, chunk]) : chunk
       let start = 0
-      for (let nl: number; (nl = buf.indexOf(10, start)) !== -1; start = nl + 1) {
+      for (let nl = buf.indexOf(10); nl !== -1; start = nl + 1, nl = buf.indexOf(10, start)) {
         if (m.firstPrompt === null) {
           first.push(buf.subarray(start, nl + 1))
           continue
         }
         // Past the first prompt only the parser's own meta rules can still change anything, and
         // its timeline work was most of a cold list.
-        let e
+        let e: { timestamp: string; cwd: unknown; type: unknown; aiTitle?: string | null } | null
         try {
           e = JSON.parse(buf.toString('utf8', start, nl))
         } catch {
@@ -266,9 +266,11 @@ export const createDiscovery = (extra: string[]) => {
   const scanLine = (w: WalScan, buf: Buffer, start: number, end: number): void => {
     w.lines++
     const m = PREFIX.exec(buf.toString('utf8', start, Math.min(end, start + 512)))
-    if (m) {
-      w.workspaces.add(unescape(m[1]!))
-      w.lastEvent = unescape(m[2]!)
+    const workspace = m?.[1]
+    const event = m?.[2]
+    if (workspace !== undefined && event !== undefined) {
+      w.workspaces.add(unescapeJson(workspace))
+      w.lastEvent = unescapeJson(event)
       return
     }
     try {
@@ -304,7 +306,10 @@ export const createDiscovery = (extra: string[]) => {
         continue
       }
       let start = 0
-      for (let nl: number; (nl = buf.indexOf(10, start)) !== -1; start = nl + 1) scanLine(w, buf, start, nl)
+      for (let nl = buf.indexOf(10); nl !== -1; nl = buf.indexOf(10, start)) {
+        scanLine(w, buf, start, nl)
+        start = nl + 1
+      }
       w.offset += end + 1
     }
     return w

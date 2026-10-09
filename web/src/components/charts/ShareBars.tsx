@@ -22,7 +22,7 @@ function segments(rows: Record<string, StatRow>, order: string[], name: (key: st
   const out: Seg[] = []
   const other: Seg = { key: '\0other', label: 'Other', tokens: 0, pct: 0, color: 'var(--muted)' }
   for (const x of s) {
-    const i = slot.get(x.key)!
+    const i = slot.get(x.key) ?? PALETTE.length
     if (i < PALETTE.length) out.push({ ...x, label: name(x.key), color: `var(${PALETTE[i]})` })
     else {
       other.tokens += x.tokens

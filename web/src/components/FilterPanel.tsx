@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react'
-import { catOf, type Category } from '../../../shared/api.ts'
-import { countNodes, toggle, type PickNode } from '../lib/agents.ts'
+import { type Category, catOf } from '../../../shared/api.ts'
+import { countNodes, type PickNode, toggle } from '../lib/agents.ts'
 import { CATEGORY } from '../lib/categories.ts'
 import { mcpParts, toolColor } from '../lib/mcp.ts'
 import type { Filters } from '../lib/params.ts'

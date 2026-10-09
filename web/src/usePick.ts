@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { SessionMeta } from '../../shared/api.ts'
-import { prune, samePick, settlePick, toggle as flip } from './lib/pick.ts'
-import { advance, isBaselines, unseen, type Baselines } from './lib/unseen.ts'
+import { toggle as flip, prune, samePick, settlePick } from './lib/pick.ts'
+import { advance, type Baselines, isBaselines, unseen } from './lib/unseen.ts'
 import { useStoredJson } from './useStoredJson.ts'
 
 // null until the first /sessions landed and the newest session was preselected; afterwards the pick

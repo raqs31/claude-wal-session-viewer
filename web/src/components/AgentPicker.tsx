@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { agentSelection, checks, countNodes, searchTree, type Check, type PickNode } from '../lib/agents.ts'
+import { type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react'
+import { agentSelection, checks, countNodes, type PickNode, searchTree } from '../lib/agents.ts'
 
 // Past this many nodes the tree gets a search box.
 const SEARCH_FROM = 8
@@ -14,6 +14,11 @@ interface Props {
 // Open by default: the top level, and each session's main under it; deeper branches start closed.
 const openByDefault = (n: PickNode, depth: number): boolean => depth === 0 || (n.kind === 'agent' && n.key.endsWith(':main'))
 
+// `indeterminate` exists only as a DOM property; a fresh ref callback sets it on every commit.
+const mixed = (on: boolean) => (el: HTMLInputElement | null) => {
+  if (el) el.indeterminate = on
+}
+
 export function AgentPicker({ tree, selected, onToggle, onClear }: Props) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
@@ -22,7 +27,6 @@ export function AgentPicker({ tree, selected, onToggle, onClear }: Props) {
   const root = useRef<HTMLSpanElement>(null)
   const pill = useRef<HTMLButtonElement>(null)
   const pop = useRef<HTMLDivElement>(null)
-  const list = useRef<HTMLUListElement>(null)
   // The checkbox holding the tree's one tab stop (roving tabindex).
   const [active, setActive] = useState<string | null>(null)
   // Keys listed for the current query, so a node unticked mid-search does not vanish under the pointer.
@@ -32,18 +36,18 @@ export function AgentPicker({ tree, selected, onToggle, onClear }: Props) {
 
   useEffect(() => {
     if (!open) return
-    const el = pop.current!
-    el.querySelector<HTMLInputElement>('input[type=search], input[type=checkbox][tabindex="0"]')?.focus()
+    pop.current?.querySelector<HTMLInputElement>('input[type=search], input[type=checkbox][tabindex="0"]')?.focus()
   }, [open])
   useEffect(() => {
     // The path, not `contains`: a click can re-render its own target out of the DOM before this runs.
     const click = (e: MouseEvent) => {
-      if (openRef.current && !e.composedPath().includes(root.current!)) setOpen(false)
+      const r = root.current
+      if (openRef.current && r && !e.composedPath().includes(r)) setOpen(false)
     }
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && openRef.current) {
         setOpen(false)
-        pill.current!.focus()
+        pill.current?.focus()
       }
     }
     document.addEventListener('click', click)
@@ -76,27 +80,29 @@ export function AgentPicker({ tree, selected, onToggle, onClear }: Props) {
   const stop = active !== null && visible.includes(active) ? active : visible[0]
   // Up/Down/Home/End move between visible rows; Space toggles natively on the focused checkbox.
   const move = (e: ReactKeyboardEvent<HTMLUListElement>) => {
-    const boxes = [...list.current!.querySelectorAll<HTMLInputElement>('input[type=checkbox]')]
+    const boxes = [...e.currentTarget.querySelectorAll<HTMLInputElement>('input[type=checkbox]')]
     const i = boxes.indexOf(e.target as HTMLInputElement)
     const to = i < 0 ? undefined : { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: boxes.length - 1 }[e.key]
     if (to === undefined) return
     e.preventDefault()
-    boxes[Math.max(0, Math.min(boxes.length - 1, to))]!.focus()
+    boxes[Math.max(0, Math.min(boxes.length - 1, to))]?.focus()
   }
 
   const row = (n: PickNode, depth: number) => {
     const branch = n.children.length > 0
     const expanded = branch && isOpen(n, depth)
+    const st = state.get(n.key) ?? 'off'
     // Right opens a closed branch, else steps into it; Left closes an open one, else steps to the parent.
     const keys = (e: ReactKeyboardEvent) => {
       if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
       e.preventDefault()
       if (branch && !searching && (e.key === 'ArrowRight') !== expanded) return flip(n.key)
-      const li = (e.target as HTMLElement).closest('li')!
-      const to = e.key === 'ArrowRight' ? li.querySelector('ul input') : li.parentElement!.closest('li')?.querySelector('input')
+      const li = (e.target as HTMLElement).closest('li')
+      const to = e.key === 'ArrowRight' ? li?.querySelector('ul input') : li?.parentElement?.closest('li')?.querySelector('input')
       ;(to as HTMLInputElement | null | undefined)?.focus()
     }
     return (
+      // biome-ignore lint/a11y/useFocusableInteractive: focus is roving over the checkbox inside each item, which Space toggles natively.
       <li key={n.key} role="treeitem" aria-expanded={branch ? expanded : undefined}>
         <div className="node" style={{ '--d': depth } as CSSProperties}>
           {branch ? (
@@ -114,7 +120,15 @@ export function AgentPicker({ tree, selected, onToggle, onClear }: Props) {
             <span className="twisty" />
           )}
           <label className={n.kind === 'summaries' ? 't' : undefined} title={n.label}>
-            <TriBox state={state.get(n.key) ?? 'off'} tab={n.key === stop} onChange={() => onToggle(n.key)} onKeyDown={keys} onFocus={() => setActive(n.key)} />
+            <input
+              type="checkbox"
+              ref={mixed(st === 'mixed')}
+              tabIndex={n.key === stop ? 0 : -1}
+              checked={st === 'on'}
+              onChange={() => onToggle(n.key)}
+              onKeyDown={keys}
+              onFocus={() => setActive(n.key)}
+            />
             {n.name !== undefined ? (
               <>
                 <span className="lt">{n.name}</span>
@@ -125,7 +139,10 @@ export function AgentPicker({ tree, selected, onToggle, onClear }: Props) {
             )}
           </label>
         </div>
-        {expanded && <ul role="group">{n.children.map((c) => row(c, depth + 1))}</ul>}
+        {expanded && (
+          // biome-ignore lint/a11y/useSemanticElements: the ARIA tree pattern nests child items in a role=group list; a fieldset cannot hold <li>.
+          <ul role="group">{n.children.map((c) => row(c, depth + 1))}</ul>
+        )}
       </li>
     )
   }
@@ -156,31 +173,11 @@ export function AgentPicker({ tree, selected, onToggle, onClear }: Props) {
             All agents
           </button>
         </div>
-        <ul className="atree" role="tree" aria-label="Agents" ref={list} onKeyDown={move}>
+        {/* biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: the ARIA tree pattern on a list keeps the nested <ul>/<li> structure valid HTML. */}
+        <ul className="atree" role="tree" aria-label="Agents" onKeyDown={move}>
           {shown.map((n) => row(n, 0))}
         </ul>
       </div>
     </span>
   )
-}
-
-// `indeterminate` exists only as a DOM property, so it is set after each render.
-function TriBox({
-  state,
-  tab,
-  onChange,
-  onKeyDown,
-  onFocus,
-}: {
-  state: Check
-  tab: boolean
-  onChange: () => void
-  onKeyDown: (e: ReactKeyboardEvent) => void
-  onFocus: () => void
-}) {
-  const box = useRef<HTMLInputElement>(null)
-  useEffect(() => {
-    box.current!.indeterminate = state === 'mixed'
-  }, [state])
-  return <input type="checkbox" ref={box} tabIndex={tab ? 0 : -1} checked={state === 'on'} onChange={onChange} onKeyDown={onKeyDown} onFocus={onFocus} />
 }

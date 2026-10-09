@@ -1,5 +1,5 @@
 import type { Category } from '../../../shared/api.ts'
-import { agentSelection, pruneAgents, type PickNode } from './agents.ts'
+import { agentSelection, type PickNode, pruneAgents } from './agents.ts'
 
 // Opt-in: an empty set sends no param, which the server reads as no filter.
 export interface Filters {

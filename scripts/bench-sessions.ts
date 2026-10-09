@@ -7,8 +7,8 @@
 // largest real lines. The 300 sessions are split across a symlinked workspace and a --source.
 
 import { appendFileSync, closeSync, mkdirSync, mkdtempSync, openSync, rmSync, symlinkSync, utimesSync, writeFileSync, writeSync } from 'node:fs'
-import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { SessionList, SessionView } from '../shared/api.ts'
 import { createStore } from './sessions.ts'
 import { startServer } from './test-server.ts'
@@ -17,7 +17,6 @@ const dir = mkdtempSync(join(tmpdir(), 'walsessbench.'))
 // A workspace whose `projects/` is a symlink to a real directory, plus a second dir for --source.
 const wsRoot = join(dir, 'ws-real', 'projects')
 const srcRoot = join(dir, 'extra-src', 'projects')
-const roots = [wsRoot, srcRoot]
 const PROJECT = '/tmp/benchproj'
 const SLUG = '-tmp-benchproj'
 const CHUNK = 8 * 1024 * 1024
@@ -146,10 +145,11 @@ try {
   // are the list's full 256 KB window.
   for (let i = 1; i < FILES; i++) {
     const d = i % 30 === 0 ? `${SLUG}--ai-worktrees-demo` : SLUG
-    const folder = join(roots[i % 2]!, d)
+    const folder = join(i % 2 ? srcRoot : wsRoot, d)
     mkdirSync(folder, { recursive: true })
-    listed.push(join(folder, `${sid(i)}.jsonl`))
-    transcript(listed[i]!, sid(i), 10 * 1024 + ((i * 37) % 60) * 10 * 1024)
+    const file = join(folder, `${sid(i)}.jsonl`)
+    listed.push(file)
+    transcript(file, sid(i), 10 * 1024 + ((i * 37) % 60) * 10 * 1024)
     writeFileSync(join(folder, `${sid(i)}.wal.jsonl`), walLine(sid(i)))
   }
 
@@ -178,12 +178,13 @@ try {
       const r = await timed<SessionList>('/sessions')
       if (!list || r.ms < list.ms) list = r
     }
-    console.log(`/sessions cold    ${list!.ms} ms (best of 3)`)
-    check('/sessions ≤ 500 ms', list!.ms <= 500)
+    if (!list) throw new Error('no /sessions run')
+    console.log(`/sessions cold    ${list.ms} ms (best of 3)`)
+    check('/sessions ≤ 500 ms', list.ms <= 500)
     check(
       'lists every session incl. the worktree',
-      list!.body.sessions.length === FILES && list!.body.sessions.some((m) => m.worktree === 'demo'),
-      `got ${list!.body.sessions.length}`,
+      list.body.sessions.length === FILES && list.body.sessions.some((m) => m.worktree === 'demo'),
+      `got ${list.body.sessions.length}`,
     )
 
     const cold = await timed<SessionView>(`/session?id=${MAIN}`)
@@ -210,8 +211,10 @@ try {
   try {
     // In-process, so the numbers are the store's own work without HTTP or JSON on top.
     const store = createStore({ locate: () => join(wsRoot, SLUG) }, () => false)
-    const s = store.get(MAIN)!
-    const requests = store.view(s, 'all')!.stats.totals.requests
+    const s = store.get(MAIN)
+    const before = s && store.view(s, 'all')
+    if (!s || !before) throw new Error(`no session ${MAIN}`)
+    const requests = before.stats.totals.requests
     const lines: string[] = []
     let bytes = 0
     for (let i = 0; bytes < 1024 * 1024; i++) {
@@ -235,9 +238,10 @@ try {
     }
     appendFileSync(s.main.path, lines.join(''))
     const t = performance.now()
-    const after = store.get(MAIN)!
-    const v = store.view(after, 'all')!
+    const after = store.get(MAIN)
+    const v = after && store.view(after, 'all')
     const tickMs = Math.round(performance.now() - t)
+    if (!v) throw new Error(`no session ${MAIN} after the append`)
     console.log(`tick, 1 MB append ${tickMs} ms (advance + view, ${lines.length} new requests)`)
     check('append reaches the view', v.stats.totals.requests === requests + lines.length, `got ${v.stats.totals.requests - requests}`)
   } catch (err) {

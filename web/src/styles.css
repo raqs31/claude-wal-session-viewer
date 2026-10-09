@@ -21,6 +21,11 @@
   --tok-cache-read: #1baf7a;
   --tok-cache-write: #8a5cd6;
   --tok-thinking: #b97f00;
+  background: var(--plane);
+  color: var(--text-primary);
+  min-height: 100vh;
+  --sb-w: 300px;
+  --fp-w: 320px;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) .viz-root {
@@ -72,13 +77,6 @@ body {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-.viz-root {
-  background: var(--plane);
-  color: var(--text-primary);
-  min-height: 100vh;
-  --sb-w: 300px;
-  --fp-w: 320px;
-}
 .main {
   padding: 0 32px 64px;
   min-width: 0;
@@ -88,14 +86,6 @@ body {
 }
 .viz-root[data-fpin="pinned"] .main {
   margin-right: var(--fp-w);
-}
-/* The unpinned Filters handle is fixed at the right edge just below the header, over the legacy banner at the top of the page
-     and over the usage row of the stuck Events head. It is ~85-100px wide (more with wide fonts); with .main's 32px this keeps both out from under it. */
-.viz-root[data-fpin="unpinned"] .bar .usage {
-  padding-right: 96px;
-}
-.viz-root[data-fpin="unpinned"] .banner {
-  margin-right: 96px;
 }
 
 header {
@@ -163,9 +153,6 @@ h1 {
   background: var(--plane);
   padding-top: 10px;
 }
-.bar .usage {
-  margin: 0;
-}
 .evline {
   display: flex;
   flex-wrap: wrap;
@@ -213,9 +200,6 @@ h1 {
   gap: 8px;
   font-size: 12.5px;
   min-width: 0;
-}
-.evl-sum button.ghost {
-  padding: 3px 9px;
 }
 .evl-sumt {
   min-width: 0;
@@ -268,8 +252,22 @@ select {
   opacity: 0.3;
   cursor: default;
 }
+.sb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sb-chips .chip {
+  padding: 3px 9px;
+  font-size: 12px;
+}
+/* A fieldset: drop its UA margin, padding, border and min-content floor. */
 .seg {
   display: inline-flex;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: auto;
 }
 .seg .chip {
   border-radius: 0;
@@ -378,6 +376,14 @@ select {
   align-items: center;
   gap: 7px;
 }
+/* A button so the reconnect click is reachable by keyboard; it still reads as the status text. */
+#livetext {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+}
 
 table {
   width: 100%;
@@ -442,11 +448,6 @@ tbody tr.row:hover {
 .split > div {
   min-width: 0;
 }
-.split pre,
-.split .tree {
-  max-height: 60vh;
-  overflow: auto;
-}
 .pane-h {
   font-size: 11.5px;
   font-weight: 600;
@@ -494,13 +495,13 @@ tbody tr.row:hover {
 .tree details:not([open]) > summary::before {
   content: "▸";
 }
-.tree details[open] > summary > .sum,
-.tree details:not([open]) > summary > .o {
-  display: none;
-}
 .tree .sum {
   margin-left: 1ch;
   color: var(--muted);
+}
+.tree details[open] > summary > .sum,
+.tree details:not([open]) > summary > .o {
+  display: none;
 }
 .tree .k {
   color: var(--cat-tool);
@@ -532,6 +533,11 @@ pre {
   white-space: pre-wrap;
   word-break: break-word;
 }
+.split pre,
+.split .tree {
+  max-height: 60vh;
+  overflow: auto;
+}
 .empty {
   padding: 34px 14px;
   color: var(--muted);
@@ -551,6 +557,9 @@ button.ghost {
   background: var(--surface-1);
   color: var(--text-secondary);
   cursor: pointer;
+}
+.evl-sum button.ghost {
+  padding: 3px 9px;
 }
 .pill {
   position: fixed;
@@ -594,9 +603,6 @@ html {
   overflow-x: auto;
   margin-bottom: 22px;
 }
-table.stat thead th {
-  position: static;
-} /* --bar-h belongs to the Events sticky bar and goes stale once it unmounts. */
 table.stat .r {
   text-align: right;
 }
@@ -607,6 +613,9 @@ table.stat td {
   letter-spacing: 0;
   white-space: nowrap;
 }
+table.stat thead th {
+  position: static;
+} /* --bar-h belongs to the Events sticky bar and goes stale once it unmounts. */
 /* max-width 0 lets the name column absorb the leftover width and truncate, instead of widening the table. */
 table.stat td.name {
   width: 100%;
@@ -884,9 +893,6 @@ table.stat td.name span {
 .sb-fs[hidden] {
   display: none;
 }
-.sb-f button.fold {
-  align-self: flex-start;
-}
 button.fold {
   max-width: 100%;
   text-align: left;
@@ -894,14 +900,8 @@ button.fold {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.sb-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.sb-chips .chip {
-  padding: 3px 9px;
-  font-size: 12px;
+.sb-f button.fold {
+  align-self: flex-start;
 }
 .sb-g h2 {
   margin: 0;
@@ -961,16 +961,6 @@ button.fold {
   border-color: var(--cat-tool);
   color: #fff;
 }
-.chip.pk {
-  gap: 6px;
-  max-width: 100%;
-}
-.chip.pk .n {
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .sb-pk {
   padding: 0 12px 8px;
 }
@@ -1027,6 +1017,16 @@ button.fold {
 .sb-b .m .num {
   margin-left: auto;
 }
+.chip.pk {
+  gap: 6px;
+  max-width: 100%;
+}
+.chip.pk .n {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .badge.ws {
   color: var(--cat-mcp);
 }
@@ -1044,6 +1044,9 @@ button.fold {
   gap: 8px;
   margin: 14px 0 4px;
 }
+.bar .usage {
+  margin: 0;
+}
 .usage .tile {
   padding: 7px 12px;
   min-width: 104px;
@@ -1059,6 +1062,14 @@ button.fold {
   border-radius: 8px;
   border: 1px solid var(--status-warning);
   background: color-mix(in srgb, var(--status-warning) 12%, var(--surface-1));
+}
+/* The unpinned Filters handle is fixed at the right edge just below the header, over the legacy banner at the top of the page
+     and over the usage row of the stuck Events head. It is ~85-100px wide (more with wide fonts); with .main's 32px this keeps both out from under it. */
+.viz-root[data-fpin="unpinned"] .bar .usage {
+  padding-right: 96px;
+}
+.viz-root[data-fpin="unpinned"] .banner {
+  margin-right: 96px;
 }
 
 /* Sessions: one block per picked session. */

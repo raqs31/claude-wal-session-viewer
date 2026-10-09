@@ -37,7 +37,10 @@ export const groupByProject = (rows: readonly SessionMeta[], lastOf: (r: Session
   const groups = new Map<string, ProjectGroup>()
   for (const r of rows) {
     let g = groups.get(r.project.slug)
-    if (!g) groups.set(r.project.slug, (g = { slug: r.project.slug, cwd: null, last: lastOf(r), rows: [] }))
+    if (!g) {
+      g = { slug: r.project.slug, cwd: null, last: lastOf(r), rows: [] }
+      groups.set(r.project.slug, g)
+    }
     g.rows.push(r)
     g.last = Math.max(g.last, lastOf(r))
   }

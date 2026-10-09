@@ -1,7 +1,7 @@
-import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { copyText, viewNodes } from './tree.ts'
+import { test } from 'node:test'
 import { normalize } from './normalize.ts'
+import { copyText, viewNodes } from './tree.ts'
 
 const yaml = (v: unknown) => copyText(v, 'yaml')
 

@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from 'react'
 import type { McpCallRecord, RecordResponse } from '../../../shared/api.ts'
-import { copyText, pretty, viewNodes, type Format } from '../lib/tree.ts'
+import { copyText, type Format, pretty, viewNodes } from '../lib/tree.ts'
 import { Tree } from './Tree.tsx'
 
 function Pane({ title, v, format, bad }: { title: string; v: unknown; format: Format; bad?: boolean }) {

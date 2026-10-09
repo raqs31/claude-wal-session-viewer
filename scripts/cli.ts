@@ -33,5 +33,5 @@ if (args[0] === '-h' || args[0] === '--help') {
   })
   // Ctrl-C reaches both processes; the handlers keep this one alive until the server has exited.
   for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => server.kill(signal))
-  server.on('exit', (code, signal) => process.exit(code ?? 128 + constants.signals[signal!]))
+  server.on('exit', (code, signal) => process.exit(signal ? 128 + constants.signals[signal] : code))
 }

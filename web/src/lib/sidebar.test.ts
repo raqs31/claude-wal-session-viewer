@@ -1,7 +1,7 @@
-import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { test } from 'node:test'
 import type { SessionMeta } from '../../../shared/api.ts'
-import { chipValues, filterRows, groupByProject, pinPicked, sidebarSummary, type SidebarFilter } from './sidebar.ts'
+import { chipValues, filterRows, groupByProject, pinPicked, type SidebarFilter, sidebarSummary } from './sidebar.ts'
 
 const row = (id: string, o: Partial<SessionMeta> = {}): SessionMeta => ({
   id,
@@ -69,7 +69,7 @@ test('groups by project, worktrees under the parent, newest group and row first'
       ['q', 5, ['q1']],
     ],
   )
-  assert.equal(gs[0]!.cwd, '/w/p')
+  assert.equal(gs[0]?.cwd, '/w/p')
 })
 
 test('a tie keeps list order; a worktree-only group takes the worktree cwd; no cwd is null', () => {

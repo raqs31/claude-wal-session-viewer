@@ -1,13 +1,14 @@
 #!/usr/bin/env node
+
 // usage.test.ts — /usage and /usage-stream over a pick, against a temp copy of the fixture
 // projects under a fake HOME plus two generated sessions: one without a recorded cost, one on an
 // unpriced model.
 
-import { appendFileSync, cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { join, dirname } from 'node:path'
-import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
+import { appendFileSync, cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { get, type IncomingMessage } from 'node:http'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { SessionView, StatRow, UsageTotals } from '../shared/api.ts'
 import { startServer } from './test-server.ts'
@@ -54,6 +55,10 @@ const json = async <T>(path: string): Promise<T> => {
   return (await r.json()) as T
 }
 const status = async (path: string): Promise<number> => (await fetch(BASE + path)).status
+const must = <T>(v: T | undefined | null, what = 'value'): T => {
+  if (v == null) throw new Error(`missing ${what}`)
+  return v
+}
 
 const KEYS = ['input', 'output', 'cacheRead', 'cacheWrite5m', 'cacheWrite1h', 'thinking', 'requests'] as const
 const sum = (rows: StatRow[]): StatRow => {
@@ -83,14 +88,13 @@ const open = (qs: string, headers: Record<string, string> = {}): Promise<Stream>
       res.setEncoding('utf8')
       res.on('data', (c) => {
         pending += c
-        let end
-        while ((end = pending.indexOf('\n\n')) !== -1) {
+        for (let end = pending.indexOf('\n\n'); end !== -1; end = pending.indexOf('\n\n')) {
           const frame = pending.slice(0, end)
           pending = pending.slice(end + 2)
           const f: Record<string, string> = Object.fromEntries(
             frame.split('\n').map((l) => [l.slice(0, l.indexOf(':')), l.slice(l.indexOf(':') + 1).trimStart()]),
           )
-          if (f.event === 'unknown') s.unknown = JSON.parse(f.data!) as string[]
+          if (f.event === 'unknown') s.unknown = JSON.parse(must(f.data, 'unknown event data')) as string[]
           else if (f.data) {
             s.frames.push(JSON.parse(f.data) as UsageTotals)
             s.lastId = f.id ?? null
@@ -105,19 +109,20 @@ const open = (qs: string, headers: Record<string, string> = {}): Promise<Stream>
 try {
   console.log('usage.test.ts')
 
-  const [m, t, p, u] = await Promise.all([MAIN, TREE, PRICED, UNPRICED].map((id) => json<SessionView>(`/session?id=${id}&scope=all`)))
-  check('fixture: MAIN has a subagent with usage', m!.agents.length > 0 && Object.keys(m!.stats.agents).length > 1)
+  const view = (id: string): Promise<SessionView> => json<SessionView>(`/session?id=${id}&scope=all`)
+  const [m, t, p, u] = await Promise.all([view(MAIN), view(TREE), view(PRICED), view(UNPRICED)])
+  check('fixture: MAIN has a subagent with usage', m.agents.length > 0 && Object.keys(m.stats.agents).length > 1)
 
   const two = await json<UsageTotals>(`/usage?ids=${MAIN},${TREE}`)
   check(
     "/usage totals equal the sum of each session's /session totals",
-    same(two.totals, sum([m!.stats.totals, t!.stats.totals])),
-    JSON.stringify({ got: two.totals, want: sum([m!.stats.totals, t!.stats.totals]) }),
+    same(two.totals, sum([m.stats.totals, t.stats.totals])),
+    JSON.stringify({ got: two.totals, want: sum([m.stats.totals, t.stats.totals]) }),
   )
   check('estimated cost is priced', two.totals.cost !== null && two.totals.cost > 0)
   check(
     'recorded sums both recorded costs, none missing',
-    two.missing === 0 && two.recorded !== null && Math.abs(two.recorded - m!.recordedCostUsd!.total - t!.recordedCostUsd!.total) < 1e-9,
+    two.missing === 0 && two.recorded !== null && Math.abs(two.recorded - must(m.recordedCostUsd).total - must(t.recordedCostUsd).total) < 1e-9,
     JSON.stringify(two),
   )
   check('the pick order does not change the sums', same((await json<UsageTotals>(`/usage?ids=${TREE},${MAIN}`)).totals, two.totals))
@@ -125,17 +130,17 @@ try {
   const partial = await json<UsageTotals>(`/usage?ids=${MAIN},${PRICED}`)
   check(
     'recorded over a partial pick sums the sessions that have one',
-    partial.missing === 1 && partial.recorded !== null && Math.abs(partial.recorded - m!.recordedCostUsd!.total) < 1e-9,
+    partial.missing === 1 && partial.recorded !== null && Math.abs(partial.recorded - must(m.recordedCostUsd).total) < 1e-9,
     JSON.stringify(partial),
   )
-  check('...and its totals still cover every picked session', same(partial.totals, sum([m!.stats.totals, p!.stats.totals])))
+  check('...and its totals still cover every picked session', same(partial.totals, sum([m.stats.totals, p.stats.totals])))
   const none = await json<UsageTotals>(`/usage?ids=${PRICED}`)
   check('recorded is null only when no picked session has one', none.recorded === null && none.missing === 1 && none.totals.cost !== null, JSON.stringify(none))
 
   const unpriced = await json<UsageTotals>(`/usage?ids=${MAIN},${UNPRICED}`)
   check(
     'an unpriced model makes the estimated cost null',
-    u!.stats.totals.cost === null && unpriced.totals.cost === null && unpriced.totals.input === m!.stats.totals.input + 7,
+    u.stats.totals.cost === null && unpriced.totals.cost === null && unpriced.totals.input === m.stats.totals.input + 7,
     JSON.stringify(unpriced.totals),
   )
 
@@ -148,8 +153,8 @@ try {
   check('malformed id is 400', (await status(`/usage?ids=${MAIN},abc`)) === 400 && (await status(`/usage-stream?ids=abc`)) === 400)
   const ZERO = '0'.repeat(36)
   const withUnknown = await json<UsageTotals>(`/usage?ids=${MAIN},${ZERO}`)
-  check('an unknown id is skipped and reported', same(withUnknown.totals, m!.stats.totals) && withUnknown.unknown.join() === ZERO, JSON.stringify(withUnknown))
-  check('a repeated id is summed once', same((await json<UsageTotals>(`/usage?ids=${MAIN},${MAIN}`)).totals, m!.stats.totals))
+  check('an unknown id is skipped and reported', same(withUnknown.totals, m.stats.totals) && withUnknown.unknown.join() === ZERO, JSON.stringify(withUnknown))
+  check('a repeated id is summed once', same((await json<UsageTotals>(`/usage?ids=${MAIN},${MAIN}`)).totals, m.stats.totals))
   const lone = await open(`ids=${ZERO}`)
   await wait(500)
   check(
@@ -171,7 +176,7 @@ try {
   await wait(500)
   check(
     'the stream opens with the current totals',
-    s.frames.length === 1 && same(s.frames[0]!.totals, two.totals) && s.frames[0]!.recorded === two.recorded,
+    s.frames.length === 1 && same(must(s.frames[0]).totals, two.totals) && must(s.frames[0]).recorded === two.recorded,
     JSON.stringify(s.frames),
   )
   check(
@@ -184,19 +189,19 @@ try {
         .join() === [MAIN, TREE].sort().join(),
     String(s.lastId),
   )
-  const resumed = await open(`ids=${MAIN},${TREE}`, { 'last-event-id': s.lastId! })
+  const resumed = await open(`ids=${MAIN},${TREE}`, { 'last-event-id': must(s.lastId, 'last event id') })
   await wait(500)
   check('Last-Event-ID at the current versions sends nothing', resumed.frames.length === 0, String(resumed.frames.length))
 
   appendFileSync(treeFile, reply(TREE, 'claude-opus-5-5', 10, 20))
   await wait(700)
-  const last = s.frames.at(-1)!
+  const last = must(s.frames.at(-1), 'usage frame')
   check(
     'appending a reply to one session sends a new frame',
     s.frames.length === 2 && last.totals.output === two.totals.output + 20 && last.totals.requests === two.totals.requests + 1,
     JSON.stringify(s.frames.map((f) => f.totals.output)),
   )
-  check('the resumed stream gets it too', resumed.frames.length === 1 && same(resumed.frames[0]!.totals, last.totals))
+  check('the resumed stream gets it too', resumed.frames.length === 1 && same(must(resumed.frames[0]).totals, last.totals))
   await wait(500)
   check('no frame while nothing grows', s.frames.length === 2, String(s.frames.length))
 } catch (err) {

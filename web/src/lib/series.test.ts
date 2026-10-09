@@ -1,5 +1,5 @@
-import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { test } from 'node:test'
 import type { SessionSeries, StatRow } from '../../../shared/api.ts'
 import { overTime, perCall, perTurn, shares, stack, turnMarkers } from './series.ts'
 
@@ -46,7 +46,7 @@ test('over time: x is t, layers stack input/output/cache read/cache write (5m + 
 })
 
 test('the top of the stack equals the additive total, thinking not added again', () => {
-  const top = overTime(S).at(-1)!.at(-1)
+  const top = overTime(S).at(-1)?.at(-1)
   assert.equal(top, 4 + 30 + 300 + 5 + 2)
 })
 

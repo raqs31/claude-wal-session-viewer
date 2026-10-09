@@ -1,5 +1,5 @@
-import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { test } from 'node:test'
 import { groupMcp, mcpParts, toolColor } from './mcp.ts'
 
 test('mcpParts splits server and tool at the first __ after the prefix', () => {

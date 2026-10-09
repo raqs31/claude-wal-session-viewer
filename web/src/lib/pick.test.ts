@@ -1,5 +1,5 @@
-import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { test } from 'node:test'
 import type { SessionMeta } from '../../../shared/api.ts'
 import { newest, prune, settlePick, toggle } from './pick.ts'
 
