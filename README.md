@@ -1,7 +1,31 @@
-# wal-observer
+# claude-wal-session-viewer
 
 A standalone viewer for Claude Code sessions: the lifecycle events recorded by the `wal-hook`
-plugin, and token usage and cost read from the transcripts. It is not a plugin itself.
+plugin, and token usage and cost read from the transcripts. The viewer is not a plugin itself; the
+hook that feeds it ships in this repo as one.
+
+## Installing
+
+The viewer needs Node 24 or newer. From npmjs:
+
+```
+npm install -g @raqs31/claude-wal-session-viewer
+```
+
+From GitHub Packages, which needs a token with `read:packages` even for public packages:
+
+```
+npm install -g @raqs31/claude-wal-session-viewer --@raqs31:registry=https://npm.pkg.github.com
+```
+
+The hook, from inside Claude Code:
+
+```
+/plugin marketplace add raqs31/claude-wal-session-viewer
+/plugin install wal-hook@claude-wal-session-viewer
+```
+
+The hook needs `node` on PATH; without it the viewer still shows usage and cost, but no events.
 
 ## Running
 
@@ -10,8 +34,8 @@ wal [--port=N] [--source=<config-dir>]...
 wal legacy [--source=<config-dir>]...
 ```
 
-`wal` (`scripts/wal`, on PATH after `./install.sh`) installs dependencies when needed, builds the
-page, starts the server and opens the printed URL. It binds `127.0.0.1` only: the data contains
+`wal` starts the server and opens the printed URL. From a checkout, `scripts/wal` does the same
+after installing dependencies when needed and building the page. The server binds `127.0.0.1` only: the data contains
 prompts, file contents and command output and must not be reachable off the machine.
 
 Sources are Claude config dirs whose `projects/` is scanned: `~/.claude`, every
@@ -20,7 +44,7 @@ Sources are Claude config dirs whose `projects/` is scanned: `~/.claude`, every
 
 ## What the hook captures
 
-The hook lives in `agents/plugins/wal-hook/` (`wal-hook@unix-conf`). It registers for every hook
+The hook lives in `plugins/wal-hook/` (`wal-hook@claude-wal-session-viewer`). It registers for every hook
 event and appends one JSON object per line to `<config>/projects/<slug>/<session>.wal.jsonl`,
 beside the session transcript. Only when the payload has no `transcript_path` does it fall back to
 `$CLAUDE_PROJECT_DIR/.ai/logs/wal.jsonl`.
@@ -141,9 +165,24 @@ the `parentUuid` chain.
 
 ## Development
 
-All from `tools/wal-observer/`: `npm run dev` serves the page with hot reload against a running
-server, `npm run check` type-checks server and page, `npm run build` writes `web/dist/`,
-`npm test` builds and runs `scripts/*.test.ts`, `web/src/lib/*.test.ts` and
-`agents/plugins/wal-hook/hooks/wal-hook.test.sh`, and `npm run bench` runs `scripts/bench.ts` and
-`scripts/bench-sessions.ts` against their time and memory budgets. A Node with type stripping is
-required; see `docs/zsh/startup.md`.
+`npm run dev` serves the page with hot reload against a running
+server, `npm run check` type-checks server and page, `npm run lint` runs Biome's lint and format
+check (`npx biome check --write .` fixes what it can), `npm run build` writes `web/dist/`,
+`npm run build:dist` writes the published `dist/`, `npm test` builds and runs `scripts/*.test.ts`,
+`web/src/lib/*.test.ts` and `plugins/wal-hook/hooks/wal-hook.test.sh` (needs `jq`), and
+`npm run bench` runs `scripts/bench.ts` and `scripts/bench-sessions.ts` against their time and
+memory budgets. Sources run directly through Node's type stripping, so Node 24 or newer is needed.
+
+The published package is compiled with `tsc` (`tsconfig.build.json`) because Node does not strip
+types under `node_modules`.
+
+## Releasing
+
+CI (`.github/workflows/ci.yml`) runs lint, type check, tests and a pack dry run on Node 24 and 26
+for every pull request and every push to `main`.
+
+1. Bump `version` in `package.json`, commit, then tag and push: `git tag v0.2.0 && git push origin main v0.2.0`.
+   The tag must equal `v` plus the package version, or the release fails.
+2. The `Release` workflow tests the tag and publishes it to GitHub Packages.
+3. To also publish to npmjs, run `Release` by hand (Actions → Release → Run workflow), select the
+   tag and keep `npm` checked. It needs an `NPM_TOKEN` repository secret with publish rights.

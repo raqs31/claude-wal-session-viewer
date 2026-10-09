@@ -1,0 +1,47 @@
+name: Release
+
+# A pushed v* tag publishes to GitHub Packages. npmjs is opt-in: run this workflow by hand on the
+# tag with `npm` checked.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      npm:
+        description: Publish the selected tag to npmjs
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: github.event_name == 'push' || inputs.npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          # Scoped, so `npm ci` still resolves dependencies from npmjs.
+          scope: '@raqs31'
+          registry-url: ${{ github.event_name == 'push' && 'https://npm.pkg.github.com' || 'https://registry.npmjs.org' }}
+          package-manager-cache: false
+      - name: Check the tag matches package.json
+        run: |
+          version="v$(node -p 'require("./package.json").version')"
+          if [[ "$GITHUB_REF_TYPE" != tag || "$GITHUB_REF_NAME" != "$version" ]]; then
+            echo "::error::run on tag $version, not $GITHUB_REF_TYPE $GITHUB_REF_NAME"
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run check
+      - run: npm test
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ github.event_name == 'push' && secrets.GITHUB_TOKEN || secrets.NPM_TOKEN }}

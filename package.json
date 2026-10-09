@@ -20,6 +20,7 @@
     "build": "vite build",
     "dev": "vite",
     "check": "tsc -p tsconfig.json && tsc -p web/tsconfig.json",
+    "lint": "biome ci .",
     "test": "vite build --logLevel warn && node --test scripts/*.test.ts web/src/lib/*.test.ts && bash plugins/wal-hook/hooks/wal-hook.test.sh",
     "bench": "node scripts/bench.ts && node scripts/bench-sessions.ts",
     "build:dist": "rm -rf dist && vite build && tsc -p tsconfig.build.json && cp scripts/pricing.json dist/scripts/ && mkdir -p dist/web && cp -r web/dist dist/web/",
