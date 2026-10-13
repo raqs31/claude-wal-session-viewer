@@ -3,6 +3,7 @@ name: wal
 description: "Install, update or start the local wal session viewer (`wal`) and report its URL."
 disable-model-invocation: true
 argument-hint: "[install | update | run [--port=N] [--source=<config-dir>]...]"
+model: sonnet
 ---
 
 # wal
@@ -17,9 +18,12 @@ Arguments: `$ARGUMENTS`
 
 - `install` → **Install**.
 - `update` → **Update**.
-- `run ...` → **Run**, passing everything after `run` to `wal`.
+- `run ...` or `start ...` → **Run**, passing everything after that first word to `wal`.
 - Nothing → `command -v wal`. Found: ask whether to run it, check for updates, or reinstall. Not
   found: **Install**, then offer **Run**.
+- Anything else, flags without `run` included → don't guess a job from it. Ask which job was
+  meant (**Install**, **Update**, **Run**), quoting what wasn't recognized. If they pick **Run**,
+  pass any `--` arguments on to `wal`.
 
 Ask with AskUserQuestion whenever a choice is the user's: route, clone dir, replacing a file,
 applying an update.
