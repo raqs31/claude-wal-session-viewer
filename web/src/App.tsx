@@ -31,7 +31,6 @@ export function App() {
   // Held here rather than in the tabs, which unmount on a switch, so filters and follow survive one.
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [follow, setFollow] = useState(true)
-  const [path, setPath] = useState('')
   const list = useSessions()
   const rows = list.ready ? list.sessions : null
   const { pick, toggle, clear, forget } = usePick(rows)
@@ -71,9 +70,11 @@ export function App() {
         <header ref={head}>
           <div>
             <h1>{tab === 'events' ? 'Claude Code event log' : 'Claude Code sessions'}</h1>
-            <div className="file" id="file">
-              {tab === 'events' ? path : list.root}
-            </div>
+            {tab === 'sessions' && (
+              <div className="file" id="file">
+                {list.root}
+              </div>
+            )}
           </div>
           <span className="spacer" />
           <button className="ghost" id="theme" type="button" onClick={toggleTheme}>
@@ -95,7 +96,6 @@ export function App() {
             setFormat={setFormat}
             follow={follow}
             setFollow={setFollow}
-            onPath={setPath}
             ids={ids}
             onUnknown={forget}
             sessions={list.sessions}

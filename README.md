@@ -69,7 +69,7 @@ empty, so a rerun is a no-op. The viewer shows a banner while legacy files remai
 
 ## The page
 
-- **Header**: the page title, the log path (Events) or sessions root (Sessions) and Toggle theme;
+- **Header**: the page title, the sessions root (Sessions only) and Toggle theme;
   it stays at the top on both tabs.
 - **Sidebar**: lists sessions grouped by project, each with a live/idle dot, workspace and worktree
   badges, length and age (`2h 14m · 5m`: first transcript entry to last write, so a live session's
@@ -106,7 +106,8 @@ empty, so a rerun is a no-op. The viewer shows a banner while legacy files remai
   Records render as a tree in JSON, YAML or Raw.
 - **Sessions**: one block per picked session with totals, By-agent and By-model tables, charts and
   agent rows that expand to type, model (main shows its model, or "mixed (see By model)"), turns or
-  requests, token kinds, cost, duration and tool calls. An expanded subagent row also shows that
+  requests, token kinds, cost, duration, tool calls and context at end. The totals end with the main
+  agent's context at end, and each By-agent row with its own (Ctx). An expanded subagent row also shows that
   subagent's cumulative tokens and tokens per API call charts, fetched when the row expands and
   refetched on each new call or token change; subagents with 0 calls get none, and the main row
   has none, since the session charts cover it. It shows no event list; that is the
@@ -120,6 +121,9 @@ empty, so a rerun is a no-op. The viewer shows a banner while legacy files remai
 - Usage is taken from the last transcript entry of each API message (`message.id`): every entry of a
   reply repeats it, and in subagent files the early ones are streaming snapshots.
 - Thinking is part of output. Its tile is shown on its own and never added to a total.
+- Context at end is the prompt of an agent's last request: input + cache read + cache write, so
+  after a compaction it is the compacted size. It is tokens only: no transcript records the
+  model's window size.
 - Estimated cost multiplies usage by `scripts/pricing.json`, USD per million tokens keyed by the
   transcript's `message.model`, taken from https://platform.claude.com/docs/en/about-claude/pricing
   on 30/09/2026. To update it, copy the per-model input, output, cache write 5m/1h and cache read

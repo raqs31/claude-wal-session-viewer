@@ -40,7 +40,6 @@ interface Props {
   setFormat: (f: Format) => void
   follow: boolean
   setFollow: (f: boolean) => void
-  onPath: (p: string) => void
   ids: readonly string[] | null
   onUnknown: (ids: string[]) => void
   sessions: readonly SessionMeta[]
@@ -61,7 +60,6 @@ export function EventsTab({
   setFormat,
   follow,
   setFollow,
-  onPath,
   ids,
   onUnknown,
   sessions,
@@ -93,7 +91,6 @@ export function EventsTab({
     setFilters({ ...EMPTY_FILTERS })
     setResets((n) => n + 1)
   }
-  useEffect(() => onPath(ev.file), [ev.file, onPath])
   // A chosen value that left the facets (pick changed) would silently filter everything out.
   useEffect(() => {
     if (!ev.ready) return

@@ -109,13 +109,26 @@ const raw = (file: string): Record<string, any>[] =>
     .split('\n')
     .filter(Boolean)
     .map((l) => JSON.parse(l))
-const expect = (file: string): { tools: number; duration: number } => {
+const expect = (file: string): { tools: number; duration: number; context: number } => {
   const replies = raw(file).filter((e) => e.type === 'assistant' && e.uuid && e.message?.model !== '<synthetic>')
   const tools = replies.flatMap((e) => e.message.content ?? []).filter((b: { type: string }) => b.type === 'tool_use' || b.type === 'server_tool_use').length
   const firsts = new Map<string, number>()
-  for (const e of replies) if (e.message.usage && !firsts.has(e.message.id ?? e.uuid)) firsts.set(e.message.id ?? e.uuid, Date.parse(e.timestamp))
+  // biome-ignore lint/suspicious/noExplicitAny: raw transcript lines are schemaless JSON
+  const finals = new Map<string, any>()
+  for (const e of replies) {
+    if (!e.message.usage) continue
+    if (!firsts.has(e.message.id ?? e.uuid)) firsts.set(e.message.id ?? e.uuid, Date.parse(e.timestamp))
+    finals.set(e.message.id ?? e.uuid, e.message.usage)
+  }
   const ts = [...firsts.values()]
-  return { tools, duration: ts.length > 1 ? Math.max(...ts) - Math.min(...ts) : 0 }
+  const u = [...finals.values()].at(-1)
+  const context = u
+    ? (u.input_tokens ?? 0) +
+      (u.cache_read_input_tokens ?? 0) +
+      (u.cache_creation?.ephemeral_5m_input_tokens ?? 0) +
+      (u.cache_creation?.ephemeral_1h_input_tokens ?? 0)
+    : 0
+  return { tools, duration: ts.length > 1 ? Math.max(...ts) - Math.min(...ts) : 0, context }
 }
 
 try {
@@ -162,6 +175,11 @@ try {
   check(
     'agentStats: duration is last − first request',
     all.agentStats.main?.duration === em.duration && all.agentStats[SUB]?.duration === es.duration && es.duration > 0,
+    JSON.stringify({ got: all.agentStats, em, es }),
+  )
+  check(
+    "agentStats: context is the last request's prompt",
+    all.agentStats.main?.context === em.context && all.agentStats[SUB]?.context === es.context && em.context > 0 && es.context > 0,
     JSON.stringify({ got: all.agentStats, em, es }),
   )
   check('agentStats keys match stats.agents', Object.keys(all.agentStats).sort().join() === Object.keys(all.stats.agents).sort().join())
@@ -277,6 +295,7 @@ try {
     after.stats.totals.requests === all.stats.totals.requests + 1 && after.stats.totals.output === all.stats.totals.output + 20,
   )
   check('its tool call reaches agentStats', after.agentStats.main?.tools === em.tools + 1, JSON.stringify(after.agentStats.main))
+  check('its prompt becomes the context at end', after.agentStats.main?.context === 10, JSON.stringify(after.agentStats.main))
   check('frame versions only grow', of(quiet, MAIN).every((f, i, fs) => i === 0 || f.version > must(fs[i - 1]).version) && after.version > all.version)
 
   copyFileSync(join(subDir, `agent-${SUB}.jsonl`), join(subDir, 'agent-bnew.jsonl'))

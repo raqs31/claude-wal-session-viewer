@@ -186,10 +186,12 @@ export interface AgentInfo {
   model: string
 }
 
-// `tools`: tool and Agent calls made; `duration`: last − first request, 0 below two requests.
+// `tools`: tool and Agent calls made; `duration`: last − first request, 0 below two requests;
+// `context`: the prompt of the last request (input + cache read + cache write), 0 before the first.
 export interface AgentStat {
   tools: number
   duration: number
+  context: number
 }
 
 export type RecordedCost = { total: number; models: Record<string, number> } | null

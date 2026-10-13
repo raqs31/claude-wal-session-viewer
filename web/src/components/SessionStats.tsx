@@ -35,7 +35,9 @@ const COLS: { h: string; title: string; v: (r: StatRow) => number; tip: (r: Stat
   { h: 'CW', title: 'Cache write (5m + 1h)', v: (r) => r.cacheWrite5m + r.cacheWrite1h, tip: (r) => `5m ${n(r.cacheWrite5m)} + 1h ${n(r.cacheWrite1h)}` },
 ]
 
-const Head = ({ recorded }: { recorded: boolean }) => (
+const CTX = "the last request's input + cache read + cache write"
+
+const Head = ({ recorded, context }: { recorded: boolean; context?: boolean }) => (
   <thead>
     <tr>
       <th />
@@ -55,11 +57,16 @@ const Head = ({ recorded }: { recorded: boolean }) => (
           Rec.
         </th>
       )}
+      {context && (
+        <th className="r" title={`Context at end: ${CTX}`}>
+          Ctx
+        </th>
+      )}
     </tr>
   </thead>
 )
 
-const Cells = ({ name, label, r, rec }: { name: string; label?: ReactNode; r: StatRow | undefined; rec?: number | null }) => (
+const Cells = ({ name, label, r, rec, ctx }: { name: string; label?: ReactNode; r: StatRow | undefined; rec?: number | null; ctx?: number }) => (
   <>
     <td className="name" title={name}>
       <span>{label ?? name}</span>
@@ -72,6 +79,11 @@ const Cells = ({ name, label, r, rec }: { name: string; label?: ReactNode; r: St
     ))}
     <td className="num r">{fmtUsd(r ? r.cost : null)}</td>
     {rec !== undefined && <td className="num r">{fmtUsd(rec)}</td>}
+    {ctx !== undefined && (
+      <td className="num r" title={r && n(ctx)}>
+        {r ? fmtTokens(ctx) : '—'}
+      </td>
+    )}
   </>
 )
 
@@ -86,6 +98,7 @@ export const agentName = (agents: AgentInfo[], id: string): string => {
 export function Totals({ view }: { view: SessionView }) {
   const { stats, recordedCostUsd: rec } = view
   const t = stats.totals
+  const ctx = stats.agents.main && view.agentStats.main?.context
   return (
     <div className="tiles">
       {TOKENS.map((k) => (
@@ -96,6 +109,7 @@ export function Totals({ view }: { view: SessionView }) {
       <Tile k="Duration" v={fmtDuration(stats.duration)} />
       <Tile k="Cost (estimated)" v={fmtUsd(t.cost)} title={t.cost === null ? 'a model in this session has no price' : undefined} />
       {rec && <Tile k="Cost (recorded by Claude Code)" v={fmtUsd(rec.total)} />}
+      <Tile k="Context at end (main)" v={ctx === undefined ? '—' : fmtTokens(ctx)} title={ctx === undefined ? undefined : `${n(ctx)}: ${CTX}`} />
     </div>
   )
 }
@@ -138,14 +152,14 @@ export function ByAgent({ view }: { view: SessionView }) {
       <h2>By agent</h2>
       <div className="hscroll">
         <table className="stat">
-          <Head recorded={false} />
+          <Head recorded={false} context />
           <tbody>
             {ids.map((id) => {
               const r = view.stats.agents[id]
               return (
                 <AgentRow
                   key={id}
-                  span={COLS.length + 3}
+                  span={COLS.length + 4}
                   open={open.has(id)}
                   onToggle={() => flip(id)}
                   detail={() => agentDetail(view, id)}
@@ -162,7 +176,7 @@ export function ByAgent({ view }: { view: SessionView }) {
                   }
                   cells={(toggle) => {
                     const name = agentName(view.agents, id)
-                    return <Cells name={name} label={toggle(name)} r={r} />
+                    return <Cells name={name} label={toggle(name)} r={r} ctx={view.agentStats[id]?.context ?? 0} />
                   }}
                 />
               )

@@ -36,5 +36,6 @@ export function agentDetail(view: SessionView, id: string): Detail[] {
     { k: 'Cost (estimated)', v: fmtUsd(r ? r.cost : null), title: r && r.cost === null ? 'a model of this agent has no price' : undefined },
     { k: 'Duration', v: s ? fmtDuration(s.duration) : '—' },
     { k: 'Tool calls', v: s ? n(s.tools) : '—' },
+    tok('Context at end', r ? s?.context : undefined),
   ]
 }

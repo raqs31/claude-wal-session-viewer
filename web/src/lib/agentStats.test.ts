@@ -22,7 +22,11 @@ const view = {
     { id: 'a1', type: 'Explore', description: 'find x', model: 'claude-haiku' },
     { id: 'a2', type: '', description: '', model: '' },
   ],
-  agentStats: { main: { tools: 12, duration: 65_000 }, a1: { tools: 1234, duration: 900 }, a2: { tools: 0, duration: 0 } },
+  agentStats: {
+    main: { tools: 12, duration: 65_000, context: 182_400 },
+    a1: { tools: 1234, duration: 900, context: 45_678 },
+    a2: { tools: 0, duration: 0, context: 0 },
+  },
   recordedCostUsd: null,
 } as unknown as SessionView
 
@@ -38,6 +42,7 @@ test('main shows turns, no model, its own tokens, cost, duration and tool calls'
   assert.equal(m['Cost (estimated)'], '$0.50')
   assert.equal(m.Duration, '1m 05s')
   assert.equal(m['Tool calls'], '12')
+  assert.equal(m['Context at end'], '182k')
 })
 
 test('main names the model only when the session used exactly one', () => {
@@ -65,6 +70,7 @@ test('a subagent shows type, model, requests, an unpriced cost and its full toke
       'Cost (estimated)',
       'Duration',
       'Tool calls',
+      'Context at end',
     ],
   )
   const m = asMap('a1')
@@ -75,6 +81,8 @@ test('a subagent shows type, model, requests, an unpriced cost and its full toke
   assert.equal(d.find((x) => x.k === 'Output')?.title, '2,500,000')
   assert.equal(m['Cost (estimated)'], '—')
   assert.equal(m['Tool calls'], '1,234')
+  assert.equal(m['Context at end'], '45.7k')
+  assert.equal(d.find((x) => x.k === 'Context at end')?.title, '45,678')
 })
 
 test('an agent with no request yet reads as zero requests and dashes', () => {
@@ -85,4 +93,5 @@ test('an agent with no request yet reads as zero requests and dashes', () => {
   assert.equal(m.Input, '—')
   assert.equal(m['Cost (estimated)'], '—')
   assert.equal(m.Duration, '0 ms')
+  assert.equal(m['Context at end'], '—')
 })

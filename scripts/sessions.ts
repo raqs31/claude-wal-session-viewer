@@ -164,7 +164,9 @@ export const createStore = (discovery: Pick<Discovery, 'locate'>, busy: (id: str
       lo = Math.min(lo, r.t)
       hi = Math.max(hi, r.t)
     }
-    return { tools: p.meta.toolCalls, duration: p.usage.length > 1 ? hi - lo : 0 }
+    // Last in file order: timestamps run backwards within a file.
+    const u = p.usage.at(-1)
+    return { tools: p.meta.toolCalls, duration: p.usage.length > 1 ? hi - lo : 0, context: u ? u.input + u.cacheRead + u.cacheWrite5m + u.cacheWrite1h : 0 }
   }
 
   const has = (s: Session, scope: Scope): boolean => !scope.startsWith('agent:') || s.agents.has(scope.slice(6))

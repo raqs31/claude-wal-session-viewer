@@ -52,7 +52,6 @@ export function useEvents(filters: Filters, view: View, ids: readonly string[] |
   const [qid, setQid] = useState(0)
   const [gens, setGens] = useState<Record<string, number> | null>(null)
   const [stats, setStats] = useState<Stats>({ total: 0, head: 0, counts: {}, spans: {} })
-  const [file, setFile] = useState('')
   const [tools, setTools] = useState<string[]>([])
   const [events, setEvents] = useState<string[]>([])
   const [cats, setCats] = useState<Category[]>([])
@@ -112,7 +111,6 @@ export function useEvents(filters: Filters, view: View, ids: readonly string[] |
     setGens(data.gens)
     setQid(my)
     setNext(data.next)
-    setFile(Object.keys(data.gens).join(' · '))
     setStats({ total: data.total, head: recorded(data.head), counts: data.counts, spans: data.spans })
     setTools((ts) => (same(ts, data.tools) ? ts : data.tools))
     setEvents((es) => (same(es, data.events) ? es : data.events))
@@ -246,7 +244,6 @@ export function useEvents(filters: Filters, view: View, ids: readonly string[] |
     ...stats,
     qid,
     gens,
-    file,
     tools,
     events,
     cats,
