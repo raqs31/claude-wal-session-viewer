@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "wal-hook",
-      "description": "Records every Claude Code lifecycle event to a per-session JSONL write-ahead log beside its transcript.",
+      "description": "Records every Claude Code lifecycle event to a per-session JSONL write-ahead log beside its transcript, and adds /wal-hook:wal to install, update and run the viewer.",
       "category": "observability",
       "source": "./plugins/wal-hook"
     }

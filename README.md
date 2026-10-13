@@ -27,6 +27,12 @@ The hook, from inside Claude Code:
 
 The hook needs `node` on PATH; without it the viewer still shows usage and cost, but no events.
 
+The plugin also adds `/wal-hook:wal`, which Claude runs only when you invoke it:
+`/wal-hook:wal install` walks through installing the viewer from GitHub Packages or a git checkout,
+`/wal-hook:wal update` checks the viewer and this plugin for newer versions and offers to update
+them, and `/wal-hook:wal run` starts it in the background, reports its URL and mentions a newer
+viewer if there is one.
+
 ## Running
 
 ```
