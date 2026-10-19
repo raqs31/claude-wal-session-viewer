@@ -86,7 +86,7 @@ export function useAgentSeries(sess: string, agent: string, stamp: string) {
     const ctrl = new AbortController()
     void (async () => {
       try {
-        const res = await fetch(`/session?${new URLSearchParams({ id: sess, scope: `agent:${agent}` })}`, { signal: ctrl.signal })
+        const res = await fetch(`/session?${new URLSearchParams({ id: sess, scope: agent === 'main' ? 'main' : `agent:${agent}` })}`, { signal: ctrl.signal })
         if (!res.ok) throw new Error(`error ${res.status}`)
         const v = (await res.json()) as SessionView
         setSeries(v.series)

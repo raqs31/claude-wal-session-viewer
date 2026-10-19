@@ -96,7 +96,7 @@ const Block = memo(function Block({
           <Totals view={view} />
           <ByModel view={view} />
           <Charts view={view} />
-          <ByAgent view={view} onShowEvents={onShowEvents} />
+          <ByAgent view={view} firstPrompt={meta?.prompt ?? null} onShowEvents={onShowEvents} />
         </>
       ) : (
         <div className="empty">{unknown ? 'No transcript for this session.' : 'Loading…'}</div>
