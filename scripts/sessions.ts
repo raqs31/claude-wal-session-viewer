@@ -27,6 +27,7 @@ interface Tracked {
 }
 interface Agent extends Tracked {
   info: AgentInfo
+  toolUseId: string
 }
 export interface Session {
   id: string
@@ -81,7 +82,8 @@ export const createStore = (discovery: Pick<Discovery, 'locate'>, busy: (id: str
         path: join(sub, `agent-${id}.jsonl`),
         parser: createParser(id, spawn?.turn ?? s.main.parser.turnStarts.length, false),
         read: 0,
-        info: { id, type: m.agentType ?? '', description: m.description ?? '', model: m.model ?? '', prompt: null },
+        toolUseId: m.toolUseId,
+        info: { id, type: m.agentType ?? '', description: m.description ?? '', model: m.model ?? '', prompt: null, parent: null },
       }
       s.agents.set(id, a)
       grow(a)
@@ -166,7 +168,12 @@ export const createStore = (discovery: Pick<Discovery, 'locate'>, busy: (id: str
     }
     // Last in file order: timestamps run backwards within a file.
     const u = p.usage.at(-1)
-    return { tools: p.meta.toolCalls, duration: p.usage.length > 1 ? hi - lo : 0, context: u ? u.input + u.cacheRead + u.cacheWrite5m + u.cacheWrite1h : 0 }
+    return {
+      tools: p.meta.toolCalls,
+      duration: p.usage.length > 1 ? hi - lo : 0,
+      context: u ? u.input + u.cacheRead + u.cacheWrite5m + u.cacheWrite1h : 0,
+      compacts: p.compacts,
+    }
   }
 
   const has = (s: Session, scope: Scope): boolean => !scope.startsWith('agent:') || s.agents.has(scope.slice(6))
@@ -180,8 +187,13 @@ export const createStore = (discovery: Pick<Discovery, 'locate'>, busy: (id: str
       gen: s.gen,
       version: s.version,
       scope,
-      ...aggregate(records(s), scope, pricing, s.main.parser.turnStarts),
-      agents: [...s.agents.values()].map((a) => ({ ...a.info, prompt: a.parser.meta.task })),
+      ...aggregate(records(s), scope, pricing, s.main.parser.turnStarts, (s.agents.get(scope.slice(6))?.parser ?? s.main.parser).compacts),
+      // Looked up per view: a nested agent can be discovered before its spawner's transcript is read.
+      agents: [...s.agents.values()].map((a) => ({
+        ...a.info,
+        prompt: a.parser.meta.task,
+        parent: [...s.agents].find(([, p]) => p.parser.tools.has(a.toolUseId))?.[0] ?? null,
+      })),
       agentStats: Object.fromEntries(inScope.map(([id, p]) => [id, agentStat(p)])),
       recordedCostUsd: scope === 'all' ? recorded(s) : null,
     }

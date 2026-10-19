@@ -1,8 +1,8 @@
 import { useMemo, useRef } from 'react'
 import uPlot from 'uplot'
 import type { SessionSeries } from '../../../../shared/api.ts'
-import { perCall, perTurn } from '../../lib/series.ts'
-import { bands, type Css, stackedSeries, UPlot, xAxis, yAxis } from './UPlot.tsx'
+import { compactMarks, perCall, perTurn } from '../../lib/series.ts'
+import { bands, type Css, drawCompacts, stackedSeries, UPlot, xAxis, yAxis } from './UPlot.tsx'
 
 export function TurnBars({ series, agent, by = 'turn' }: { series: SessionSeries; agent: boolean; by?: 'turn' | 'call' }) {
   const cols = useMemo(() => (by === 'call' ? perCall(series) : perTurn(series, agent)), [series, agent, by])
@@ -11,6 +11,9 @@ export function TurnBars({ series, agent, by = 'turn' }: { series: SessionSeries
   turns.current = cols[0]
   const data = useMemo((): uPlot.AlignedData => [cols[0].map((_, i) => i), ...cols.slice(1)], [cols])
   const label = (v: number) => String(turns.current[v] ?? '')
+  // Read at draw time, like TokensOverTime's markers.
+  const compacts = useRef<{ x: number; label: string }[]>([])
+  compacts.current = by === 'call' ? compactMarks(series, 'call') : []
   const opts = (css: Css): Omit<uPlot.Options, 'width' | 'height'> => ({
     series: [
       { label: by === 'call' ? 'Call' : 'Turn', value: (_u, v) => (v === null ? '—' : label(v)) },
@@ -21,6 +24,7 @@ export function TurnBars({ series, agent, by = 'turn' }: { series: SessionSeries
     axes: [xAxis(css, { space: 30, values: (_u, splits) => splits.map((v) => (Number.isInteger(v) ? label(v) : '')) }), yAxis(css)],
     // A live setData resets the x scale, which would silently undo a drag zoom.
     cursor: { points: { show: false }, drag: { x: false } },
+    hooks: { draw: [(u) => drawCompacts(u, css, compacts.current)] },
   })
   return <UPlot title={by === 'call' ? 'Tokens per API call' : 'Tokens per turn'} opts={opts} data={data} />
 }

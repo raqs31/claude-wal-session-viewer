@@ -37,5 +37,6 @@ export function agentDetail(view: SessionView, id: string): Detail[] {
     { k: 'Duration', v: s ? fmtDuration(s.duration) : '—' },
     { k: 'Tool calls', v: s ? n(s.tools) : '—' },
     tok('Context at end', r ? s?.context : undefined),
+    { k: 'Compactions', v: s ? n(s.compacts.length) : '—' },
   ]
 }

@@ -1,4 +1,5 @@
-import type { AdditiveKey, SessionSeries, StatRow } from '../../../shared/api.ts'
+import type { AdditiveKey, Compact, SessionSeries, StatRow } from '../../../shared/api.ts'
+import { fmtTokens } from './tokens.ts'
 
 export type Layer = 'input' | 'output' | 'cacheRead' | 'cacheWrite'
 // Bottom to top of every stack.
@@ -39,6 +40,12 @@ export const perTurn = (s: SessionSeries, onlyWorked = false): Columns => {
   const kept = (_: number, i: number) => !w || w.has(i)
   return [s.perTurn.input.map((_, i) => i).filter(kept), ...stack(LAYERS.map((k) => layer(s.perTurn, k).filter(kept)))]
 }
+
+// Per-call charts plot call i at position i; a compaction sits between the last call before it and the next.
+export const compactMarks = (s: SessionSeries, by: 'time' | 'call'): { x: number; label: string }[] =>
+  s.compacts.map((c) => ({ x: by === 'time' ? c.t : s.t.filter((t) => t < c.t).length - 0.5, label: compactLabel(c) }))
+
+export const compactLabel = (c: Compact): string => `${c.trigger || 'compact'} ${fmtTokens(c.pre)} → ${fmtTokens(c.post)}`
 
 // Turn i + 1 starts at turnStarts[i].
 export const turnMarkers = (s: SessionSeries, onlyWorked = false): number[] => {

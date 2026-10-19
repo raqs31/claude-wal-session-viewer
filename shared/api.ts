@@ -176,6 +176,14 @@ export interface SessionSeries {
   cumulative: Record<AdditiveKey, number[]>
   perTurn: Record<AdditiveKey, number[]>
   turnStarts: number[]
+  // The scope's own transcript: main's for `all` and `main`, the agent's for `agent:<id>`.
+  compacts: Compact[]
+}
+export interface Compact {
+  t: number
+  trigger: string
+  pre: number
+  post: number
 }
 export type AdditiveKey = Exclude<keyof Usage, 'thinking'>
 
@@ -186,6 +194,8 @@ export interface AgentInfo {
   model: string
   // The prompt the subagent was spawned with; null until its transcript holds it.
   prompt: string | null
+  // The subagent whose Agent call spawned this one; null for main (or a spawner not read yet).
+  parent: string | null
 }
 
 // `tools`: tool and Agent calls made; `duration`: last − first request, 0 below two requests;
@@ -194,6 +204,8 @@ export interface AgentStat {
   tools: number
   duration: number
   context: number
+  // The agent's own transcript only; a session-wide view does not add its subagents' to main.
+  compacts: Compact[]
 }
 
 export type RecordedCost = { total: number; models: Record<string, number> } | null

@@ -309,6 +309,28 @@ try {
   )
   check('the new subagent is a scope', (await json<SessionView>(`/session?id=${MAIN}&scope=agent:bnew`)).stats.totals.requests === sub.stats.totals.requests)
 
+  const spawn = {
+    type: 'assistant',
+    uuid: 'u-spawn',
+    timestamp: '2026-09-30T11:05:00.000Z',
+    message: {
+      id: 'm-spawn',
+      model: 'x',
+      content: [{ type: 'tool_use', name: 'Agent', id: 'toolu_nest', input: { subagent_type: 'general-purpose', description: 'nested' } }],
+    },
+  }
+  writeFileSync(join(subDir, 'agent-bspawner.jsonl'), `${JSON.stringify(spawn)}\n`)
+  writeFileSync(join(subDir, 'agent-bspawner.meta.json'), readFileSync(join(subDir, `agent-${SUB}.meta.json`)))
+  copyFileSync(join(subDir, `agent-${SUB}.jsonl`), join(subDir, 'agent-bkid.jsonl'))
+  writeFileSync(join(subDir, 'agent-bkid.meta.json'), JSON.stringify({ toolUseId: 'toolu_nest', agentType: 'general-purpose', description: 'nested' }))
+  await wait(700)
+  const nested = (await json<SessionView>(`/session?id=${MAIN}&scope=all`)).agents
+  check(
+    'a subagent spawned by another names it as parent',
+    nested.find((a) => a.id === 'bkid')?.parent === 'bspawner' && nested.find((a) => a.id === 'bspawner')?.parent === null,
+    JSON.stringify(nested.map((a) => [a.id, a.parent])),
+  )
+
   // Eight sessions stay open; one a stream picks is never evicted. The tick re-touches MAIN and
   // TREE every 250 ms, so the opens run back to back to leave CLEAR the oldest.
   const extra = Array.from({ length: 8 }, () => randomUUID())

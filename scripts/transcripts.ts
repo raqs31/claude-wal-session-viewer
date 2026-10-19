@@ -7,7 +7,7 @@
 // timestamps drop 177 times between consecutive entries, mostly prompt → attachment and
 // attachment → reply.
 
-import type { AdditiveKey, Scope, SessionSeries, SessionStats, StatRow, Usage } from '../shared/api.ts'
+import type { AdditiveKey, Compact, Scope, SessionSeries, SessionStats, StatRow, Usage } from '../shared/api.ts'
 
 // biome-ignore lint/suspicious/noExplicitAny: deliberate, transcripts are schemaless JSON.
 type E = Record<string, any>
@@ -116,6 +116,7 @@ export const createParser = (agent: string, turn = 0, keepItems = true) => {
   const items: ParsedItem[] = []
   const usage: UsageRecord[] = []
   const turnStarts: number[] = []
+  const compacts: Compact[] = []
   const meta: TranscriptMeta = { title: null, first: null, firstPrompt: null, task: null, cwd: null, toolCalls: 0, costUsd: null, costByModel: {} }
   const tools = new Map<string, ParsedItem>()
   // Items mutated after they were added: a reader that already streamed them must resend them.
@@ -225,6 +226,7 @@ export const createParser = (agent: string, turn = 0, keepItems = true) => {
   const system = (e: E, t: number, src: Span): void => {
     if (e.subtype === 'compact_boundary') {
       const { trigger = '', preTokens: pre = 0, postTokens: post = 0 } = e.compactMetadata ?? {}
+      compacts.push({ t, trigger, pre, post })
       add(e, t, src, 'compact', `${trigger} ${pre} → ${post}`, { compact: { pre, post, trigger } })
     } else if (e.subtype === 'local_command') {
       command = null
@@ -258,6 +260,7 @@ export const createParser = (agent: string, turn = 0, keepItems = true) => {
     usage,
     meta,
     turnStarts,
+    compacts,
     tools,
     touched,
     /** Consumes complete lines only; decoding per whole line keeps a split multibyte char intact. */
@@ -302,7 +305,13 @@ const columns = (n: number): Record<AdditiveKey, number[]> =>
   Object.fromEntries(ADDITIVE.map((k) => [k, Array<number>(n).fill(0)])) as Record<AdditiveKey, number[]>
 
 /** `turnStarts` are the main parser's; turn `i + 1` starts at `turnStarts[i]`, turn 0 precedes the first prompt. */
-export const aggregate = (records: UsageRecord[], scope: Scope, pricing: Pricing, turnStarts: number[]): { stats: SessionStats; series: SessionSeries } => {
+export const aggregate = (
+  records: UsageRecord[],
+  scope: Scope,
+  pricing: Pricing,
+  turnStarts: number[],
+  compacts: Compact[] = [],
+): { stats: SessionStats; series: SessionSeries } => {
   // Timestamps interleave across files and run backwards within one; uPlot needs ascending x.
   const rs = records.filter((r) => inScope(r.agent, scope)).sort((a, b) => a.t - b.t)
   const totals = row()
@@ -328,6 +337,6 @@ export const aggregate = (records: UsageRecord[], scope: Scope, pricing: Pricing
   const last = rs.at(-1)
   return {
     stats: { totals, agents, models, turns: scope.startsWith('agent:') ? worked.size : turnStarts.length, duration: first && last ? last.t - first.t : 0 },
-    series: { t, cumulative, perTurn, turnStarts },
+    series: { t, cumulative, perTurn, turnStarts, compacts },
   }
 }

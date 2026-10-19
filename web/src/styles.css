@@ -624,7 +624,7 @@ table.stat td.name {
   width: 100%;
   max-width: 0;
 }
-table.stat td.name span {
+table.stat td.name > span {
   display: block;
   max-width: 150ch;
   overflow: hidden;
@@ -1252,4 +1252,24 @@ table.stat tr.ag-x > td {
 #table > tbody > tr.row:has(+ tr:not([hidden])) > td:first-child,
 #table > tbody > tr.row + tr:not([hidden]) > td {
   box-shadow: inset 3px 0 var(--cat-tool);
+}
+.ag-h {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ag-h button {
+  text-transform: none;
+  letter-spacing: 0;
+}
+.ag-fold {
+  all: unset;
+  display: inline-block;
+  width: 14px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.ag-cmp {
+  margin-left: 8px;
+  color: var(--status-critical);
 }
