@@ -69,6 +69,32 @@ interface ChartProps {
   data: uPlot.AlignedData
 }
 
+// Solid and labelled, so they read apart from the dashed turn starts.
+export const drawCompacts = (u: uPlot, css: Css, marks: readonly { x: number; label: string }[]): void => {
+  const { ctx, bbox } = u
+  const [min, max] = [u.scales.x?.min ?? -Infinity, u.scales.x?.max ?? Infinity]
+  ctx.save()
+  ctx.strokeStyle = ctx.fillStyle = css('--status-critical')
+  ctx.lineWidth = 1.5 * devicePixelRatio
+  ctx.font = `${11 * devicePixelRatio}px system-ui, sans-serif`
+  ctx.textBaseline = 'top'
+  for (const m of marks) {
+    if (m.x < min || m.x > max) continue
+    const x = Math.round(u.valToPos(m.x, 'x', true)) + 0.5
+    ctx.beginPath()
+    ctx.moveTo(x, bbox.top)
+    ctx.lineTo(x, bbox.top + bbox.height)
+    ctx.stroke()
+    const w = ctx.measureText(m.label).width
+    ctx.fillText(
+      m.label,
+      x + 4 * devicePixelRatio + w > bbox.left + bbox.width ? x - 4 * devicePixelRatio - w : x + 4 * devicePixelRatio,
+      bbox.top + 2 * devicePixelRatio,
+    )
+  }
+  ctx.restore()
+}
+
 export function UPlot({ title, ...props }: ChartProps & { title: string }) {
   // Keyed by theme: a theme change remounts the chart, which rebuilds it with the colours read again.
   const theme = useTheme()

@@ -230,6 +230,7 @@ test('compaction, tool errors and metadata', () => {
   const boundary = must(mainRaw.find((e) => e.subtype === 'compact_boundary'))
   const c = boundary.compactMetadata
   assert.deepEqual(main.items.find((i) => i.uid === boundary.uuid)?.compact, { pre: c.preTokens, post: c.postTokens, trigger: c.trigger })
+  assert.deepEqual(main.compacts, [{ t: Date.parse(boundary.timestamp), pre: c.preTokens, post: c.postTokens, trigger: c.trigger }])
 
   const errIds = mainRaw
     .flatMap((e) => (Array.isArray(e.message?.content) ? e.message.content : []))

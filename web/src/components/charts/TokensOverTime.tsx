@@ -1,14 +1,16 @@
 import { useMemo, useRef } from 'react'
 import type uPlot from 'uplot'
 import type { SessionSeries } from '../../../../shared/api.ts'
-import { overTime, turnMarkers } from '../../lib/series.ts'
-import { bands, type Css, stackedSeries, UPlot, xAxis, yAxis } from './UPlot.tsx'
+import { compactMarks, overTime, turnMarkers } from '../../lib/series.ts'
+import { bands, type Css, drawCompacts, stackedSeries, UPlot, xAxis, yAxis } from './UPlot.tsx'
 
 export function TokensOverTime({ series, agent, markers = true }: { series: SessionSeries; agent: boolean; markers?: boolean }) {
   const data = useMemo(() => overTime(series), [series])
   // Read at draw time, so live frames move the markers without rebuilding the chart.
   const turns = useRef<number[]>([])
   turns.current = markers ? turnMarkers(series, agent) : []
+  const compacts = useRef<{ x: number; label: string }[]>([])
+  compacts.current = compactMarks(series, 'time')
 
   const opts = (css: Css): Omit<uPlot.Options, 'width' | 'height'> => ({
     ms: 1,
@@ -35,6 +37,7 @@ export function TokensOverTime({ series, agent, markers = true }: { series: Sess
             ctx.stroke()
           }
           ctx.restore()
+          drawCompacts(u, css, compacts.current)
         },
       ],
     },

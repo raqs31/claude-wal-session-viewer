@@ -3,7 +3,9 @@ import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { AgentInfo, SessionView, StatRow, Usage } from '../../../shared/api.ts'
 import { agentDetail } from '../lib/agentStats.ts'
+import { agentRows } from '../lib/agentTree.ts'
 import { short } from '../lib/format.ts'
+import { compactLabel } from '../lib/series.ts'
 import { fmtDuration, fmtTokens, fmtUsd } from '../lib/tokens.ts'
 import { AgentRow } from './AgentRow.tsx'
 import { AgentCharts } from './charts/AgentCharts.tsx'
@@ -180,29 +182,42 @@ function AgentTask({ prompt, onShowEvents }: { prompt: string | null; onShowEven
 
 export function ByAgent({ view, onShowEvents }: { view: SessionView; onShowEvents: (agent: string) => void }) {
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
-  const flip = (id: string) =>
-    setOpen((s) => {
+  const [folded, setFolded] = useState<ReadonlySet<string>>(new Set())
+  const flip = (set: typeof setOpen, id: string) =>
+    set((s) => {
       const x = new Set(s)
       if (!x.delete(id)) x.add(id)
       return x
     })
   // agentStats also lists agents that made no request yet.
   const ids = [...new Set([...Object.keys(view.stats.agents), ...Object.keys(view.agentStats)])]
+  const parentOf = (id: string) => view.agents.find((a) => a.id === id)?.parent ?? null
+  const parents = agentRows(ids, parentOf, new Set())
+    .filter((r) => r.kids)
+    .map((r) => r.id)
+  const rows = agentRows(ids, parentOf, folded)
   return (
     <div className="stats">
-      <h2>By agent</h2>
+      <h2 className="ag-h">
+        By agent
+        {parents.length > 0 && (
+          <button type="button" onClick={() => setFolded(folded.size ? new Set() : new Set(parents))}>
+            {folded.size ? 'Expand all' : 'Collapse all'}
+          </button>
+        )}
+      </h2>
       <div className="hscroll">
         <table className="stat">
           <Head recorded={false} context />
           <tbody>
-            {ids.map((id) => {
+            {rows.map(({ id, depth, kids }) => {
               const r = view.stats.agents[id]
               return (
                 <AgentRow
                   key={id}
                   span={COLS.length + 4}
                   open={open.has(id)}
-                  onToggle={() => flip(id)}
+                  onToggle={() => flip(setOpen, id)}
                   task={
                     id === 'main'
                       ? undefined
@@ -222,7 +237,34 @@ export function ByAgent({ view, onShowEvents }: { view: SessionView; onShowEvent
                   }
                   cells={(toggle) => {
                     const name = agentName(view.agents, id)
-                    return <Cells name={name} label={toggle(name)} r={r} ctx={view.agentStats[id]?.context ?? 0} />
+                    const compacts = view.agentStats[id]?.compacts ?? []
+                    const label = (
+                      <span className="ag-tree" style={{ paddingLeft: `${depth * 16}px` }}>
+                        {kids ? (
+                          <button
+                            className="ag-fold"
+                            type="button"
+                            aria-expanded={!folded.has(id)}
+                            aria-label={folded.has(id) ? 'Expand subagents' : 'Collapse subagents'}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              flip(setFolded, id)
+                            }}
+                          >
+                            {folded.has(id) ? '▸' : '▾'}
+                          </button>
+                        ) : (
+                          <span className="ag-fold" />
+                        )}
+                        {toggle(name)}
+                        {compacts.length > 0 && (
+                          <span className="badge ag-cmp" title={compacts.map(compactLabel).join('\n')}>
+                            ⟲ compacted{compacts.length > 1 ? ` ×${compacts.length}` : ''}
+                          </span>
+                        )}
+                      </span>
+                    )
+                    return <Cells name={name} label={label} r={r} ctx={view.agentStats[id]?.context ?? 0} />
                   }}
                 />
               )

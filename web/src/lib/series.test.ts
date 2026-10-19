@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { SessionSeries, StatRow } from '../../../shared/api.ts'
-import { overTime, perCall, perTurn, shares, stack, turnMarkers } from './series.ts'
+import { compactMarks, overTime, perCall, perTurn, shares, stack, turnMarkers } from './series.ts'
 
 const cols = (input: number[], output: number[], cacheRead: number[], w5: number[], w1: number[]) => ({
   input,
@@ -16,6 +16,7 @@ const S: SessionSeries = {
   cumulative: cols([1, 3, 4], [10, 20, 30], [100, 100, 300], [0, 5, 5], [0, 0, 2]),
   perTurn: cols([0, 3, 1], [0, 20, 10], [0, 100, 200], [0, 5, 0], [0, 0, 2]),
   turnStarts: [1500, 2500],
+  compacts: [{ t: 2500, trigger: 'auto', pre: 167_000, post: 12_000 }],
 }
 
 test('stack is a running sum of layers', () => {
@@ -68,6 +69,7 @@ test('agent scope: only the turns it spent tokens in, x keeps the real turn numb
     cumulative: cols([1, 2], [5, 9], [0, 0], [0, 0], [0, 4]),
     perTurn: cols([0, 0, 2, 0, 0], [0, 0, 9, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 4, 0]),
     turnStarts: [1000, 2000, 3000, 4000],
+    compacts: [],
   }
   const [x, ...ys] = perTurn(a, true)
   assert.deepEqual(x, [2, 3])
@@ -84,7 +86,7 @@ test('agent scope: only the turns it spent tokens in, x keeps the real turn numb
 })
 
 test('empty series gives empty columns', () => {
-  const e: SessionSeries = { t: [], cumulative: cols([], [], [], [], []), perTurn: cols([0], [0], [0], [0], [0]), turnStarts: [] }
+  const e: SessionSeries = { t: [], cumulative: cols([], [], [], [], []), perTurn: cols([0], [0], [0], [0], [0]), turnStarts: [], compacts: [] }
   assert.deepEqual(overTime(e), [[], [], [], [], []])
   assert.deepEqual(perTurn(e), [[0], [0], [0], [0], [0]])
 })
@@ -124,6 +126,11 @@ test("per call: x counts calls from 1, layers are each call's own usage", () => 
     [111, 12, 211],
     [111, 17, 213],
   ])
-  const empty: SessionSeries = { ...S, t: [], cumulative: cols([], [], [], [], []), turnStarts: [] }
+  const empty: SessionSeries = { ...S, t: [], cumulative: cols([], [], [], [], []), turnStarts: [], compacts: [] }
   assert.deepEqual(perCall(empty), [[], [], [], [], []])
+})
+
+test('a compaction marks its time, or the gap before the first call after it', () => {
+  assert.deepEqual(compactMarks(S, 'time'), [{ x: 2500, label: 'auto 167k → 12k' }])
+  assert.deepEqual(compactMarks(S, 'call'), [{ x: 1.5, label: 'auto 167k → 12k' }])
 })

@@ -23,9 +23,17 @@ const view = {
     { id: 'a2', type: '', description: '', model: '' },
   ],
   agentStats: {
-    main: { tools: 12, duration: 65_000, context: 182_400 },
-    a1: { tools: 1234, duration: 900, context: 45_678 },
-    a2: { tools: 0, duration: 0, context: 0 },
+    main: { tools: 12, duration: 65_000, context: 182_400, compacts: [] },
+    a1: {
+      tools: 1234,
+      duration: 900,
+      context: 45_678,
+      compacts: [
+        { t: 1, trigger: 'auto', pre: 2, post: 1 },
+        { t: 2, trigger: 'manual', pre: 2, post: 1 },
+      ],
+    },
+    a2: { tools: 0, duration: 0, context: 0, compacts: [] },
   },
   recordedCostUsd: null,
 } as unknown as SessionView
@@ -71,9 +79,11 @@ test('a subagent shows type, model, requests, an unpriced cost and its full toke
       'Duration',
       'Tool calls',
       'Context at end',
+      'Compactions',
     ],
   )
   const m = asMap('a1')
+  assert.equal(m.Compactions, '2')
   assert.equal(m.Type, 'Explore')
   assert.equal(m.Model, 'claude-haiku')
   assert.equal(m.Requests, '3')
