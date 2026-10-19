@@ -41,7 +41,21 @@ Check before installing or running, and stop with the reason if one fails:
 
 ## Install
 
-Ask for the route: **GitHub Packages** or **Git checkout**.
+Ask for the route: **Link the marketplace checkout** (recommended, first), **GitHub Packages**, or
+**Separate clone**.
+
+### Link the marketplace checkout
+
+Installing this plugin already cloned the repo as its marketplace, so `wal` can run from there with
+no second copy, and `claude plugin marketplace update` keeps it current.
+
+1. The dir is `installLocation` of `claude-wal-session-viewer` in
+   `claude plugin marketplace list --json`. If it's missing or has no `scripts/wal`, say so and offer
+   the other routes.
+2. Link it onto PATH: `mkdir -p ~/.local/bin && ln -s <dir>/scripts/wal ~/.local/bin/wal`. If
+   `~/.local/bin/wal` exists, show `ls -l` of it and ask before replacing it (`ln -sfn`).
+   `scripts/wal` resolves its own realpath, so the symlink still finds the checkout.
+3. Verify as in **Separate clone** step 4.
 
 ### GitHub Packages
 
@@ -57,14 +71,14 @@ Ask for the route: **GitHub Packages** or **Git checkout**.
    (`npm config set prefix ~/.local`, a Node version manager). Never retry with `sudo`.
 4. Verify: `command -v wal && wal --help`.
 
-### Git checkout
+### Separate clone
+
+A copy of its own, independent of the plugin; it doesn't follow marketplace updates.
 
 1. Ask for the clone dir, default `~/.local/share/claude-wal-session-viewer`. If it already holds
    this repo, `git -C <dir> pull --ff-only` updates it. If it holds anything else, stop and ask.
 2. `git clone https://github.com/raqs31/claude-wal-session-viewer.git <dir>`
-3. Link it onto PATH: `mkdir -p ~/.local/bin && ln -s <dir>/scripts/wal ~/.local/bin/wal`. If
-   `~/.local/bin/wal` exists, show `ls -l` of it and ask before replacing. `scripts/wal` resolves
-   its own realpath, so the symlink still finds the checkout.
+3. Link it onto PATH as in **Link the marketplace checkout** step 2.
 4. Verify: `command -v wal && wal --help`. If `command -v` resolves elsewhere (an npm install
    earlier on PATH) or nothing (`~/.local/bin` not on PATH), tell the user which and how to fix
    their PATH.
@@ -105,7 +119,9 @@ Check the viewer, then the plugin, and report both before changing anything.
   `git -C <dir> ls-remote --symref origin HEAD` prints as `ref: refs/heads/<branch>`. If
   `git -C <dir> branch --show-current` names another branch, say so and leave it; switching is the
   user's call. Otherwise `git -C <dir> fetch --quiet origin <branch>`, and
-  `git -C <dir> log --oneline HEAD..origin/<branch>` lists what's new.
+  `git -C <dir> log --oneline HEAD..origin/<branch>` lists what's new. When `<dir>` is the
+  marketplace's `installLocation`, it's the marketplace checkout: update it with
+  `claude plugin marketplace update claude-wal-session-viewer` instead of `git pull`.
 - Anything else, or nothing: not this viewer (another tool can own the name `wal`). Say what
   `command -v wal` points at and offer **Install**.
 
