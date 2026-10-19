@@ -414,8 +414,11 @@ tbody td {
 tbody tr.row {
   cursor: pointer;
 }
+tbody tr.row:nth-child(even of .row) {
+  background: color-mix(in srgb, var(--text-primary) 4.5%, transparent);
+}
 tbody tr.row:hover {
-  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
 }
 .num {
   font-variant-numeric: tabular-nums;
@@ -623,7 +626,7 @@ table.stat td.name {
 }
 table.stat td.name span {
   display: block;
-  max-width: 18ch;
+  max-width: 150ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1120,8 +1123,20 @@ button.fold {
 table.stat tr.ag {
   cursor: pointer;
 }
-table.stat tr.ag:hover {
-  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+/* An expanded row's detail row is a sibling, so it is left out of the count to keep the stripes steady. */
+table.stat > tbody > tr:nth-child(even of :not(.ag-x)) {
+  background: color-mix(in srgb, var(--text-primary) 4.5%, transparent);
+}
+table.stat > tbody > tr:not(.ag-x):hover {
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+}
+table.stat tr.ag:has(.ag-b[aria-expanded="true"]),
+table.stat tr.ag-x {
+  background: color-mix(in srgb, var(--cat-tool) 8%, transparent);
+}
+table.stat tr.ag:has(.ag-b[aria-expanded="true"]) > td:first-child,
+table.stat tr.ag-x > td {
+  box-shadow: inset 3px 0 var(--cat-tool);
 }
 .ag-b {
   all: unset;
@@ -1138,6 +1153,69 @@ table.stat tr.ag:hover {
 table.stat tr.ag-x > td {
   padding: 6px 10px 10px;
   white-space: normal;
+}
+.ag-task {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--cat-subagent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--cat-subagent) 6%, var(--surface-1));
+}
+.ag-task-h {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.ag-task-h .ag-task-k {
+  margin-right: auto;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--cat-subagent);
+}
+.ag-task pre {
+  margin: 0;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ag-task-b {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ag-task-b > * > :first-child {
+  margin-top: 0;
+}
+.ag-task-b.clamp {
+  max-height: calc(3lh + 4px);
+  overflow: hidden;
+}
+.ag-task .md {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.ag-task .md :is(h1, h2, h3, h4, h5, h6) {
+  margin: 8px 0 4px;
+  font-size: 14px;
+}
+.ag-task .md :is(p, ul, ol, table) {
+  margin: 4px 0;
+}
+.ag-task .md :is(ul, ol) {
+  padding-left: 20px;
+}
+.ag-task .md :not(pre) > code {
+  font-size: 12px;
+}
+.ag-task .md table {
+  border-collapse: collapse;
+}
+.ag-task .md :is(th, td) {
+  border: 1px solid var(--grid);
+  padding: 2px 6px;
 }
 .ag-x dl {
   display: grid;
@@ -1166,4 +1244,12 @@ table.stat tr.ag-x > td {
   margin-top: 10px;
   font-size: 12px;
   color: var(--muted);
+}
+#table > tbody > tr.row:has(+ tr:not([hidden])),
+#table > tbody > tr.row + tr:not([hidden]) {
+  background: color-mix(in srgb, var(--cat-tool) 8%, transparent);
+}
+#table > tbody > tr.row:has(+ tr:not([hidden])) > td:first-child,
+#table > tbody > tr.row + tr:not([hidden]) > td {
+  box-shadow: inset 3px 0 var(--cat-tool);
 }

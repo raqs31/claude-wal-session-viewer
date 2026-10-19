@@ -184,6 +184,8 @@ export interface AgentInfo {
   type: string
   description: string
   model: string
+  // The prompt the subagent was spawned with; null until its transcript holds it.
+  prompt: string | null
 }
 
 // `tools`: tool and Agent calls made; `duration`: last − first request, 0 below two requests;

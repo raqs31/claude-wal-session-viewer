@@ -81,7 +81,7 @@ export const createStore = (discovery: Pick<Discovery, 'locate'>, busy: (id: str
         path: join(sub, `agent-${id}.jsonl`),
         parser: createParser(id, spawn?.turn ?? s.main.parser.turnStarts.length, false),
         read: 0,
-        info: { id, type: m.agentType ?? '', description: m.description ?? '', model: m.model ?? '' },
+        info: { id, type: m.agentType ?? '', description: m.description ?? '', model: m.model ?? '', prompt: null },
       }
       s.agents.set(id, a)
       grow(a)
@@ -181,7 +181,7 @@ export const createStore = (discovery: Pick<Discovery, 'locate'>, busy: (id: str
       version: s.version,
       scope,
       ...aggregate(records(s), scope, pricing, s.main.parser.turnStarts),
-      agents: [...s.agents.values()].map((a) => a.info),
+      agents: [...s.agents.values()].map((a) => ({ ...a.info, prompt: a.parser.meta.task })),
       agentStats: Object.fromEntries(inScope.map(([id, p]) => [id, agentStat(p)])),
       recordedCostUsd: scope === 'all' ? recorded(s) : null,
     }
