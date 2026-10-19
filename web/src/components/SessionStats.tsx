@@ -142,13 +142,13 @@ export function ByModel({ view }: { view: SessionView }) {
 }
 
 // Clamped by CSS until opened; the full prompt is often pages long.
-function AgentTask({ prompt, onShowEvents }: { prompt: string | null; onShowEvents: () => void }) {
+function AgentTask({ title, prompt, onShowEvents }: { title: string; prompt: string | null; onShowEvents: () => void }) {
   const [more, setMore] = useState(false)
   const [raw, setRaw] = useState(false)
   return (
     <div className="ag-task">
       <div className="ag-task-h">
-        <span className="ag-task-k">Prompt</span>
+        <span className="ag-task-k">{title}</span>
         {prompt && (
           <>
             <button type="button" onClick={() => setRaw(!raw)}>
@@ -180,7 +180,8 @@ function AgentTask({ prompt, onShowEvents }: { prompt: string | null; onShowEven
   )
 }
 
-export function ByAgent({ view, onShowEvents }: { view: SessionView; onShowEvents: (agent: string) => void }) {
+// Main has no spawn prompt; the session's first prompt stands in for it.
+export function ByAgent({ view, firstPrompt, onShowEvents }: { view: SessionView; firstPrompt: string | null; onShowEvents: (agent: string) => void }) {
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set())
   const flip = (set: typeof setOpen, id: string) =>
@@ -218,14 +219,16 @@ export function ByAgent({ view, onShowEvents }: { view: SessionView; onShowEvent
                   span={COLS.length + 4}
                   open={open.has(id)}
                   onToggle={() => flip(setOpen, id)}
-                  task={
-                    id === 'main'
-                      ? undefined
-                      : () => <AgentTask prompt={view.agents.find((a) => a.id === id)?.prompt ?? null} onShowEvents={() => onShowEvents(`${view.id}:${id}`)} />
-                  }
+                  task={() => (
+                    <AgentTask
+                      title={id === 'main' ? 'First prompt' : 'Prompt'}
+                      prompt={id === 'main' ? firstPrompt : (view.agents.find((a) => a.id === id)?.prompt ?? null)}
+                      onShowEvents={() => onShowEvents(`${view.id}:${id}`)}
+                    />
+                  )}
                   detail={() => agentDetail(view, id)}
                   charts={
-                    id !== 'main' && r && r.requests > 0
+                    r && r.requests > 0
                       ? () => (
                           <AgentCharts
                             sess={view.id}
