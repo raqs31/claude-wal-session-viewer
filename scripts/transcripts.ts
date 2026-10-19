@@ -47,6 +47,8 @@ interface TranscriptMeta {
   title: string | null
   first: number | null
   firstPrompt: string | null
+  // A subagent's initial prompt: its transcript's first sidechain user string.
+  task: string | null
   cwd: string | null
   // `tool_use`, `server_tool_use` and Agent calls.
   toolCalls: number
@@ -114,7 +116,7 @@ export const createParser = (agent: string, turn = 0, keepItems = true) => {
   const items: ParsedItem[] = []
   const usage: UsageRecord[] = []
   const turnStarts: number[] = []
-  const meta: TranscriptMeta = { title: null, first: null, firstPrompt: null, cwd: null, toolCalls: 0, costUsd: null, costByModel: {} }
+  const meta: TranscriptMeta = { title: null, first: null, firstPrompt: null, task: null, cwd: null, toolCalls: 0, costUsd: null, costByModel: {} }
   const tools = new Map<string, ParsedItem>()
   // Items mutated after they were added: a reader that already streamed them must resend them.
   const touched = new Set<ParsedItem>()
@@ -204,6 +206,7 @@ export const createParser = (agent: string, turn = 0, keepItems = true) => {
   const user = (e: E, t: number, src: Span): void => {
     const c = e.message?.content
     if (typeof c === 'string') {
+      if (e.isSidechain) meta.task ??= c
       const kind = userKind(e, c)
       if (kind === 'prompt') startTurn(t, titleOf(c))
       else if (kind === 'notification' || e.isCompactSummary) command = null

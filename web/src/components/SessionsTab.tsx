@@ -62,12 +62,14 @@ const Block = memo(function Block({
   project,
   view,
   unknown,
+  onShowEvents,
 }: {
   id: string
   meta: SessionMeta | undefined
   project: { label: string; title: string } | undefined
   view: SessionView | undefined
   unknown: boolean
+  onShowEvents: (agent: string) => void
 }) {
   return (
     <section className="sblock" aria-label={meta?.title || id}>
@@ -94,7 +96,7 @@ const Block = memo(function Block({
           <Totals view={view} />
           <ByModel view={view} />
           <Charts view={view} />
-          <ByAgent view={view} />
+          <ByAgent view={view} onShowEvents={onShowEvents} />
         </>
       ) : (
         <div className="empty">{unknown ? 'No transcript for this session.' : 'Loading…'}</div>
@@ -103,7 +105,17 @@ const Block = memo(function Block({
   )
 })
 
-export function SessionsTab({ ids, sessions, onUnknown }: { ids: readonly string[]; sessions: SessionMeta[]; onUnknown: (ids: string[]) => void }) {
+export function SessionsTab({
+  ids,
+  sessions,
+  onUnknown,
+  onShowEvents,
+}: {
+  ids: readonly string[]
+  sessions: SessionMeta[]
+  onUnknown: (ids: string[]) => void
+  onShowEvents: (agent: string) => void
+}) {
   const { views, unknown, live, error } = useSessionViews(ids)
   useEffect(() => {
     if (unknown.length) onUnknown(unknown)
@@ -144,7 +156,7 @@ export function SessionsTab({ ids, sessions, onUnknown }: { ids: readonly string
       </div>
       {ids.map((id) => {
         const p = props.get(id)
-        return <Block key={id} id={id} meta={p?.meta} project={p?.project} view={views[id]} unknown={unknown.includes(id)} />
+        return <Block key={id} id={id} meta={p?.meta} project={p?.project} view={views[id]} unknown={unknown.includes(id)} onShowEvents={onShowEvents} />
       })}
     </div>
   )

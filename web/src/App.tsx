@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { EventsTab } from './components/EventsTab.tsx'
 import { LegacyBanner } from './components/LegacyBanner.tsx'
 import { SessionsTab } from './components/SessionsTab.tsx'
@@ -31,6 +31,13 @@ export function App() {
   // Held here rather than in the tabs, which unmount on a switch, so filters and follow survive one.
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [follow, setFollow] = useState(true)
+  const showEvents = useCallback(
+    (agent: string) => {
+      setFilters({ ...EMPTY_FILTERS, agent: new Set([agent]) })
+      setTab('events')
+    },
+    [setTab],
+  )
   const list = useSessions()
   const rows = list.ready ? list.sessions : null
   const { pick, toggle, clear, forget } = usePick(rows)
@@ -107,7 +114,7 @@ export function App() {
             onFpin={() => setFpin(fpin === 'pinned' ? 'unpinned' : 'pinned')}
           />
         ) : (
-          <SessionsTab ids={pick} sessions={list.sessions} onUnknown={forget} />
+          <SessionsTab ids={pick} sessions={list.sessions} onUnknown={forget} onShowEvents={showEvents} />
         )}
       </div>
     </div>

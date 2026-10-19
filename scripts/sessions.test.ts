@@ -156,7 +156,7 @@ try {
     all.id === MAIN &&
       all.stats.totals.requests > 0 &&
       all.series.t.length === all.stats.totals.requests &&
-      all.agents.some((a) => a.id === SUB && a.type === 'general-purpose'),
+      all.agents.some((a) => a.id === SUB && a.type === 'general-purpose' && a.prompt === 'x'.repeat(40)),
     JSON.stringify(all.agents),
   )
   check(

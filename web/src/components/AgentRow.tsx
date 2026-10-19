@@ -8,6 +8,7 @@ export function AgentRow({
   span,
   open,
   onToggle,
+  task,
   detail,
   charts,
 }: {
@@ -15,6 +16,7 @@ export function AgentRow({
   span: number
   open: boolean
   onToggle: () => void
+  task?: () => ReactNode
   detail: () => Detail[]
   charts?: () => ReactNode
 }) {
@@ -39,6 +41,7 @@ export function AgentRow({
       {open && (
         <tr className="ag-x">
           <td colSpan={span}>
+            {task?.()}
             <dl>
               {detail().map((d) => (
                 <div key={d.k} title={d.title}>

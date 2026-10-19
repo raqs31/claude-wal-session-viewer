@@ -1,4 +1,6 @@
 import { type ReactNode, useState } from 'react'
+import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { AgentInfo, SessionView, StatRow, Usage } from '../../../shared/api.ts'
 import { agentDetail } from '../lib/agentStats.ts'
 import { short } from '../lib/format.ts'
@@ -137,7 +139,46 @@ export function ByModel({ view }: { view: SessionView }) {
   )
 }
 
-export function ByAgent({ view }: { view: SessionView }) {
+// Clamped by CSS until opened; the full prompt is often pages long.
+function AgentTask({ prompt, onShowEvents }: { prompt: string | null; onShowEvents: () => void }) {
+  const [more, setMore] = useState(false)
+  const [raw, setRaw] = useState(false)
+  return (
+    <div className="ag-task">
+      <div className="ag-task-h">
+        <span className="ag-task-k">Prompt</span>
+        {prompt && (
+          <>
+            <button type="button" onClick={() => setRaw(!raw)}>
+              {raw ? 'Rendered' : 'Raw'}
+            </button>
+            <button type="button" onClick={() => setMore(!more)}>
+              {more ? 'Show less' : 'Show more'}
+            </button>
+          </>
+        )}
+        <button type="button" onClick={onShowEvents}>
+          Show in Events
+        </button>
+      </div>
+      {prompt ? (
+        <div className={more ? 'ag-task-b' : 'ag-task-b clamp'}>
+          {raw ? (
+            <pre>{prompt}</pre>
+          ) : (
+            <div className="md">
+              <Markdown remarkPlugins={[remarkGfm]}>{prompt}</Markdown>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="ag-note">No prompt recorded yet.</div>
+      )}
+    </div>
+  )
+}
+
+export function ByAgent({ view, onShowEvents }: { view: SessionView; onShowEvents: (agent: string) => void }) {
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
   const flip = (id: string) =>
     setOpen((s) => {
@@ -162,6 +203,11 @@ export function ByAgent({ view }: { view: SessionView }) {
                   span={COLS.length + 4}
                   open={open.has(id)}
                   onToggle={() => flip(id)}
+                  task={
+                    id === 'main'
+                      ? undefined
+                      : () => <AgentTask prompt={view.agents.find((a) => a.id === id)?.prompt ?? null} onShowEvents={() => onShowEvents(`${view.id}:${id}`)} />
+                  }
                   detail={() => agentDetail(view, id)}
                   charts={
                     id !== 'main' && r && r.requests > 0
