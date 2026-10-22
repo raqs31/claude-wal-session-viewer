@@ -23,6 +23,7 @@ Implement plan.md e2e: hook context field + shell tests, benchmark, Context per 
 - 2026-10-22 orchestrator: Benchmark is read-only on the largest real transcript; no committed bench code.
 - 2026-10-22 orchestrator: Operator runs the manual checks (jq on a live WAL, viewer under npm run dev) at phase end.
 - 2026-10-22 orchestrator: [auto] T10: no risk-high tag; one-line subarray view, T8 reviews it.
+- 2026-10-22 orchestrator: Phase 4 follow-ups accepted: fix both README wording items in T7, T8 re-checks.
 
 ## Tickets
 
@@ -39,3 +40,5 @@ Closed: T1 done · T2 done · T3 done · T4 done · T5 done · T6 done · T7 don
 - 2026-10-22 10:47 orchestrator: T10 done: readContext decodes subarray(0, bytesRead), wal-hook.mjs:144-152; tests/biome/check pass (Result says 39 ok, actual 35)
 - 2026-10-22 10:48 orchestrator: T7 done: 0.3.0 in package.json, lock, plugin.json; README context field + chart docs
 - 2026-10-22 10:49 orchestrator: T8 approve: phase 4 closed; 2 minor README wording follow-ups
+- 2026-10-22 10:52 orchestrator: T7 fixed: README.md:75-79 subagent path + .jsonl rule scoped to subagent events
+- 2026-10-22 10:53 orchestrator: T8 re-approve: README follow-ups resolved
