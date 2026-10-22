@@ -11,9 +11,10 @@ Implement plan.md e2e: hook context field + shell tests, benchmark, Context per 
 - git fetch origin fails (no access); origin/main may be stale. Change folder lives in this repo.
 - Phase 1 committed as e388985: hook context step in wal-hook.mjs, 12 shell cases, 35/35 pass.
 - Phase 2 committed as 8202bd2: T3 benchmark, byte-level partial-tail cut; worst case +7.75ms -> +2.30ms. Numbers in plan.md Review. T4 approved.
-- Phase 3 committed as 7412b6f: contextPerCall (O(n), series.ts) and ContextOverTime chart with compaction marks, Main open. T5 done, T6 approved.
-- Phase 4 open: T7 (0.3.0 + README) and T10 (slice readContext buffer to bytes read, wal-hook.mjs readSync) in progress; T8 review waits on both.
-- Phase 5 open: T9 final checks. Operator manual checks 3.3-3.5 (jq on a live WAL, viewer under npm run dev) still pending.
+- Phase 3 committed as 7412b6f: contextPerCall (O(n), series.ts) and ContextOverTime chart with compaction marks. T5 done, T6 approved.
+- Phase 4 committed as c525967 (0.3.0 in package.json, lock, plugin.json; README context field and chart docs): T10 readContext decodes subarray(0, bytesRead) in wal-hook.mjs; T7 README wording fixes applied (README.md:75-79); T8 approved on re-check.
+- T10 Result says 39 ok; actual run is 35 ok. The Result is stale, not the code.
+- Phase 5 open: T9 final checks in flight. Operator manual checks 3.3-3.5 (jq on a live WAL, viewer under npm run dev) still pending.
 
 ## Decisions
 
@@ -22,23 +23,19 @@ Implement plan.md e2e: hook context field + shell tests, benchmark, Context per 
 - 2026-10-22 orchestrator: Shipping: local commits per phase on this branch; no push, no PR.
 - 2026-10-22 orchestrator: Benchmark is read-only on the largest real transcript; no committed bench code.
 - 2026-10-22 orchestrator: Operator runs the manual checks (jq on a live WAL, viewer under npm run dev) at phase end.
-- 2026-10-22 orchestrator: [auto] T10: no risk-high tag; one-line subarray view, T8 reviews it.
-- 2026-10-22 orchestrator: Phase 4 follow-ups accepted: fix both README wording items in T7, T8 re-checks.
+- 2026-10-22 orchestrator: T9 follow-ups accepted: update plan.md (tick met automated Progress items; record compaction-markers and no-PR overrides) via T3, T9 re-checks.
+- 2026-10-22 orchestrator: [auto] T9 re-check follow-ups (tick 4.2; 5.2-5.3 as [x] with dropped note) fall under the accepted plan.md fix; T3 applies them, no further review round.
 
 ## Tickets
 
 <!-- tickets:start — rendered by board.py refresh -->
 | id | status | phase | holder | needs | tags | title |
 | -- | ------ | ----- | ------ | ----- | ---- | ----- |
-| T8 (review) | todo | 4 |  |  |  | Phase 4 review |
-| T9 (review) | todo | 5 |  | T8 |  | Phase 5 final checks |
-Closed: T1 done · T2 done · T3 done · T4 done · T5 done · T6 done · T7 done · T10 done
+Closed: T1 done · T2 done · T3 done · T4 done · T5 done · T6 done · T7 done · T8 done · T9 done · T10 done
 <!-- tickets:end -->
 
 ## Log
 
-- 2026-10-22 10:47 orchestrator: T10 done: readContext decodes subarray(0, bytesRead), wal-hook.mjs:144-152; tests/biome/check pass (Result says 39 ok, actual 35)
-- 2026-10-22 10:48 orchestrator: T7 done: 0.3.0 in package.json, lock, plugin.json; README context field + chart docs
-- 2026-10-22 10:49 orchestrator: T8 approve: phase 4 closed; 2 minor README wording follow-ups
-- 2026-10-22 10:52 orchestrator: T7 fixed: README.md:75-79 subagent path + .jsonl rule scoped to subagent events
-- 2026-10-22 10:53 orchestrator: T8 re-approve: README follow-ups resolved
+- 2026-10-22 10:55 orchestrator: T9 approve: final checks pass, scope clean; 2 minor plan.md follow-ups
+- 2026-10-22 11:04 orchestrator: T3 plan.md updated: progress ticked, overrides recorded
+- 2026-10-22 11:05 orchestrator: T3 done: plan.md 4.2, 5.2, 5.3 ticked; change complete pending operator manual checks 1.4, 3.3-3.5

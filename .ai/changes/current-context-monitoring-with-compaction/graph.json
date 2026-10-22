@@ -93,7 +93,7 @@
         "plugins/wal-hook/hooks/wal-hook.mjs"
       ],
       "path": "tickets/T3.md",
-      "updated": "2026-10-22 10:39"
+      "updated": "2026-10-22 11:05"
     },
     {
       "id": "T4",
@@ -197,11 +197,11 @@
       "id": "T9",
       "title": "Phase 5 final checks",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 5,
       "parent": null,
-      "holder": null,
+      "holder": "a733028e85d5d8a39",
       "tags": [],
       "files": [
         "plugins/wal-hook/hooks/wal-hook.mjs",
@@ -218,7 +218,7 @@
         "README.md"
       ],
       "path": "tickets/T9.md",
-      "updated": "2026-10-22 10:31"
+      "updated": "2026-10-22 11:05"
     },
     {
       "id": "T10",
