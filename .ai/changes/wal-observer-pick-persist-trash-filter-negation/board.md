@@ -30,26 +30,21 @@ Implement plan.md phases 1-6 as written (pick persistence, Events filter All/Non
 - 2026-10-22 orchestrator: User: fix both T9 follow-ups (README.md:104 rewrap, sidebar.ts:5 comment) before the Phase 3 commit. [auto] Done by reopening T8 (both in its files) instead of a replan ticket.
 - 2026-10-22 orchestrator: User: fix review follow-ups autonomously from now on; no triage questions. Orchestrator routes each minor follow-up to its owner ticket (or a replan ticket) in the same phase and re-reviews before the commit.
 - 2026-10-22 orchestrator: User: fix ALL review findings and follow-ups autonomously, scope-adding ones included (supersedes the narrower line above).
+- 2026-10-22 orchestrator: [auto] All 5 T14 follow-ups land in Phase 4 before its commit, via planner replan (one cleanup ticket; item 2 crosses T10/T11 files).
+- 2026-10-22 orchestrator: [auto] T24: restore fires the same stream notices; purge calls discovery.drop to clear the head cache (both planner-recommended).
 
 ## Tickets
 
 <!-- tickets:start — rendered by board.py refresh -->
 | id | status | phase | holder | needs | tags | title |
 | -- | ------ | ----- | ------ | ----- | ---- | ----- |
-| T9 (review) | todo | 3 |  |  |  | Phase 3 review: All / None / Not on the sidebar chips |
-| T10 | todo | 4 |  |  | interface, risk-high | Trash groundwork: shared types, SessionMeta.busy, cache drops, discovery Found accessor |
-| T11 | todo | 4 |  | T10 | security, risk-high | Trash module, trash/restore/purge routes and same-origin guard |
-| T12 | todo | 4 |  | T11 | config, docs | Dev proxy for /trash and README trash docs; manual curl checks |
-| T13 (review) | todo | 4 |  | T11 |  | Security review: trash routes and same-origin guard |
-| T14 (review) | todo | 4 |  | T10, T11, T12, T13 |  | Phase 4 review: trash on the server |
-| T15 | todo | 5 |  | T10 | interface | Trash client helpers: busy split and result summary |
-| T16 | todo | 5 |  |  | interface | ConfirmDialog component on native dialog |
-| T17 | todo | 5 |  | T11, T15, T16 | risk-high | Sidebar Delete picked / Delete N filtered actions |
+| T14 (review) | todo | 4 |  |  |  | Phase 4 review: trash on the server |
+| T17 | todo | 5 |  |  | risk-high | Sidebar Delete picked / Delete N filtered actions |
 | T18 | todo | 5 |  | T17 | risk-high | Trash tab: list, restore, delete forever, empty trash; README |
-| T19 (review) | todo | 5 |  | T15, T16, T17, T18 |  | Phase 5 review: trash UI |
+| T19 (review) | todo | 5 |  | T17, T18 |  | Phase 5 review: trash UI |
 | T20 | todo | 6 |  | T19 | docs, config | Release 0.4.0: version bump and README consistency pass |
 | T21 (review) | todo | 6 |  | T20 |  | Phase 6 review: release 0.4.0 |
-Closed: T1 done · T2 done · T3 done · T4 done · T5 done · T6 done · T7 done · T8 done · T22 done · T23 done
+Closed: T1 done · T2 done · T3 done · T4 done · T5 done · T6 done · T7 done · T8 done · T9 done · T10 done · T11 done · T12 done · T13 done · T15 done · T16 done · T22 done · T23 done
 <!-- tickets:end -->
 
 ## Log
@@ -58,3 +53,16 @@ Closed: T1 done · T2 done · T3 done · T4 done · T5 done · T6 done · T7 don
 - 2026-10-22 14:07 orchestrator: T9 done: Phase 3 approved
 - 2026-10-22 14:08 orchestrator: T8 done again: README:104 rewrap, sidebar.ts comment
 - 2026-10-22 14:09 orchestrator: T9 done: Phase 3 re-approved
+- 2026-10-22 14:09 orchestrator: Phase 3 committed dd1d03e; starting T10, and T16 early (no shared files with Phase 4)
+- 2026-10-22 14:10 orchestrator: T16 done: ConfirmDialog on native <dialog>, typed-yes option, styles
+- 2026-10-22 14:12 orchestrator: T10 done: SessionMeta.busy, trash types, discovery find/drop, cache drop(); 77 tests
+- 2026-10-22 14:13 orchestrator: T15 done: splitBusy, summarizeResults (labels moved/live skipped/conflict/not found/failed)
+- 2026-10-22 14:23 orchestrator: T11 done: scripts/trash.ts (3-step move + rollback), /trash routes + same-origin guard; 13 tests
+- 2026-10-22 14:25 orchestrator: T12 done: /trash dev proxy, README Trash section; 4.5 (403 w/o Origin) and 4.6 (moved to wal-trash) pass
+- 2026-10-22 14:25 orchestrator: T13 changes: major in T11 (non-string ref id passes isRef); minor source-label collision; reopening T11 for both
+- 2026-10-22 14:27 orchestrator: T11 done again: isRef string id, per-entry source dir, ambiguous label -> conflict; 14 tests
+- 2026-10-22 14:27 orchestrator: T13 done: security review approved
+- 2026-10-22 14:32 orchestrator: T14 done: Phase 4 approved (190 tests, check, lint green); 5 minor follow-ups to fix before commit
+- 2026-10-22 14:34 planner: replan done: T24 (new, T14 follow-ups 1-5), T14 reopened todo, depends on T24
+- 2026-10-22 14:38 orchestrator: T24 done: streams notified on trash/restore, shared head reader, real drop test, README 405 + busy wording; 49 tests, mutation-checked
+- 2026-10-22 14:39 orchestrator: T14 done: Phase 4 re-approved with T24 (193 tests)

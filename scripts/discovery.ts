@@ -15,6 +15,7 @@ const HEAD_MAX = 1024 * 1024
 const HEAD_CHUNK = 64 * 1024
 const TAIL = 256 * 1024
 const LIVE_MS = 2 * 60 * 1000
+const OPEN_MS = 24 * 60 * 60 * 1000
 export const PROMPT_MAX = 8192
 // The hook writes `ts`, `workspace`, `event` first, so most lines never need a full parse.
 const PREFIX = /^\{"ts":"[^"]*","workspace":"((?:[^"\\]|\\.)*)","event":"((?:[^"\\]|\\.)*)"/
@@ -62,7 +63,7 @@ export const sources = (extra: string[], home = homedir()): Source[] => {
   return out
 }
 
-interface Found {
+export interface Found {
   id: string
   source: string
   slug: string
@@ -315,7 +316,7 @@ export const createDiscovery = (extra: string[]) => {
     return w
   }
 
-  const describe = (f: Found, now: number): SessionMeta | null => {
+  const activity = (f: Found, now: number) => {
     const tPath = join(f.dir, `${f.id}.jsonl`)
     const t = statSync(tPath, { throwIfNoEntry: false })
     if (!t) return null
@@ -323,9 +324,18 @@ export const createDiscovery = (extra: string[]) => {
     const ws = statSync(wPath, { throwIfNoEntry: false })
     const w = ws ? wal(wPath, ws.size, ws.ino) : null
     if (!ws) wals.delete(wPath)
+    const last = Math.max(t.mtimeMs, ws?.mtimeMs ?? 0)
+    const live = now - last < LIVE_MS && w?.lastEvent !== 'SessionEnd'
+    const busy = live || (w !== null && w.lastEvent !== 'SessionEnd' && now - last < OPEN_MS)
+    return { tPath, t, ws, w, last, live, busy }
+  }
+
+  const describe = (f: Found, now: number): SessionMeta | null => {
+    const a = activity(f, now)
+    if (!a) return null
+    const { tPath, t, ws, w, last } = a
     const h = head(tPath, t.size, t.mtimeMs)
     const cut = f.slug.indexOf(WORKTREE)
-    const last = Math.max(t.mtimeMs, ws?.mtimeMs ?? 0)
     return {
       id: f.id,
       project: { slug: cut === -1 ? f.slug : f.slug.slice(0, cut), cwd: h.cwd },
@@ -336,7 +346,8 @@ export const createDiscovery = (extra: string[]) => {
       prompt: h.prompt,
       started: h.started,
       last,
-      live: now - last < LIVE_MS && w?.lastEvent !== 'SessionEnd',
+      live: a.live,
+      busy: a.busy,
       walSize: ws?.size ?? 0,
       walLines: w?.lines ?? 0,
       transcriptSize: t.size,
@@ -380,7 +391,22 @@ export const createDiscovery = (extra: string[]) => {
   /** Pre-per-session WAL files, found through the cwd of every discovered transcript. */
   const legacyFiles = (): string[] => legacyOf(list().sessions)
 
-  return { sources: () => sources(extra), list, locate, legacyFiles }
+  /** One id's `Found` and its live state, without a full list(); null when no transcript is found. */
+  const find = (id: string): (Found & Pick<SessionMeta, 'live' | 'busy'>) | null => {
+    if (!locate(id)) return null
+    const f = where.get(id)
+    const a = f && activity(f, Date.now())
+    return f && a ? { ...f, live: a.live, busy: a.busy } : null
+  }
+
+  /** Forgets every cache entry for `id`, so the next locate rescans for it. */
+  const drop = (id: string): void => {
+    where.delete(id)
+    misses.delete(id)
+    for (const m of [heads, wals]) for (const p of m.keys()) if (basename(p) === `${id}.jsonl` || basename(p) === `${id}.wal.jsonl`) m.delete(p)
+  }
+
+  return { sources: () => sources(extra), list, locate, find, drop, head, legacyFiles }
 }
 
 export type Discovery = ReturnType<typeof createDiscovery>

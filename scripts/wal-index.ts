@@ -326,7 +326,12 @@ export const createIndexes = (discovery: Pick<Discovery, 'locate'>, busy: (id: s
     return { ixs, unknown }
   }
 
-  return { acquire }
+  /** Unlike the LRU, also drops an index a stream holds: its next acquire resolves through locate. */
+  const drop = (id: string): void => {
+    open.delete(id)
+  }
+
+  return { acquire, drop }
 }
 
 // ---- queries over a pick ----

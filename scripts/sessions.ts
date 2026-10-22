@@ -214,5 +214,10 @@ export const createStore = (discovery: Pick<Discovery, 'locate'>, busy: (id: str
     return { totals, recorded: rec, missing, unknown }
   }
 
-  return { acquire, get, view, usage }
+  /** Unlike the LRU, also drops a session a stream holds: its next acquire resolves through locate. */
+  const drop = (id: string): void => {
+    open.delete(id)
+  }
+
+  return { acquire, get, view, usage, drop }
 }

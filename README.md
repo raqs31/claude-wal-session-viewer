@@ -44,7 +44,11 @@ wal legacy [--source=<config-dir>]...
 `wal` starts the server and opens the printed URL. From a checkout, `scripts/wal` does the same
 after installing dependencies when needed and building the page. The server binds `127.0.0.1` only:
 the data contains prompts, file contents and command output and must not be reachable off the
-machine.
+machine. It also has write endpoints (`/trash`, `/trash/restore`, `/trash/purge`); a write that is
+not a POST gets 405, and a POST is refused with 403 unless it has `application/json`, a loopback
+`Host` (`127.0.0.1` or `localhost` on the server's port), an `Origin` equal to that host and, when
+the browser sends it, `Sec-Fetch-Site: same-origin`. A page from another site, or a DNS-rebound
+name, cannot pass.
 
 Sources are Claude config dirs whose `projects/` is scanned: `~/.claude`, every
 `~/.claude/workspaces/*`, and each `--source`. Sources are deduplicated by the realpath of their
@@ -85,6 +89,19 @@ Folds old per-project `<cwd>/.ai/logs/wal.jsonl` files into the per-session file
 transcript. For each file it asks `[m]igrate / [d]elete / [s]kip`; delete needs a typed `yes`.
 Migrating moves lines per `session_id`, leaves behind any it cannot place, and removes the file once
 empty, so a rerun is a no-op. The viewer shows a banner while legacy files remain.
+
+## Trash
+
+Trashing a session moves its files out of `<config>/projects/<slug>/`, so `claude --resume` no
+longer lists it, into `<config>/wal-trash/<YYYY-MM-DD>/<project-slug>/`: `<id>.jsonl`,
+`<id>.wal.jsonl` and the `<id>/` folder (subagents), whichever exist. Restore moves them back;
+purge deletes them for good. A busy session is skipped and reported: one that is live, or whose
+WAL has no `SessionEnd` and was written in the last 24 h.
+
+Each file is renamed in place with a `.wal-trash` (or, on restore, `.wal-restore`) suffix before it
+moves and stripped after, so the transcript, which `--resume` reads, appears in its new folder last.
+If the server dies in between, a session can be left with a suffixed file; strip the suffix by hand
+(`mv <id>.jsonl.wal-trash <id>.jsonl`). The viewer ignores suffixed files in the trash.
 
 ## The page
 
