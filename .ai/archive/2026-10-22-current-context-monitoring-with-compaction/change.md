@@ -1,9 +1,10 @@
 ---
 change_id: current-context-monitoring-with-compaction
 title: wal-hook — current context-window usage per agent on each WAL record, plus a per-agent context chart
-status: planned
+status: archived
 created: 2026-10-22
 updated: 2026-10-22
+archived_at: 2026-10-22T09:09:29Z
 ---
 
 ## Notes
