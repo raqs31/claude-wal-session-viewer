@@ -82,35 +82,35 @@
       "id": "T3",
       "title": "Benchmark tail read on largest real transcript",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 2,
       "parent": null,
-      "holder": null,
+      "holder": "a307ab4c57f5f83d4",
       "tags": [],
       "files": [
         ".ai/changes/current-context-monitoring-with-compaction/plan.md",
         "plugins/wal-hook/hooks/wal-hook.mjs"
       ],
       "path": "tickets/T3.md",
-      "updated": "2026-10-22 10:30"
+      "updated": "2026-10-22 10:39"
     },
     {
       "id": "T4",
       "title": "Phase 2 review",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 2,
       "parent": null,
-      "holder": null,
+      "holder": "acda520df8b23cb7d",
       "tags": [],
       "files": [
         ".ai/changes/current-context-monitoring-with-compaction/plan.md",
         "plugins/wal-hook/hooks/wal-hook.mjs"
       ],
       "path": "tickets/T4.md",
-      "updated": "2026-10-22 10:30"
+      "updated": "2026-10-22 10:41"
     },
     {
       "id": "T5",
