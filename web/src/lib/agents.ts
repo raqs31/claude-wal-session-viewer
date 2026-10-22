@@ -118,6 +118,9 @@ export const toggle = (tree: readonly PickNode[], sel: ReadonlySet<string>, key:
   return compress(tree, on)
 }
 
+/** Every top-level node ticked, as toggling each of them on would leave it. */
+export const selectAll = (tree: readonly PickNode[]): Set<string> => compress(tree, new Set([...walk(tree)].flatMap((n) => (n.self === null ? [] : [n.self]))))
+
 /** Drops tokens the tree no longer offers (pick changed); the same set when nothing changes. */
 export const pruneAgents = (sel: ReadonlySet<string>, tree: readonly PickNode[]): ReadonlySet<string> => {
   if (!sel.size) return sel

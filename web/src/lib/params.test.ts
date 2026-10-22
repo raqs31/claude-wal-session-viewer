@@ -26,6 +26,13 @@ test('selected chips become include lists; text fields are trimmed; nodur only w
   assert.equal(p.has('session'), false)
 })
 
+test('a Not section is sent as <field>_not instead of <field>', () => {
+  for (const k of ['cat', 'tool', 'event', 'agent'] as const) {
+    const p = buildParams({ ...EMPTY_FILTERS, [k]: new Set(['x']), not: new Set([k]) }, ['s1'])
+    assert.equal(p.toString(), `ids=s1&${k}_not=x`)
+  }
+})
+
 test('summary lists only active filters, in bar order', () => {
   assert.deepEqual(filterSummary(EMPTY_FILTERS, []), [])
   assert.deepEqual(
@@ -43,6 +50,16 @@ test('summary lists only active filters, in bar order', () => {
     ),
     ['cat: 2', 'agent: main', 'q: foo', 'date: 2026-10-01–', 'ms: 10– +none'],
   )
+})
+
+test('summary marks a Not section with ≠', () => {
+  const t = buildTree([{ sess: 's1', main: { id: 'main', type: null, summaries: 0, children: [] } }])
+  assert.deepEqual(filterSummary({ ...EMPTY_FILTERS, tool: new Set(['a', 'b']), not: new Set(['tool']) }, t), ['tool: ≠2'])
+  assert.deepEqual(filterSummary({ ...EMPTY_FILTERS, agent: new Set(['s1:main']), not: new Set(['agent']) }, t), ['agent: ≠main'])
+})
+
+test('EMPTY_FILTERS has no Not section', () => {
+  assert.equal(EMPTY_FILTERS.not.size, 0)
 })
 
 const tree = buildTree([{ sess: 's1', main: { id: 'main', type: null, summaries: 0, children: [] } }])
@@ -76,6 +93,16 @@ test('prune drops values the facets lack, keeping untouched sets', () => {
   assert.equal(pruneFilters(keepTool, facets).tool, keepTool.tool)
 })
 
+test('prune keeps the Not flags', () => {
+  const f = { ...EMPTY_FILTERS, tool: new Set(['Bash', 'Read']), not: new Set(['tool'] as const) }
+  assert.deepEqual([...pruneFilters(f, facets).not], ['tool'])
+})
+
+test('prune drops the Not flag of a section it empties', () => {
+  const f = { ...EMPTY_FILTERS, tool: new Set(['Gone']), not: new Set(['tool'] as const) }
+  assert.equal(pruneFilters(f, facets).not.size, 0)
+})
+
 test("prune keeps '-' with an empty tools facet", () => {
   const f = { ...EMPTY_FILTERS, tool: new Set(['-', 'Bash']) }
   assert.deepEqual([...pruneFilters(f, { ...facets, tools: [] }).tool], ['-'])
@@ -91,4 +118,9 @@ test('sameRows is false only when a set that had values is now empty', () => {
   assert.equal(sameRows(f, { ...f, tool: new Set(['a']) }), true)
   assert.equal(sameRows(f, { ...f, event: new Set() }), false)
   assert.equal(sameRows(EMPTY_FILTERS, EMPTY_FILTERS), true)
+})
+
+test('sameRows is false when pruning empties a Not section', () => {
+  const f = { ...EMPTY_FILTERS, tool: new Set(['Read']), not: new Set(['tool'] as const) }
+  assert.equal(sameRows(f, pruneFilters(f, facets)), false)
 })

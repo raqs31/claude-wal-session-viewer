@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { AgentNode, SessionAgents } from '../../../shared/api.ts'
-import { agentSelection, buildTree, checks, countNodes, type PickNode, pruneAgents, searchTree, toggle } from './agents.ts'
+import { agentSelection, buildTree, checks, countNodes, type PickNode, pruneAgents, searchTree, selectAll, toggle } from './agents.ts'
 
 const A = 'aaaaaaaa-0000-4000-8000-000000000001'
 const B = 'bbbbbbbb-0000-4000-8000-000000000002'
@@ -51,6 +51,14 @@ test('ticking a node ticks its subtree as one subtree token', () => {
   assert.deepEqual([...toggle(one, s(), `${A}:summaries:main`)], [`${A}:summaries:main`])
   assert.deepEqual([...toggle(one, s(), `${A}:main`)], [`${A}:*`])
   assert.deepEqual([...toggle(two, s(), `${B}:*`)], [`${B}:*`])
+})
+
+test('select all equals toggling every top-level node on', () => {
+  for (const t of [one, two])
+    assert.deepEqual(
+      selectAll(t),
+      t.reduce((sel, x) => toggle(t, sel, x.key), s()),
+    )
 })
 
 test('unticking inside a ticked subtree leaves the rest and a partial parent', () => {

@@ -332,6 +332,7 @@ export const createIndexes = (discovery: Pick<Discovery, 'locate'>, busy: (id: s
 // ---- queries over a pick ----
 
 // For cat, tool, event and agent, present-but-empty is a real filter (every chip off), not unset.
+// For their `_not` twins an empty set simply excludes nothing.
 const list = (p: URLSearchParams, name: string): Set<string> | null => {
   const v = p.get(name)
   return v === null ? null : new Set(v.split(',').filter(Boolean))
@@ -468,6 +469,12 @@ export const matcher = (p: URLSearchParams): Matcher => {
   const evs = list(p, 'event')
   const agents = list(p, 'agent')
   const inAgents = agents && agentMatch(agents)
+  const catsNot = list(p, 'cat_not')
+  const tlsNot = list(p, 'tool_not')
+  const evsNot = list(p, 'event_not')
+  const agentsNot = list(p, 'agent_not')
+  // agentMatch is false for a session with no token, which is exactly what keeps that session's rows here.
+  const outAgents = agentsNot && agentMatch(agentsNot)
   const dayFrom = dayOf(p.get('date_from'))
   const dayTo = dayOf(p.get('date_to'))
   const lo = minuteOf(p.get('time_from')) ?? 0
@@ -481,6 +488,10 @@ export const matcher = (p: URLSearchParams): Matcher => {
     if (tls && !tls.has(r.tool ?? '-')) return false
     if (evs && !evs.has(r.event ?? '')) return false
     if (inAgents && !inAgents(r, ix)) return false
+    if (catsNot?.has(r.cat)) return false
+    if (tlsNot?.has(r.tool ?? '-')) return false
+    if (evsNot?.has(r.event ?? '')) return false
+    if (outAgents?.(r, ix)) return false
     if (dayFrom !== null && r.day < dayFrom) return false
     if (dayTo !== null && r.day > dayTo) return false
     if (lo <= hi ? r.minute < lo || r.minute > hi : r.minute < lo && r.minute > hi) return false

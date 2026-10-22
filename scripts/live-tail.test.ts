@@ -178,6 +178,15 @@ try {
   check('unfiltered streams get both rows', s.rows.length === 9 && again.rows.length === 2, `${s.rows.length}, ${again.rows.length}`)
   check('a one-session stream gets only its rows', only2.rows.length === 1 && only2.rows[0]?.sess === L2, JSON.stringify(only2.rows))
 
+  const notRead = await open(after(await events(), `${BOTH}&tool_not=Read`))
+  appendFileSync(wal2, rec({ event: 'PreToolUse', tool_name: 'Read' }) + rec({ event: 'PreToolUse', tool_name: 'Glob' }) + rec({ event: 'Stop' }))
+  await wait(700)
+  check(
+    'tool_not stream drops Read and passes a tool absent at open and the no-tool row',
+    notRead.rows.map((r) => r.tool ?? '-').join() === 'Glob,-',
+    JSON.stringify(notRead.rows),
+  )
+
   const agents = await open(after(await events(), `${BOTH}&agent=${L2}:ag9`))
   const other = await open(after(await events(), `${BOTH}&agent=${L1}:ag9`))
   appendFileSync(wal2, rec({ event: 'SubagentStart', agent_id: 'ag9', agent_type: 'Explore' }) + rec({ event: 'Stop' }))
