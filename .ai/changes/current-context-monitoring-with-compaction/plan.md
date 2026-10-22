@@ -420,3 +420,33 @@ does not depend on it.
 #### Manual
 
 - [ ] 5.3 CI green on the PR
+
+## Review
+
+### Phase 2: tail-read benchmark
+
+Transcript: largest real one under `~/.claude/projects`, 42,409,553 bytes (below the planned 50 MB), measured on a copy in a temp dir. Worst case: a second copy plus one appended 4 MB user line, 46,604,937 bytes. 30 hook runs per cell, node spawn wall-clock, ms. Median is the mean of the 15th and 16th sorted runs.
+
+Before the guard:
+
+| Run | Median | p95 |
+| --- | --- | --- |
+| normal, PreToolUse (no read) | 29.42 | 47.75 |
+| normal, PostToolUse (tail read) | 28.35 | 37.33 |
+| worst, PreToolUse | 27.26 | 38.74 |
+| worst, PostToolUse | 35.01 | 43.62 |
+
+Overhead (PostToolUse minus PreToolUse medians): normal -1.07 ms (below noise), worst +7.75 ms. The worst case exceeds 5 ms.
+
+Guard: `readContext` cuts the partial first line on the buffer bytes (`buffer.indexOf(10)`) and decodes only the rest, and allocates with `allocUnsafe`. A skip-parse guard would not help here: the cost was reading and decoding the widening windows, not `JSON.parse`. Cap and window sizes unchanged.
+
+After the guard:
+
+| Run | Median | p95 |
+| --- | --- | --- |
+| normal, PreToolUse | 30.71 | 41.81 |
+| normal, PostToolUse | 29.31 | 33.38 |
+| worst, PreToolUse | 32.00 | 54.16 |
+| worst, PostToolUse | 34.30 | 49.04 |
+
+Overhead: normal -1.40 ms (below noise), worst +2.30 ms. Both are under 5 ms. `bash plugins/wal-hook/hooks/wal-hook.test.sh` passes unchanged.
