@@ -649,15 +649,15 @@ first use.
 
 #### Automated
 
-- [ ] 4.1 Trash tests pass
-- [ ] 4.2 Full suite passes
-- [ ] 4.3 Types check
-- [ ] 4.4 Lint passes
+- [x] 4.1 Trash tests pass
+- [x] 4.2 Full suite passes
+- [x] 4.3 Types check
+- [x] 4.4 Lint passes
 
 #### Manual
 
-- [ ] 4.5 POST without Origin is rejected with 403
-- [ ] 4.6 Trashed session lands in wal-trash and leaves `claude --resume`
+- [x] 4.5 POST without Origin is rejected with 403
+- [x] 4.6 Trashed session lands in wal-trash and leaves `claude --resume`
 
 ### Phase 5: Trash UI
 

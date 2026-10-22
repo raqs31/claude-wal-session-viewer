@@ -10,9 +10,10 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import type { AddressInfo } from 'node:net'
 import { dirname, extname, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { RecordResponse, Row, WalRecord } from '../shared/api.ts'
+import type { RecordResponse, Row, TrashRef, TrashResult, WalRecord } from '../shared/api.ts'
 import { createDiscovery } from './discovery.ts'
 import { createStore, parseScope, type Session, validId } from './sessions.ts'
+import { createTrash } from './trash.ts'
 import { cmp, createIndexes, type IndexEntry, type Matcher, matcher, parseVector, query, type Reader, summary, vector, type WalIndex } from './wal-index.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -71,10 +72,10 @@ const writeUnknown = (res: ServerResponse, unknown: string[]): void => {
 }
 const versions = (m: Map<string, number>): string => [...m].map(([id, v]) => `${id}:${v}`).join(',')
 
-const sessionTick = (): void => {
-  // Each session is advanced once per tick, however many streams pick it.
+/** Each session is advanced once per resolver, however many streams pick it. */
+const resolver = (): ((id: string) => Session | null) => {
   const seen = new Map<string, Session | null>()
-  const at = (id: string): Session | null => {
+  return (id) => {
     const known = seen.get(id)
     if (known !== undefined) return known
     let s: Session | null = null
@@ -87,20 +88,51 @@ const sessionTick = (): void => {
     seen.set(id, s)
     return s
   }
+}
+
+const writeUsage = (client: SessionClient, ss: (Session | null)[]): void => {
+  const body = store.usage(
+    ss.filter((s) => s !== null),
+    client.ids.filter((_, i) => ss[i] === null),
+  )
+  client.res.write(`id: ${versions(client.sent)}\ndata: ${JSON.stringify(body)}\n\n`)
+}
+
+const sessionTick = (): void => {
+  const at = resolver()
   for (const client of sessionClients) {
     const moved = client.ids.map(at).filter((s): s is Session => s !== null && s.version !== client.sent.get(s.id))
     if (!moved.length) continue
     for (const s of moved) client.sent.set(s.id, s.version)
-    if (client.usage) {
-      const ss = client.ids.map(at)
-      const body = store.usage(
-        ss.filter((s) => s !== null),
-        client.ids.filter((_, i) => ss[i] === null),
-      )
-      client.res.write(`id: ${versions(client.sent)}\ndata: ${JSON.stringify(body)}\n\n`)
-    } else for (const s of moved) client.res.write(`id: ${versions(client.sent)}\ndata: ${JSON.stringify(store.view(s, 'all'))}\n\n`)
+    if (client.usage) writeUsage(client, client.ids.map(at))
+    else for (const s of moved) client.res.write(`id: ${versions(client.sent)}\ndata: ${JSON.stringify(store.view(s, 'all'))}\n\n`)
   }
 }
+
+/**
+ * Runs after a trash and after a restore, so an open stream on `id` learns at once: the ticks
+ * alone skip a session that resolves null, and a tail of an empty WAL never sees it go.
+ */
+const trash = createTrash(discovery, (id) => {
+  indexes.drop(id)
+  store.drop(id)
+  for (const client of clients) {
+    if (!client.ixs.some((ix) => ix.id === id)) continue
+    // Left open, as walTick's reset is.
+    client.res.write('event: reset\ndata:\n\n')
+    clients.delete(client)
+  }
+  const at = resolver()
+  for (const client of sessionClients) {
+    if (!client.ids.includes(id)) continue
+    // Forgotten, so a restored session is sent whole on the next tick.
+    client.sent.delete(id)
+    const ss = client.ids.map(at)
+    // Sent even when empty: the page replaces its unknown list with it, so a restore clears it.
+    if (client.usage) writeUsage(client, ss)
+    else client.res.write(`event: unknown\ndata: ${JSON.stringify(client.ids.filter((_, i) => ss[i] === null))}\n\n`)
+  }
+})
 
 const walTick = (): void => {
   // Each index is tailed once per tick; one failing file is logged and its clients skipped.
@@ -176,6 +208,78 @@ const serveStatic = (pathname: string, res: ServerResponse): boolean => {
     .on('error', () => res.destroy())
     .pipe(res)
   return true
+}
+
+const BODY_MAX = 1024 * 1024
+
+/**
+ * A 403 status for a write that may not come from the page itself. A cross-site form cannot send
+ * `application/json` without a preflight, which nothing here answers; `Host` stops DNS rebinding,
+ * and is checked against the socket because the bound port may be 7878+n or ephemeral.
+ */
+const crossSite = (req: IncomingMessage): boolean => {
+  const type = (req.headers['content-type'] ?? '').split(';')[0]?.trim().toLowerCase()
+  const host = req.headers.host
+  const port = req.socket.localPort
+  const site = req.headers['sec-fetch-site']
+  return (
+    type !== 'application/json' ||
+    (host !== `127.0.0.1:${port}` && host !== `localhost:${port}`) ||
+    req.headers.origin !== `http://${host}` ||
+    (site !== undefined && site !== 'same-origin')
+  )
+}
+
+const isRef = (r: unknown): r is TrashRef => {
+  const o = r as Record<string, unknown> | null
+  return typeof o === 'object' && o !== null && ['source', 'date', 'slug', 'id'].every((k) => typeof o[k] === 'string') && validId(o.id as string)
+}
+
+/** null: a bad shape or a bad id, which fails the whole request. */
+const writeOf = (path: string, body: unknown): (() => TrashResult[]) | null => {
+  const b = body as Record<string, unknown> | null
+  if (typeof b !== 'object' || b === null) return null
+  const { ids, refs } = b
+  if (path === '/trash') return Array.isArray(ids) && ids.every((id) => typeof id === 'string' && validId(id)) ? () => trash.trash(ids) : null
+  if (path === '/trash/purge' && b.all === true) return () => trash.purge('all')
+  if (!Array.isArray(refs) || !refs.every(isRef)) return null
+  return path === '/trash/restore' ? () => trash.restore(refs) : () => trash.purge(refs)
+}
+
+/** The body arrives after handle() returns, so its errors never reach the server's catch. */
+const post = (req: IncomingMessage, res: ServerResponse, path: string): void => {
+  if (crossSite(req)) return void res.writeHead(403).end('forbidden')
+  const chunks: Buffer[] = []
+  let size = 0
+  req.on('data', (c: Buffer) => {
+    size += c.length
+    if (size <= BODY_MAX) chunks.push(c)
+    else if (!res.headersSent) {
+      chunks.length = 0
+      res.writeHead(413).end('body too large')
+    }
+  })
+  req.on('end', () => {
+    if (size > BODY_MAX) return
+    let body: unknown
+    try {
+      body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    } catch {
+      return void res.writeHead(400).end('bad json')
+    }
+    try {
+      const run = writeOf(path, body)
+      if (!run) return void res.writeHead(400).end('bad body or id')
+      const results = run()
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ results }))
+    } catch (err) {
+      console.error(`wal-server: ${path}: ${(err as Error).message}`)
+      if (!res.headersSent) res.writeHead(500)
+      res.end('internal error')
+    }
+  })
+  req.on('error', (err) => console.error(`wal-server: ${path}: ${err.message}`))
 }
 
 const handle = (req: IncomingMessage, res: ServerResponse): void => {
@@ -298,6 +402,17 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
     sessionClients.add(client)
     req.on('close', () => sessionClients.delete(client))
     return
+  }
+
+  if (url.pathname === '/trash' && req.method === 'GET') {
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({ entries: trash.list() }))
+    return
+  }
+
+  if (url.pathname === '/trash' || url.pathname === '/trash/restore' || url.pathname === '/trash/purge') {
+    if (req.method !== 'POST') return void res.writeHead(405, { allow: url.pathname === '/trash' ? 'GET, POST' : 'POST' }).end('method not allowed')
+    return void post(req, res, url.pathname)
   }
 
   if (serveStatic(url.pathname, res)) return

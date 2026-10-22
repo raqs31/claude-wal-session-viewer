@@ -29,6 +29,7 @@ flowchart LR
     T12["T12 · Dev proxy for /trash and README trash docs; manual curl checks #config #docs"]
     T13{{"T13 · Security review: trash routes and same-origin guard"}}
     T14{{"T14 · Phase 4 review: trash on the server"}}
+    T24["T24 · Phase 4 review follow-ups: stream unknown on trash, shared head reader, drop test, README #risk-high"]
   end
   subgraph phase_5["Phase 5"]
     T15["T15 · Trash client helpers: busy split and result summary #interface"]
@@ -74,6 +75,7 @@ flowchart LR
   T20 --> T21
   T22 --> T3
   T23 --> T7
+  T24 --> T14
   class T1 done
   class T2 done
   class T3 done
@@ -83,13 +85,13 @@ flowchart LR
   class T7 done
   class T8 done
   class T9 done
-  class T10 todo
-  class T11 todo
-  class T12 todo
-  class T13 todo
-  class T14 todo
-  class T15 todo
-  class T16 todo
+  class T10 done
+  class T11 done
+  class T12 done
+  class T13 done
+  class T14 done
+  class T15 done
+  class T16 done
   class T17 todo
   class T18 todo
   class T19 todo
@@ -97,3 +99,4 @@ flowchart LR
   class T21 todo
   class T22 done
   class T23 done
+  class T24 done

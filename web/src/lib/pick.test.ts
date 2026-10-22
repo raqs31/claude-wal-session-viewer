@@ -14,6 +14,7 @@ const row = (id: string, last: number): SessionMeta => ({
   started: null,
   last,
   live: false,
+  busy: false,
   walSize: 0,
   walLines: 0,
   transcriptSize: 0,

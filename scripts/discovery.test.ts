@@ -24,7 +24,7 @@ import { dirname, join } from 'node:path'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import type { SessionList, SessionMeta } from '../shared/api.ts'
-import { cleanPrompt, PROMPT_MAX } from './discovery.ts'
+import { cleanPrompt, createDiscovery, PROMPT_MAX } from './discovery.ts'
 import { startServer } from './test-server.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -35,6 +35,8 @@ const projects = join(claude, 'projects')
 const iso = join(claude, 'workspaces', 'iso', 'projects')
 const other = join(dir, 'other')
 const repo = join(dir, 'repo')
+// The in-process discovery below reads `~/.claude` through os.homedir(), as the server does.
+process.env.HOME = dir
 
 const MAIN = 'd01c2dfc-0a01-4e1f-825a-5b0462780f18'
 const TREE = '301167f7-f843-4c79-965b-ae99c2d50f5e'
@@ -423,4 +425,81 @@ test('a rename appended after a list shows on the next list', async () => {
   assert.equal(row(await list(), LATE).title, 'before rename')
   appendFileSync(file, `${JSON.stringify({ type: 'custom-title', customTitle: 'renamed later' })}\n`)
   assert.equal(row(await list(), LATE).title, 'renamed later')
+})
+
+// A session whose transcript and WAL (when `events` is given) were last written `age` ms ago.
+const session = (id: string, age: number, events?: string[]): void => {
+  const file = join(projects, '-tmp-proj', `${id}.jsonl`)
+  writeFileSync(file, '')
+  touch(file, Date.now() - age)
+  if (!events) return
+  const w = join(projects, '-tmp-proj', `${id}.wal.jsonl`)
+  put(
+    w,
+    events.map((e) => wal('default', e)),
+  )
+  touch(w, Date.now() - age)
+}
+const state = (r: SessionMeta) => ({ live: r.live, busy: r.busy })
+const HOUR = 60 * 60 * 1000
+
+test('busy: a live session is busy', async () => {
+  const LIVE = 'b0b0b0b0-0000-4000-8000-000000000001'
+  session(LIVE, 0, ['SessionStart', 'Stop'])
+  assert.deepEqual(state(row(await list(), LIVE)), { live: true, busy: true })
+})
+
+test('busy: a WAL not ended, idle past the live window but within 24 h, is busy and not live', async () => {
+  const IDLE = 'b0b0b0b0-0000-4000-8000-000000000002'
+  session(IDLE, HOUR, ['SessionStart', 'Stop'])
+  assert.deepEqual(state(row(await list(), IDLE)), { live: false, busy: true })
+})
+
+test('busy: a WAL not ended but older than 24 h is not busy', async () => {
+  const STALE = 'b0b0b0b0-0000-4000-8000-000000000003'
+  session(STALE, 25 * HOUR, ['SessionStart', 'Stop'])
+  assert.deepEqual(state(row(await list(), STALE)), { live: false, busy: false })
+})
+
+test('busy: a WAL ending in SessionEnd is not busy', async () => {
+  const ENDED = 'b0b0b0b0-0000-4000-8000-000000000004'
+  session(ENDED, HOUR, ['SessionStart', 'SessionEnd'])
+  assert.equal(row(await list(), ENDED).busy, false)
+})
+
+test('busy: without a WAL it equals live', async () => {
+  const RECENT = 'b0b0b0b0-0000-4000-8000-000000000005'
+  const IDLE = 'b0b0b0b0-0000-4000-8000-000000000006'
+  session(RECENT, 0)
+  session(IDLE, HOUR)
+  const l = await list()
+  assert.deepEqual(
+    [state(row(l, RECENT)), state(row(l, IDLE))],
+    [
+      { live: true, busy: true },
+      { live: false, busy: false },
+    ],
+  )
+})
+
+test('find: a listed id yields its Found, an unknown one null', () => {
+  const d = createDiscovery([])
+  const f = d.find(MAIN)
+  assert.deepEqual(f && { id: f.id, source: f.source, slug: f.slug, dir: f.dir }, {
+    id: MAIN,
+    source: 'default',
+    slug: '-tmp-proj',
+    dir: join(realpathSync(projects), '-tmp-proj'),
+  })
+  assert.equal(d.find('00000000-0000-4000-8000-000000000000'), null)
+})
+
+test('drop: an id cached as a miss is found once dropped', () => {
+  const LATE = 'b0b0b0b0-0000-4000-8000-000000000007'
+  const d = createDiscovery([])
+  assert.equal(d.find(LATE), null)
+  session(LATE, HOUR, ['SessionEnd'])
+  assert.equal(d.find(LATE), null, 'the miss is cached')
+  d.drop(LATE)
+  assert.equal(d.find(LATE)?.id, LATE)
 })

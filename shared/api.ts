@@ -132,6 +132,9 @@ export interface SessionMeta {
   // Newest mtime of the transcript and the WAL.
   last: number
   live: boolean
+  // `live`, or a WAL not ended with `last` in the past 24 h: a session idle at the prompt is still
+  // open in Claude, which would recreate its files after a trash. Without a WAL, equal to `live`.
+  busy: boolean
   walSize: number
   // Complete lines, the unit of the page's unseen badge.
   walLines: number
@@ -235,4 +238,26 @@ export interface UsageTotals {
   recorded: number | null
   missing: number
   unknown: string[]
+}
+
+// ---- Trash ----
+
+export interface TrashRef {
+  source: string
+  date: string
+  slug: string
+  id: string
+}
+
+// `title` and `cwd` are read from the trashed transcript the way discovery reads them.
+export interface TrashEntry extends TrashRef {
+  title: string
+  cwd: string | null
+  size: number
+}
+
+export interface TrashResult {
+  id: string
+  status: 'ok' | 'live' | 'conflict' | 'unknown' | 'failed'
+  reason?: string
 }

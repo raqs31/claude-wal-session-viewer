@@ -19,6 +19,8 @@ export default defineConfig({
       '/session-stream': api,
       '/usage': api,
       '/usage-stream': api,
+      // The write routes reject a foreign Origin; the shorthand would forward the page's localhost:5173.
+      '/trash': { target: api, changeOrigin: true, headers: { origin: api } },
     },
   },
 })

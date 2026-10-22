@@ -239,11 +239,11 @@
       "id": "T10",
       "title": "Trash groundwork: shared types, SessionMeta.busy, cache drops, discovery Found accessor",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 4,
       "parent": null,
-      "holder": null,
+      "holder": "a87752f081d25a30e",
       "tags": [
         "interface",
         "risk-high"
@@ -260,17 +260,17 @@
         "web/src/lib/pick.test.ts"
       ],
       "path": "tickets/T10.md",
-      "updated": "2026-10-22 12:54"
+      "updated": "2026-10-22 14:12"
     },
     {
       "id": "T11",
       "title": "Trash module, trash/restore/purge routes and same-origin guard",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 4,
       "parent": null,
-      "holder": null,
+      "holder": "a9ba08ab67d2e34e3",
       "tags": [
         "security",
         "risk-high"
@@ -282,17 +282,17 @@
         ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
       ],
       "path": "tickets/T11.md",
-      "updated": "2026-10-22 12:55"
+      "updated": "2026-10-22 14:26"
     },
     {
       "id": "T12",
       "title": "Dev proxy for /trash and README trash docs; manual curl checks",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 4,
       "parent": null,
-      "holder": null,
+      "holder": "a63b30a0f061b32e2",
       "tags": [
         "config",
         "docs"
@@ -303,17 +303,17 @@
         ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
       ],
       "path": "tickets/T12.md",
-      "updated": "2026-10-22 12:55"
+      "updated": "2026-10-22 14:25"
     },
     {
       "id": "T13",
       "title": "Security review: trash routes and same-origin guard",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 4,
       "parent": null,
-      "holder": null,
+      "holder": "a97025cdfd3d16e80",
       "tags": [],
       "files": [
         "scripts/trash.ts",
@@ -322,17 +322,17 @@
         ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
       ],
       "path": "tickets/T13.md",
-      "updated": "2026-10-22 12:55"
+      "updated": "2026-10-22 14:27"
     },
     {
       "id": "T14",
       "title": "Phase 4 review: trash on the server",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 4,
       "parent": null,
-      "holder": null,
+      "holder": "a18a307cbf39b2628",
       "tags": [],
       "files": [
         "shared/api.ts",
@@ -352,17 +352,17 @@
         ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
       ],
       "path": "tickets/T14.md",
-      "updated": "2026-10-22 12:55"
+      "updated": "2026-10-22 14:39"
     },
     {
       "id": "T15",
       "title": "Trash client helpers: busy split and result summary",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 5,
       "parent": null,
-      "holder": null,
+      "holder": "afc5e40f6782bf574",
       "tags": [
         "interface"
       ],
@@ -371,17 +371,17 @@
         "web/src/lib/trash.test.ts"
       ],
       "path": "tickets/T15.md",
-      "updated": "2026-10-22 12:55"
+      "updated": "2026-10-22 14:13"
     },
     {
       "id": "T16",
       "title": "ConfirmDialog component on native dialog",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 5,
       "parent": null,
-      "holder": null,
+      "holder": "a24d8f06cc6843e93",
       "tags": [
         "interface"
       ],
@@ -390,7 +390,7 @@
         "web/src/styles.css"
       ],
       "path": "tickets/T16.md",
-      "updated": "2026-10-22 12:56"
+      "updated": "2026-10-22 14:10"
     },
     {
       "id": "T17",
@@ -540,6 +540,29 @@
       ],
       "path": "tickets/T23.md",
       "updated": "2026-10-22 14:01"
+    },
+    {
+      "id": "T24",
+      "title": "Phase 4 review follow-ups: stream unknown on trash, shared head reader, drop test, README",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 4,
+      "parent": null,
+      "holder": "a5a189146320e09bd",
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "scripts/wal-server.ts",
+        "scripts/trash.ts",
+        "scripts/trash.test.ts",
+        "scripts/discovery.ts",
+        "scripts/discovery.test.ts",
+        "README.md"
+      ],
+      "path": "tickets/T24.md",
+      "updated": "2026-10-22 14:38"
     }
   ],
   "edges": [
@@ -706,6 +729,11 @@
     {
       "from": "T23",
       "to": "T7",
+      "type": "depends_on"
+    },
+    {
+      "from": "T24",
+      "to": "T14",
       "type": "depends_on"
     }
   ]
