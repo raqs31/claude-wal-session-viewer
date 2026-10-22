@@ -680,6 +680,6 @@ first use.
 
 #### Automated
 
-- [ ] 6.1 Full suite passes
-- [ ] 6.2 Lint passes
-- [ ] 6.3 Package builds
+- [x] 6.1 Full suite passes
+- [x] 6.2 Lint passes
+- [x] 6.3 Package builds

@@ -471,11 +471,11 @@
       "id": "T20",
       "title": "Release 0.4.0: version bump and README consistency pass",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 6,
       "parent": null,
-      "holder": null,
+      "holder": "a494b1fda625dfebc",
       "tags": [
         "docs",
         "config"
@@ -487,17 +487,17 @@
         ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
       ],
       "path": "tickets/T20.md",
-      "updated": "2026-10-22 12:57"
+      "updated": "2026-10-22 15:18"
     },
     {
       "id": "T21",
       "title": "Phase 6 review: release 0.4.0",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 6,
       "parent": null,
-      "holder": null,
+      "holder": "a4dca100fcec1dc56",
       "tags": [],
       "files": [
         "package.json",
@@ -506,7 +506,7 @@
         ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
       ],
       "path": "tickets/T21.md",
-      "updated": "2026-10-22 12:57"
+      "updated": "2026-10-22 15:18"
     },
     {
       "id": "T22",
