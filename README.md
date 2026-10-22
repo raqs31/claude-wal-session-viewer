@@ -122,9 +122,14 @@ empty, so a rerun is a no-op. The viewer shows a banner while legacy files remai
   in the panel's corner pins it, narrowing the list. It filters by text, category, tool, event name,
   agent (shown when the pick has more than one agent), date, time of day and duration. Filter chips
   offer only values present in the picked sessions, and a chosen value that no longer occurs is
-  dropped when the pick changes. Rows load as you scroll and follow the logs live; a row expands to
-  its full record. MCP Pre/Post pairs get a synthetic "MCP call" row showing request beside
-  response. Records render as a tree in JSON, YAML or Raw.
+  dropped when the pick changes. Each of the category, tool, event and agent sections has All, None
+  and Not: All ticks every value offered now (tool includes `(no tool)` and the MCP tools), so a
+  value first seen later is filtered out; use None or Not for "everything". None clears the section.
+  Not is a toggle, enabled while something is ticked, that turns the ticked values from "show only
+  these" into "hide these" (the chips read struck through, and the summary shows `tool: ≠2`); All
+  with Not therefore excludes every offered value. Rows load as you scroll and follow the logs live;
+  a row expands to its full record. MCP Pre/Post pairs get a synthetic "MCP call" row showing
+  request beside response. Records render as a tree in JSON, YAML or Raw.
 -  **Sessions**: one block per picked session with totals, By-agent and By-model tables, charts and
   agent rows that expand to type, model (main shows its model, or "mixed (see By model)"), turns or
   requests, token kinds, cost, duration, tool calls and context at end. The totals end with the main

@@ -1,6 +1,8 @@
 import type { Category } from '../../../shared/api.ts'
 import { agentSelection, type PickNode, pruneAgents } from './agents.ts'
 
+export type NotField = 'cat' | 'tool' | 'event' | 'agent'
+
 // Opt-in: an empty set sends no param, which the server reads as no filter.
 export interface Filters {
   q: string
@@ -16,6 +18,8 @@ export interface Filters {
   // Session-scoped agent tokens built by the picker's tree (see lib/agents.ts).
   agent: ReadonlySet<string>
   nodur: boolean
+  // Sections whose set excludes instead of includes; sent as `<field>_not`.
+  not: ReadonlySet<NotField>
 }
 
 export const EMPTY_FILTERS: Filters = {
@@ -31,10 +35,13 @@ export const EMPTY_FILTERS: Filters = {
   event: new Set(),
   agent: new Set(),
   nodur: false,
+  not: new Set(),
 }
 
 // Field names double as the query parameter names.
 const FIELDS = ['q', 'date_from', 'date_to', 'time_from', 'time_to', 'min_ms', 'max_ms'] as const
+
+const SETS = ['cat', 'tool', 'event', 'agent'] as const
 
 // One builder serves /events and /events-stream, so a live row always matches the listed ones.
 export const buildParams = (f: Filters, ids: readonly string[]): URLSearchParams => {
@@ -44,10 +51,7 @@ export const buildParams = (f: Filters, ids: readonly string[]): URLSearchParams
     const v = f[id].trim()
     if (v) p.set(id, v)
   }
-  if (f.cat.size) p.set('cat', [...f.cat].join(','))
-  if (f.tool.size) p.set('tool', [...f.tool].join(','))
-  if (f.event.size) p.set('event', [...f.event].join(','))
-  if (f.agent.size) p.set('agent', [...f.agent].join(','))
+  for (const k of SETS) if (f[k].size) p.set(f.not.has(k) ? `${k}_not` : k, [...f[k]].join(','))
   if (f.nodur) p.set('nodur', 'include')
   return p
 }
@@ -57,10 +61,11 @@ const range = (lo: string, hi: string, sep = '–'): string => `${lo.trim()}${se
 // One-line digest of every active filter, shown in the Events head; empty when none is set.
 export const filterSummary = (f: Filters, agents: readonly PickNode[]): string[] => {
   const out: string[] = []
-  if (f.cat.size) out.push(`cat: ${f.cat.size}`)
-  if (f.tool.size) out.push(`tool: ${f.tool.size}`)
-  if (f.event.size) out.push(`event: ${f.event.size}`)
-  if (f.agent.size) out.push(`agent: ${agentSelection(f.agent, agents)}`)
+  const op = (k: NotField) => (f.not.has(k) ? '≠' : '')
+  if (f.cat.size) out.push(`cat: ${op('cat')}${f.cat.size}`)
+  if (f.tool.size) out.push(`tool: ${op('tool')}${f.tool.size}`)
+  if (f.event.size) out.push(`event: ${op('event')}${f.event.size}`)
+  if (f.agent.size) out.push(`agent: ${op('agent')}${agentSelection(f.agent, agents)}`)
   if (f.q.trim()) out.push(`q: ${f.q.trim()}`)
   if (f.date_from.trim() || f.date_to.trim()) out.push(`date: ${range(f.date_from, f.date_to)}`)
   if (f.time_from.trim() || f.time_to.trim()) out.push(`time: ${range(f.time_from, f.time_to)}`)
@@ -91,8 +96,11 @@ export const pruneFilters = (f: Filters, x: Facets): Filters => {
   const tool = keep(f.tool, (t) => t === '-' || tools.has(t))
   const event = keep(f.event, (e) => events.has(e))
   const agent = pruneAgents(f.agent, x.agents)
-  return cat === f.cat && tool === f.tool && event === f.event && agent === f.agent ? f : { ...f, cat, tool, event, agent }
+  if (cat === f.cat && tool === f.tool && event === f.event && agent === f.agent) return f
+  const sets = { cat, tool, event, agent }
+  const not = new Set([...f.not].filter((k) => sets[k].size > 0))
+  return { ...f, ...sets, not }
 }
 
 /** False when pruning emptied a filter that was set, so the loaded rows no longer match it. */
-export const sameRows = (f: Filters, g: Filters): boolean => !(['cat', 'tool', 'event', 'agent'] as const).some((k) => f[k].size > 0 && g[k].size === 0)
+export const sameRows = (f: Filters, g: Filters): boolean => !SETS.some((k) => f[k].size > 0 && g[k].size === 0)

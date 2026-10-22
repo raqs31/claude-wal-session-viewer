@@ -123,7 +123,7 @@
         "scripts/live-tail.test.ts"
       ],
       "path": "tickets/T4.md",
-      "updated": "2026-10-22 13:34"
+      "updated": "2026-10-22 13:45"
     },
     {
       "id": "T5",
@@ -144,7 +144,7 @@
         "web/src/lib/agents.test.ts"
       ],
       "path": "tickets/T5.md",
-      "updated": "2026-10-22 13:33"
+      "updated": "2026-10-22 13:45"
     },
     {
       "id": "T6",
@@ -164,17 +164,17 @@
         ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
       ],
       "path": "tickets/T6.md",
-      "updated": "2026-10-22 13:40"
+      "updated": "2026-10-22 13:45"
     },
     {
       "id": "T7",
       "title": "Phase 2 review: All / None / Not on the Events filter panel",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 2,
       "parent": null,
-      "holder": null,
+      "holder": "a765154a1a520fc7a",
       "tags": [],
       "files": [
         "scripts/wal-index.ts",
@@ -191,7 +191,7 @@
         ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
       ],
       "path": "tickets/T7.md",
-      "updated": "2026-10-22 12:53"
+      "updated": "2026-10-22 14:03"
     },
     {
       "id": "T8",
@@ -212,7 +212,7 @@
         ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
       ],
       "path": "tickets/T8.md",
-      "updated": "2026-10-22 12:53"
+      "updated": "2026-10-22 13:56"
     },
     {
       "id": "T9",
@@ -520,6 +520,26 @@
       ],
       "path": "tickets/T22.md",
       "updated": "2026-10-22 13:37"
+    },
+    {
+      "id": "T23",
+      "title": "Phase 2 cleanup: clear Not when a section empties, no data-not=\"0\", README rewrap",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 2,
+      "parent": null,
+      "holder": "aa81a194a09b4f483",
+      "tags": [],
+      "files": [
+        "web/src/components/FilterPanel.tsx",
+        "web/src/components/AgentPicker.tsx",
+        "README.md",
+        "web/src/lib/params.ts",
+        "web/src/lib/params.test.ts"
+      ],
+      "path": "tickets/T23.md",
+      "updated": "2026-10-22 14:01"
     }
   ],
   "edges": [
@@ -575,6 +595,11 @@
     },
     {
       "from": "T6",
+      "to": "T23",
+      "type": "depends_on"
+    },
+    {
+      "from": "T7",
       "to": "T8",
       "type": "depends_on"
     },
@@ -676,6 +701,11 @@
     {
       "from": "T22",
       "to": "T3",
+      "type": "depends_on"
+    },
+    {
+      "from": "T23",
+      "to": "T7",
       "type": "depends_on"
     }
   ]

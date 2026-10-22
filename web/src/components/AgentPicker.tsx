@@ -8,7 +8,27 @@ interface Props {
   tree: readonly PickNode[]
   selected: ReadonlySet<string>
   onToggle: (key: string) => void
+  not: boolean
+  onAll: () => void
   onClear: () => void
+  onNot: () => void
+}
+
+// The All / None / Not row shared by every filter section; Not needs something ticked to negate.
+export function FilterActs({ ticked, not, onAll, onNone, onNot }: { ticked: boolean; not: boolean; onAll: () => void; onNone: () => void; onNot: () => void }) {
+  return (
+    <div className="acts">
+      <button className="ghost" type="button" onClick={onAll}>
+        All
+      </button>
+      <button className="ghost" type="button" disabled={!ticked && !not} onClick={onNone}>
+        None
+      </button>
+      <button className="ghost" type="button" aria-pressed={not} disabled={!ticked} onClick={onNot}>
+        Not
+      </button>
+    </div>
+  )
 }
 
 // Open by default: the top level, and each session's main under it; deeper branches start closed.
@@ -19,7 +39,7 @@ const mixed = (on: boolean) => (el: HTMLInputElement | null) => {
   if (el) el.indeterminate = on
 }
 
-export function AgentPicker({ tree, selected, onToggle, onClear }: Props) {
+export function AgentPicker({ tree, selected, onToggle, not, onAll, onClear, onNot }: Props) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   // Keys whose branch differs from its default; never stored, so every page load starts the same.
@@ -158,6 +178,7 @@ export function AgentPicker({ tree, selected, onToggle, onClear }: Props) {
         aria-haspopup="dialog"
         aria-controls="agentpop"
         data-on={selected.size ? '' : undefined}
+        data-not={selected.size > 0 && not ? '' : undefined}
         style={{ '--c': 'var(--text-secondary)' } as CSSProperties}
         onClick={() => setOpen(!open)}
       >
@@ -168,13 +189,9 @@ export function AgentPicker({ tree, selected, onToggle, onClear }: Props) {
         {countNodes(tree) > SEARCH_FROM && (
           <input type="search" placeholder="Search agents…" aria-label="Search agents" value={q} onChange={(e) => setQ(e.target.value)} />
         )}
-        <div className="acts">
-          <button className="ghost" type="button" disabled={!selected.size} onClick={onClear}>
-            All agents
-          </button>
-        </div>
+        <FilterActs ticked={selected.size > 0} not={not} onAll={onAll} onNone={onClear} onNot={onNot} />
         {/* biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: the ARIA tree pattern on a list keeps the nested <ul>/<li> structure valid HTML. */}
-        <ul className="atree" role="tree" aria-label="Agents" onKeyDown={move}>
+        <ul className="atree" role="tree" aria-label="Agents" data-not={selected.size > 0 && not ? '' : undefined} onKeyDown={move}>
           {shown.map((n) => row(n, 0))}
         </ul>
       </div>

@@ -1,10 +1,10 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { type Category, catOf } from '../../../shared/api.ts'
-import { countNodes, type PickNode, toggle } from '../lib/agents.ts'
+import { countNodes, type PickNode, selectAll, toggle } from '../lib/agents.ts'
 import { CATEGORY } from '../lib/categories.ts'
 import { mcpParts, toolColor } from '../lib/mcp.ts'
-import type { Filters } from '../lib/params.ts'
-import { AgentPicker } from './AgentPicker.tsx'
+import type { Filters, NotField } from '../lib/params.ts'
+import { AgentPicker, FilterActs } from './AgentPicker.tsx'
 import { Chip } from './Chip.tsx'
 import { McpPanel } from './McpPanel.tsx'
 
@@ -36,15 +36,32 @@ export function FilterPanel({ filters, setFilters, tools, events, cats, agents, 
       setFilters((f) => ({ ...f, [id]: v }))
     },
   })
-  const toggleTool = (t: string) => setFilters((f) => ({ ...f, tool: flip(f.tool, t) }))
+  // A section whose set empties also drops its Not flag, so the next tick starts as an include again.
+  const put = (f: Filters, k: NotField, set: ReadonlySet<string>): Filters => {
+    const not = new Set(f.not)
+    if (set.size === 0) not.delete(k)
+    return { ...f, [k]: set, not }
+  }
+  const toggleTool = (t: string) => setFilters((f) => put(f, 'tool', flip(f.tool, t)))
   const setTools = (ts: readonly string[], on: boolean) =>
     setFilters((f) => {
       const tool = new Set(f.tool)
       for (const t of ts)
         if (on) tool.add(t)
         else tool.delete(t)
-      return { ...f, tool }
+      return put(f, 'tool', tool)
     })
+  const setNot = (k: NotField) =>
+    setFilters((f) => {
+      const not = new Set(f.not)
+      if (!not.delete(k)) not.add(k)
+      return { ...f, not }
+    })
+  const none = (k: NotField) => setFilters((f) => put(f, k, new Set()))
+  const acts = (k: NotField, ticked: number, all: () => void) => (
+    <FilterActs ticked={ticked > 0} not={filters.not.has(k)} onAll={all} onNone={() => none(k)} onNot={() => setNot(k)} />
+  )
+  const nots = (k: NotField) => (filters.not.has(k) ? '' : undefined)
 
   return (
     <>
@@ -54,10 +71,11 @@ export function FilterPanel({ filters, setFilters, tools, events, cats, agents, 
           <h3>Search</h3>
           <input type="search" placeholder="Filter by event, tool or text…" aria-label="Filter events" key={`q${resets}`} {...text('q')} />
         </section>
-        <section className="fp-s" id="cats">
+        <section className="fp-s" id="cats" data-not={nots('cat')}>
           <h3>Category</h3>
           {/* The category chips double as the legend: identity is available as a labelled swatch, never
               by matching a colour to a row unaided. */}
+          {acts('cat', filters.cat.size, () => setFilters((f) => ({ ...f, cat: new Set(cats) })))}
           <div className="filters">
             {cats.map((c) => (
               <Chip
@@ -65,7 +83,7 @@ export function FilterPanel({ filters, setFilters, tools, events, cats, agents, 
                 label={CATEGORY[c].label}
                 color={CATEGORY[c].color}
                 on={filters.cat.has(c)}
-                onClick={() => setFilters((f) => ({ ...f, cat: flip(f.cat, c) }))}
+                onClick={() => setFilters((f) => put(f, 'cat', flip(f.cat, c)))}
               />
             ))}
           </div>
@@ -76,13 +94,17 @@ export function FilterPanel({ filters, setFilters, tools, events, cats, agents, 
             <AgentPicker
               tree={agents}
               selected={filters.agent}
-              onToggle={(key) => setFilters((f) => ({ ...f, agent: toggle(agents, f.agent, key) }))}
-              onClear={() => setFilters((f) => ({ ...f, agent: new Set() }))}
+              not={filters.not.has('agent')}
+              onToggle={(key) => setFilters((f) => put(f, 'agent', toggle(agents, f.agent, key)))}
+              onAll={() => setFilters((f) => ({ ...f, agent: selectAll(agents) }))}
+              onClear={() => none('agent')}
+              onNot={() => setNot('agent')}
             />
           </section>
         )}
-        <section className="fp-s" id="tools" aria-label="Filter by tool">
+        <section className="fp-s" id="tools" aria-label="Filter by tool" data-not={nots('tool')}>
           <h3>Tool</h3>
+          {acts('tool', filters.tool.size, () => setFilters((f) => ({ ...f, tool: new Set(['-', ...tools]) })))}
           <div className="filters">
             <Chip label="(no tool)" color={toolColor('-')} on={filters.tool.has('-')} onClick={() => toggleTool('-')} />
             {tools
@@ -93,8 +115,9 @@ export function FilterPanel({ filters, setFilters, tools, events, cats, agents, 
           </div>
           <McpPanel tools={tools} selected={filters.tool} onSet={setTools} />
         </section>
-        <section className="fp-s" id="events" aria-label="Filter by event">
+        <section className="fp-s" id="events" aria-label="Filter by event" data-not={nots('event')}>
           <h3>Event</h3>
+          {acts('event', filters.event.size, () => setFilters((f) => ({ ...f, event: new Set(events) })))}
           <div className="filters">
             {events.map((e) => (
               <Chip
@@ -102,7 +125,7 @@ export function FilterPanel({ filters, setFilters, tools, events, cats, agents, 
                 label={e}
                 color={CATEGORY[catOf(e)].color}
                 on={filters.event.has(e)}
-                onClick={() => setFilters((f) => ({ ...f, event: flip(f.event, e) }))}
+                onClick={() => setFilters((f) => put(f, 'event', flip(f.event, e)))}
               />
             ))}
           </div>

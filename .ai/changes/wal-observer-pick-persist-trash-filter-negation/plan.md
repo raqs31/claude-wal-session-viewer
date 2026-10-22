@@ -604,7 +604,7 @@ first use.
 - [x] 1.1 Pick rule tests pass
 - [x] 1.2 Full suite passes
 - [x] 1.3 Types check
-- [ ] 1.4 Lint passes
+- [x] 1.4 Lint passes
 
 #### Manual
 
@@ -619,9 +619,9 @@ first use.
 
 - [x] 2.1 Server negation tests pass
 - [x] 2.2 Client helper tests pass
-- [ ] 2.3 Full suite passes
-- [ ] 2.4 Types check
-- [ ] 2.5 Lint passes
+- [x] 2.3 Full suite passes
+- [x] 2.4 Types check
+- [x] 2.5 Lint passes
 
 #### Manual
 

@@ -17,6 +17,7 @@ flowchart LR
     T5["T5 · Client filter model: Filters.not, _not params, summary, agent selectAll #interface"]
     T6["T6 · Filter panel All / None / Not controls and README"]
     T7{{"T7 · Phase 2 review: All / None / Not on the Events filter panel"}}
+    T23["T23 · Phase 2 cleanup: clear Not when a section empties, no data-not=#quot;0#quot;, README rewrap"]
   end
   subgraph phase_3["Phase 3"]
     T8["T8 · Sidebar chips All / None / Not: filter rule, controls, README"]
@@ -50,7 +51,8 @@ flowchart LR
   T5 --> T6
   T5 --> T7
   T6 --> T7
-  T6 --> T8
+  T6 --> T23
+  T7 --> T8
   T8 --> T9
   T10 --> T11
   T10 --> T14
@@ -71,13 +73,14 @@ flowchart LR
   T19 --> T20
   T20 --> T21
   T22 --> T3
+  T23 --> T7
   class T1 done
   class T2 done
   class T3 done
   class T4 done
   class T5 done
   class T6 done
-  class T7 todo
+  class T7 done
   class T8 todo
   class T9 todo
   class T10 todo
@@ -93,3 +96,4 @@ flowchart LR
   class T20 todo
   class T21 todo
   class T22 done
+  class T23 done

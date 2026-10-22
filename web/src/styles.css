@@ -306,6 +306,24 @@ select {
   gap: 6px;
   margin: 8px 0;
 }
+.fp-s > .acts {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+button.ghost[aria-pressed="true"] {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+button.ghost:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+/* A Not section: its ticked chips read as excluded without looking at the toggle. */
+[data-not] .chip[aria-pressed="true"],
+.chip[data-not][data-on] {
+  text-decoration: line-through;
+}
 .pop label {
   display: flex;
   align-items: center;
@@ -347,6 +365,10 @@ select {
   flex: none;
   white-space: nowrap;
   color: var(--muted);
+}
+.atree[data-not] input:checked + .lt,
+.atree[data-not] input:checked + .ls {
+  text-decoration: line-through;
 }
 .atree .twisty {
   width: 18px;
