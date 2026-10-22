@@ -67,7 +67,7 @@ events but no usage numbers.
 - No `context` on PreToolUse, PostCompact, SubagentStart or other events.
 - No running max, no window-size percentage (no transcript records the model's window size).
 - No WAL-index / `Row` / API changes. The chart uses the existing transcript series, not the new WAL field.
-- No compaction markers in the new chart (they are not on `main`; the drop in the line shows a compaction).
+- ~~No compaction markers in the new chart~~ Board override: compaction markers ARE drawn on the "Context per call" chart.
 - No CHANGELOG file; the README field docs are the record.
 - No committed benchmark script.
 - No change to neula-evals; the operator re-vendors the hook.
@@ -304,7 +304,7 @@ subagent events). "The page": the per-agent "Context per call" chart and Main op
 
 ### Overview
 
-Run the full checks and open one PR against `main`.
+Run the full checks. Board override: no PR is opened; work stays as local commits on `feat/subagent-prompts` (5.2-5.3 dropped).
 
 ### Changes Required:
 
@@ -313,7 +313,7 @@ Run the full checks and open one PR against `main`.
 **Intent**: Push `feat/context-monitoring` and open a PR to `main` with a summary, the benchmark numbers,
 and the subagent payload-field note for re-vendoring into neula-evals.
 
-**Contract**: `gh pr create --base main`. The final report to the operator pastes the test output and the
+**Contract**: (Dropped by board override: no PR.) Originally `gh pr create --base main`. The final report to the operator pastes the test output and the
 payload-field note.
 
 ### Success Criteria:
@@ -374,9 +374,9 @@ does not depend on it.
 
 #### Automated
 
-- [ ] 1.1 Hook tests pass: `bash plugins/wal-hook/hooks/wal-hook.test.sh`
-- [ ] 1.2 Full suite passes: `npm test`
-- [ ] 1.3 Lint and types pass: `npm run lint && npm run check`
+- [x] 1.1 Hook tests pass: `bash plugins/wal-hook/hooks/wal-hook.test.sh`
+- [x] 1.2 Full suite passes: `npm test`
+- [x] 1.3 Lint and types pass: `npm run lint && npm run check`
 
 #### Manual
 
@@ -386,15 +386,15 @@ does not depend on it.
 
 #### Automated
 
-- [ ] 2.1 Benchmark numbers recorded in `## Review` for the normal and worst-case tail
-- [ ] 2.2 Hook tests still pass: `bash plugins/wal-hook/hooks/wal-hook.test.sh`
+- [x] 2.1 Benchmark numbers recorded in `## Review` for the normal and worst-case tail
+- [x] 2.2 Hook tests still pass: `bash plugins/wal-hook/hooks/wal-hook.test.sh`
 
 ### Phase 3: Viewer — per-agent context chart
 
 #### Automated
 
-- [ ] 3.1 Unit tests pass: `npm test`
-- [ ] 3.2 Lint and types pass: `npm run lint && npm run check`
+- [x] 3.1 Unit tests pass: `npm test`
+- [x] 3.2 Lint and types pass: `npm run lint && npm run check`
 
 #### Manual
 
@@ -406,20 +406,20 @@ does not depend on it.
 
 #### Automated
 
-- [ ] 4.1 Versions agree at 0.3.0
-- [ ] 4.2 Lint passes: `npm run lint`
-- [ ] 4.3 Pack check passes: `npm pack --dry-run`
+- [x] 4.1 Versions agree at 0.3.0
+- [x] 4.2 Lint passes: `npm run lint`
+- [x] 4.3 Pack check passes: `npm pack --dry-run`
 
 ### Phase 5: Ship
 
 #### Automated
 
-- [ ] 5.1 Full check on the branch: `npm run lint && npm run check && npm test`
-- [ ] 5.2 PR open against `main`
+- [x] 5.1 Full check on the branch: `npm run lint && npm run check && npm test`
+- [x] 5.2 PR open against `main` — dropped: no PR, local commits on feat/subagent-prompts
 
 #### Manual
 
-- [ ] 5.3 CI green on the PR
+- [x] 5.3 CI green on the PR — dropped: no PR
 
 ## Review
 
