@@ -1,9 +1,10 @@
 ---
 change_id: wal-sessions-tab
 title: WAL viewer — Sessions tab with conversation timeline and usage/model statistics
-status: implemented
+status: archived
 created: 2026-09-30
-updated: 2026-09-30
+updated: 2026-10-22
+archived_at: 2026-10-22T08:25:02Z
 ---
 
 ## Notes
