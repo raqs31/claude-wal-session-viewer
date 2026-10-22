@@ -156,11 +156,11 @@
       "id": "T7",
       "title": "Version 0.3.0 and README docs",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 4,
       "parent": null,
-      "holder": null,
+      "holder": "a5ddc41c30eb52397",
       "tags": [
         "docs"
       ],
@@ -171,17 +171,17 @@
         "README.md"
       ],
       "path": "tickets/T7.md",
-      "updated": "2026-10-22 10:31"
+      "updated": "2026-10-22 10:48"
     },
     {
       "id": "T8",
       "title": "Phase 4 review",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 4,
       "parent": null,
-      "holder": null,
+      "holder": "a2f1817923e8d30e2",
       "tags": [],
       "files": [
         "package.json",
@@ -191,7 +191,7 @@
         "plugins/wal-hook/hooks/wal-hook.mjs"
       ],
       "path": "tickets/T8.md",
-      "updated": "2026-10-22 10:44"
+      "updated": "2026-10-22 10:49"
     },
     {
       "id": "T9",
@@ -224,17 +224,17 @@
       "id": "T10",
       "title": "Slice readContext buffer to bytes read",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 4,
       "parent": null,
-      "holder": null,
+      "holder": "ac9281bd2cf6c7174",
       "tags": [],
       "files": [
         "plugins/wal-hook/hooks/wal-hook.mjs"
       ],
       "path": "tickets/T10.md",
-      "updated": "2026-10-22 10:44"
+      "updated": "2026-10-22 10:47"
     }
   ],
   "edges": [

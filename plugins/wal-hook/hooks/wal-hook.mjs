@@ -142,11 +142,14 @@ const readContext = (path) => {
     for (let window = TAIL_START; ; window *= 4) {
       const start = Math.max(0, size - window)
       const buffer = Buffer.allocUnsafe(size - start)
-      readSync(fd, buffer, 0, buffer.length, start)
+      // A short read (file truncated since fstat) leaves the tail of the allocUnsafe buffer uninitialised,
+      // so only the bytes actually read are searched and decoded.
+      const bytesRead = readSync(fd, buffer, 0, buffer.length, start)
+      const bytes = buffer.subarray(0, bytesRead)
       // A window that starts mid-file starts mid-line; with no newline at all the whole window is partial.
       // Cutting the partial line on the bytes avoids decoding a multi-MB window that holds one line.
-      const first = start > 0 ? buffer.indexOf(10) : -1
-      const found = lastUsage(first < 0 && start > 0 ? '' : buffer.toString('utf8', first + 1))
+      const first = start > 0 ? bytes.indexOf(10) : -1
+      const found = lastUsage(first < 0 && start > 0 ? '' : bytes.toString('utf8', first + 1))
       if (found || start === 0 || window >= TAIL_MAX) return found
     }
   } finally {
