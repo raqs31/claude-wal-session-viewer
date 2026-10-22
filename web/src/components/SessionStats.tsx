@@ -182,7 +182,7 @@ function AgentTask({ title, prompt, onShowEvents }: { title: string; prompt: str
 
 // Main has no spawn prompt; the session's first prompt stands in for it.
 export function ByAgent({ view, firstPrompt, onShowEvents }: { view: SessionView; firstPrompt: string | null; onShowEvents: (agent: string) => void }) {
-  const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set(['main']))
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set())
   const flip = (set: typeof setOpen, id: string) =>
     set((s) => {

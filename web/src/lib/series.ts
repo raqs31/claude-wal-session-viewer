@@ -28,6 +28,12 @@ const step = (c: number[]): number[] => c.map((v, i) => v - (c[i - 1] ?? 0))
 // x is the call number from 1; each layer is that call's own usage.
 export const perCall = (s: SessionSeries): Columns => [s.t.map((_, i) => i + 1), ...stack(LAYERS.map((k) => step(layer(s.cumulative, k))))]
 
+// The prompt size of each call: everything it read or wrote to context, output excluded.
+export const contextPerCall = (s: SessionSeries): [number[], number[]] => {
+  const cols = (['input', 'cacheRead', 'cacheWrite'] as const).map((k) => step(layer(s.cumulative, k)))
+  return [s.t, s.t.map((_, i) => cols.reduce((a, c) => a + (c[i] ?? 0), 0))]
+}
+
 const workedTurns = (s: SessionSeries): Set<number> => {
   const cols = LAYERS.map((k) => layer(s.perTurn, k))
   return new Set(s.perTurn.input.map((_, i) => i).filter((i) => cols.some((c) => (c[i] ?? 0) > 0)))
