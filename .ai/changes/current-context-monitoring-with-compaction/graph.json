@@ -116,11 +116,11 @@
       "id": "T5",
       "title": "Context per call chart with compaction markers, Main open on load",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 3,
       "parent": null,
-      "holder": null,
+      "holder": "a153fdc08a3f9f9b4",
       "tags": [],
       "files": [
         "web/src/lib/series.ts",
@@ -130,17 +130,17 @@
         "web/src/components/SessionStats.tsx"
       ],
       "path": "tickets/T5.md",
-      "updated": "2026-10-22 10:30"
+      "updated": "2026-10-22 10:45"
     },
     {
       "id": "T6",
       "title": "Phase 3 review",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 3,
       "parent": null,
-      "holder": null,
+      "holder": "ac045f4198ef657f7",
       "tags": [],
       "files": [
         "web/src/lib/series.ts",
@@ -150,7 +150,7 @@
         "web/src/components/SessionStats.tsx"
       ],
       "path": "tickets/T6.md",
-      "updated": "2026-10-22 10:31"
+      "updated": "2026-10-22 10:46"
     },
     {
       "id": "T7",
@@ -187,10 +187,11 @@
         "package.json",
         "package-lock.json",
         "plugins/wal-hook/.claude-plugin/plugin.json",
-        "README.md"
+        "README.md",
+        "plugins/wal-hook/hooks/wal-hook.mjs"
       ],
       "path": "tickets/T8.md",
-      "updated": "2026-10-22 10:31"
+      "updated": "2026-10-22 10:44"
     },
     {
       "id": "T9",
@@ -218,6 +219,22 @@
       ],
       "path": "tickets/T9.md",
       "updated": "2026-10-22 10:31"
+    },
+    {
+      "id": "T10",
+      "title": "Slice readContext buffer to bytes read",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 4,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "plugins/wal-hook/hooks/wal-hook.mjs"
+      ],
+      "path": "tickets/T10.md",
+      "updated": "2026-10-22 10:44"
     }
   ],
   "edges": [
@@ -252,6 +269,11 @@
       "type": "depends_on"
     },
     {
+      "from": "T3",
+      "to": "T10",
+      "type": "depends_on"
+    },
+    {
       "from": "T4",
       "to": "T9",
       "type": "depends_on"
@@ -279,6 +301,11 @@
     {
       "from": "T8",
       "to": "T9",
+      "type": "depends_on"
+    },
+    {
+      "from": "T10",
+      "to": "T8",
       "type": "depends_on"
     }
   ]
