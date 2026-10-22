@@ -9,6 +9,9 @@ Implement plan.md e2e: hook context field + shell tests, benchmark, Context per 
 ## Facts
 
 - git fetch origin fails (no access); origin/main may be stale. Change folder already lives in this repo.
+- Phase 1 closed and committed as e388985: hook context step in wal-hook.mjs (lines 88-193), 12 shell cases, 35/35 pass, biome clean.
+- TS2345 guard added at wal-hook.mjs:112-113; lint, check and test pass.
+- Phase 2 open: T3 benchmark in progress; T4 review waits on T3.
 
 ## Decisions
 
@@ -23,21 +26,16 @@ Implement plan.md e2e: hook context field + shell tests, benchmark, Context per 
 <!-- tickets:start — rendered by board.py refresh -->
 | id | status | phase | holder | needs | tags | title |
 | -- | ------ | ----- | ------ | ----- | ---- | ----- |
-| T2 (review) | todo | 1 |  |  |  | Phase 1 review |
-| T3 | todo | 2 |  |  |  | Benchmark tail read on largest real transcript |
-| T4 (review) | todo | 2 |  | T3 |  | Phase 2 review |
+| T4 (review) | todo | 2 |  |  |  | Phase 2 review |
 | T5 | todo | 3 |  |  |  | Context per call chart with compaction markers, Main open on load |
 | T6 (review) | todo | 3 |  | T5 |  | Phase 3 review |
-| T7 | todo | 4 |  | T3, T5 | docs | Version 0.3.0 and README docs |
+| T7 | todo | 4 |  | T5 | docs | Version 0.3.0 and README docs |
 | T8 (review) | todo | 4 |  | T7 |  | Phase 4 review |
-| T9 (review) | todo | 5 |  | T2, T4, T6, T8 |  | Phase 5 final checks |
-Closed: T1 done
+| T9 (review) | todo | 5 |  | T4, T6, T8 |  | Phase 5 final checks |
+Closed: T1 done · T2 done · T3 done
 <!-- tickets:end -->
 
 ## Log
 
-- 2026-10-22 10:31 planner: plan done: T1, T2, T3, T4, T5, T6, T7, T8, T9
-- 2026-10-22 10:34 orchestrator: T1 done: hook context step (wal-hook.mjs:88-193) + 12 shell cases, 35/35 pass, biome clean
-- 2026-10-22 10:36 orchestrator: T2 changes: npm run check TS2345 at wal-hook.mjs:115 (lines[i] possibly undefined); T1 reopened
-- 2026-10-22 10:37 orchestrator: T1 fixed: TS2345 guard at wal-hook.mjs:112-113; lint, check, test all pass
-- 2026-10-22 10:38 orchestrator: T2 approve: phase 1 closed
+- 2026-10-22 10:39 orchestrator: T3 done: worst case +7.75ms -> guard (byte-level partial-line cut, allocUnsafe) -> +2.30ms; numbers in plan.md Review
+- 2026-10-22 10:41 orchestrator: T4 approve: phase 2 closed; 1 minor follow-up (short readSync)
