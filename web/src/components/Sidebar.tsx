@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { SessionMeta } from '../../../shared/api.ts'
+import type { SessionMeta, TrashResult } from '../../../shared/api.ts'
 import { fmtAgo, short } from '../lib/format.ts'
 import { chipValues, filterRows, groupByProject, pinPicked, sidebarSummary } from '../lib/sidebar.ts'
 import { fmtDuration } from '../lib/tokens.ts'
+import { splitBusy, summarizeResults } from '../lib/trash.ts'
 import { useStored } from '../useStored.ts'
 import { FilterActs } from './AgentPicker.tsx'
 import { Chip } from './Chip.tsx'
+import { ConfirmDialog } from './ConfirmDialog.tsx'
 import { SidePanel } from './SidePanel.tsx'
 
-export type Tab = 'events' | 'sessions'
+export type Tab = 'events' | 'sessions' | 'trash'
 const FOLDS = ['open', 'closed'] as const
 
 interface Props {
@@ -20,6 +22,8 @@ interface Props {
   pick: readonly string[]
   toggle: (id: string) => void
   clear: () => void
+  drop: (ids: readonly string[]) => void
+  refresh: () => Promise<void>
   unseen: (row: SessionMeta) => number
   pinned: boolean
   onPin: () => void
@@ -32,7 +36,7 @@ const HIDE_MS = 120
 
 const base = (p: string) => p.replace(/\/+$/, '').split('/').pop() || p
 
-export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, unseen, pinned, onPin, tab, onTab }: Props) {
+export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, drop, refresh, unseen, pinned, onPin, tab, onTab }: Props) {
   const [chips, setChips] = useState<ReadonlySet<string>>(new Set())
   const [not, setNot] = useState(false)
   const [project, setProject] = useState('')
@@ -66,6 +70,38 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, uns
   const chosen = all.find((g) => g.slug === project)
   const projectOf = new Map(all.flatMap((g) => g.rows.map((r) => [r.id, label(g)] as const)))
   const summary = sidebarSummary({ chips, not, project, text }, chosen ? label(chosen) : project)
+
+  const [ask, setAsk] = useState<{ title: string; rows: readonly SessionMeta[] } | null>(null)
+  const [note, setNote] = useState<string | null>(null)
+  const confirmMove = (title: string, set: readonly SessionMeta[]) => {
+    setNote(null)
+    setAsk({ title, rows: set })
+  }
+  const pickedRows = pick.flatMap((id) => sessions.find((s) => s.id === id) ?? [])
+  const parts = ask && splitBusy(ask.rows)
+  const itemName = (r: SessionMeta) => (r.title ? `${r.title} · ${short(r.id)}` : short(r.id))
+  // Busy sessions are never sent; they count in the summary as the server would report them.
+  const moveToTrash = async (movable: readonly SessionMeta[], skipped: readonly SessionMeta[]) => {
+    setAsk(null)
+    try {
+      let results: TrashResult[] = []
+      if (movable.length) {
+        const res = await fetch('/trash', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ ids: movable.map((r) => r.id) }),
+        })
+        if (!res.ok) throw new Error(`error ${res.status}`)
+        results = ((await res.json()) as { results: TrashResult[] }).results
+      }
+      const moved = results.filter((r) => r.status === 'ok').map((r) => r.id)
+      if (moved.length) drop(moved)
+      setNote(summarizeResults([...results, ...skipped.map((r): TrashResult => ({ id: r.id, status: 'live' }))]))
+    } catch (e) {
+      setNote(`could not move to trash (${(e as Error).message})`)
+    }
+    await refresh()
+  }
 
   const [tip, setTip] = useState<{ id: string; el: HTMLElement } | null>(null)
   const timer = useRef<number | undefined>(undefined)
@@ -213,13 +249,26 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, uns
             <button className="chip" type="button" aria-pressed={tab === 'sessions'} onClick={() => onTab('sessions')}>
               Sessions
             </button>
+            <button className="chip" type="button" aria-pressed={tab === 'trash'} onClick={() => onTab('trash')}>
+              Trash
+            </button>
           </fieldset>
         </div>
         <div className="sb-n">
-          {error !== null
-            ? `could not load sessions (${error})`
-            : `${shown}/${sessions.length} sessions · ${pick.length ? `${pick.length} picked` : 'all sessions'}`}
+          <span>
+            {error !== null
+              ? `could not load sessions (${error})`
+              : `${shown}/${sessions.length} sessions · ${pick.length ? `${pick.length} picked` : 'all sessions'}`}
+          </span>
+          <button className="ghost danger sb-del" type="button" disabled={!rows.length} onClick={() => confirmMove(`Delete ${rows.length} filtered`, rows)}>
+            Delete {rows.length} filtered
+          </button>
         </div>
+        {note !== null && (
+          <div className="sb-note" role="status">
+            {note}
+          </div>
+        )}
         {pick.length > 0 && (
           <div className="sb-chips sb-pk">
             {pick.map((id) => {
@@ -234,6 +283,9 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, uns
             })}
             <button className="chip" type="button" onClick={clear}>
               Clear all
+            </button>
+            <button className="ghost danger sb-del" type="button" disabled={!pickedRows.length} onClick={() => confirmMove('Delete picked', pickedRows)}>
+              Delete picked
             </button>
           </div>
         )}
@@ -325,6 +377,23 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, uns
             asideRef.current?.closest('.viz-root') ?? document.body,
           )}
       </div>
+      {ask &&
+        parts &&
+        createPortal(
+          <ConfirmDialog
+            title={ask.title}
+            confirmLabel="Move to trash"
+            items={[...parts.movable.map((r) => ({ name: itemName(r) })), ...parts.skipped.map((s) => ({ name: itemName(s.session), skipped: s.why }))]}
+            onConfirm={() =>
+              void moveToTrash(
+                parts.movable,
+                parts.skipped.map((s) => s.session),
+              )
+            }
+            onCancel={() => setAsk(null)}
+          />,
+          asideRef.current?.closest('.viz-root') ?? document.body,
+        )}
     </SidePanel>
   )
 }

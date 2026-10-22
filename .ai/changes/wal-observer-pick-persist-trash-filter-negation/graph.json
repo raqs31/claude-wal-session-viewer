@@ -396,32 +396,33 @@
       "id": "T17",
       "title": "Sidebar Delete picked / Delete N filtered actions",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 5,
       "parent": null,
-      "holder": null,
+      "holder": "acf892df25ec5b419",
       "tags": [
         "risk-high"
       ],
       "files": [
         "web/src/components/Sidebar.tsx",
         "web/src/App.tsx",
+        "web/src/usePick.ts",
         "web/src/styles.css",
         ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
       ],
       "path": "tickets/T17.md",
-      "updated": "2026-10-22 12:56"
+      "updated": "2026-10-22 14:47"
     },
     {
       "id": "T18",
       "title": "Trash tab: list, restore, delete forever, empty trash; README",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 5,
       "parent": null,
-      "holder": null,
+      "holder": "ae80937f893f452da",
       "tags": [
         "risk-high"
       ],
@@ -435,17 +436,17 @@
         ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
       ],
       "path": "tickets/T18.md",
-      "updated": "2026-10-22 12:56"
+      "updated": "2026-10-22 14:56"
     },
     {
       "id": "T19",
       "title": "Phase 5 review: trash UI",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 5,
       "parent": null,
-      "holder": null,
+      "holder": "a977796b9fa487824",
       "tags": [],
       "files": [
         "web/src/lib/trash.ts",
@@ -453,6 +454,10 @@
         "web/src/components/ConfirmDialog.tsx",
         "web/src/components/Sidebar.tsx",
         "web/src/App.tsx",
+        "web/src/usePick.ts",
+        "web/src/useSessions.ts",
+        "web/src/lib/pick.ts",
+        "web/src/lib/pick.test.ts",
         "web/src/components/TrashTab.tsx",
         "web/src/useTrash.ts",
         "web/src/styles.css",
@@ -460,7 +465,7 @@
         ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
       ],
       "path": "tickets/T19.md",
-      "updated": "2026-10-22 12:56"
+      "updated": "2026-10-22 15:14"
     },
     {
       "id": "T20",
@@ -563,6 +568,67 @@
       ],
       "path": "tickets/T24.md",
       "updated": "2026-10-22 14:38"
+    },
+    {
+      "id": "T25",
+      "title": "Pick: revive restored ids, drop marks gone, honour wal.pick removal",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 5,
+      "parent": null,
+      "holder": "a1b207b5dfb3cef90",
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "web/src/usePick.ts",
+        "web/src/useSessions.ts",
+        "web/src/lib/pick.ts",
+        "web/src/lib/pick.test.ts",
+        "web/src/App.tsx"
+      ],
+      "path": "tickets/T25.md",
+      "updated": "2026-10-22 15:08"
+    },
+    {
+      "id": "T26",
+      "title": "ConfirmDialog: key rows by index",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 5,
+      "parent": null,
+      "holder": "a0d5655e7626475a5",
+      "tags": [],
+      "files": [
+        "web/src/components/ConfirmDialog.tsx"
+      ],
+      "path": "tickets/T26.md",
+      "updated": "2026-10-22 15:04"
+    },
+    {
+      "id": "T27",
+      "title": "Trash tab: empty only listed refs, refetch after sidebar moves, result labels",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 5,
+      "parent": null,
+      "holder": "a89548afeaf86bed9",
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "web/src/components/TrashTab.tsx",
+        "web/src/useTrash.ts",
+        "web/src/App.tsx",
+        "web/src/lib/trash.ts",
+        "web/src/lib/trash.test.ts",
+        "README.md"
+      ],
+      "path": "tickets/T27.md",
+      "updated": "2026-10-22 15:12"
     }
   ],
   "edges": [
@@ -734,6 +800,26 @@
     {
       "from": "T24",
       "to": "T14",
+      "type": "depends_on"
+    },
+    {
+      "from": "T25",
+      "to": "T19",
+      "type": "depends_on"
+    },
+    {
+      "from": "T25",
+      "to": "T27",
+      "type": "depends_on"
+    },
+    {
+      "from": "T26",
+      "to": "T19",
+      "type": "depends_on"
+    },
+    {
+      "from": "T27",
+      "to": "T19",
       "type": "depends_on"
     }
   ]
