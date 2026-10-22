@@ -197,11 +197,11 @@
       "id": "T8",
       "title": "Sidebar chips All / None / Not: filter rule, controls, README",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 3,
       "parent": null,
-      "holder": null,
+      "holder": "ae7e18c9cf2f57ae9",
       "tags": [],
       "files": [
         "web/src/lib/sidebar.ts",
@@ -212,17 +212,17 @@
         ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
       ],
       "path": "tickets/T8.md",
-      "updated": "2026-10-22 13:56"
+      "updated": "2026-10-22 14:07"
     },
     {
       "id": "T9",
       "title": "Phase 3 review: All / None / Not on the sidebar chips",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 3,
       "parent": null,
-      "holder": null,
+      "holder": "a6204ca01a4b4da95",
       "tags": [],
       "files": [
         "web/src/lib/sidebar.ts",
@@ -233,7 +233,7 @@
         ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
       ],
       "path": "tickets/T9.md",
-      "updated": "2026-10-22 12:53"
+      "updated": "2026-10-22 14:09"
     },
     {
       "id": "T10",

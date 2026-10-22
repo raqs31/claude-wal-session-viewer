@@ -101,14 +101,16 @@ empty, so a rerun is a no-op. The viewer shows a banner while legacy files remai
   tags stripped; newlines kept, scrollable), or none when no first message is stored; Escape or
   moving away hides it. Names and titles come from the transcript's first 1 MB (up to the first
   prompt) and its last 256 KB, so a rename seen in neither shows the auto title instead; the first
-  message is cut at 8192 characters. Filter by source or workspace chip, project or text. Click a
-  session row to pick or unpick it; picked sessions are pinned on top under Selected and listed as
-  chips with a × each, plus Clear all. The pick is kept in the browser (`localStorage` key
-  `wal.pick`), so a refresh restores it and every open tab follows a pick made in another; only
-  picking, unpicking and Clear all store it. With nothing stored, the page opens with the most
-  recently active session picked; a stored empty pick restores as all sessions. When none of the
-  picked sessions is listed any more, the most recently active one is shown instead (not all
-  sessions) until the pick changes. An empty pick means all sessions on the Events tab. The arrow in its top corner pins or unpins it:
+  message is cut at 8192 characters. Filter by source or workspace chip, project or text. The chips
+  have All, None and Not like the Events filters: Not hides the sessions whose source or any
+  workspace is ticked, and the collapsed summary shows it as `≠ default, work`. Click a session row
+  to pick or unpick it; picked sessions are pinned on top under Selected and listed as chips with a
+  × each, plus Clear all. The pick is kept in the browser (`localStorage` key `wal.pick`), so a
+  refresh restores it and every open tab follows a pick made in another; only picking, unpicking and
+  Clear all store it. With nothing stored, the page opens with the most recently active session
+  picked; a stored empty pick restores as all sessions. When none of the picked sessions is listed
+  any more, the most recently active one is shown instead (not all sessions) until the pick changes.
+  An empty pick means all sessions on the Events tab. The arrow in its top corner pins or unpins it:
   pinned, it stays shown; unpinned, it hides and slides in when the pointer reaches the left edge.
 -  **Usage tiles**: token and cost totals for the picked sessions, updated live. On Events they top
   the sticky head under the header; on Sessions they sit under the header and scroll away.

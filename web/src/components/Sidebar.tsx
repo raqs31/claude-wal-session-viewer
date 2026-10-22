@@ -5,6 +5,7 @@ import { fmtAgo, short } from '../lib/format.ts'
 import { chipValues, filterRows, groupByProject, pinPicked, sidebarSummary } from '../lib/sidebar.ts'
 import { fmtDuration } from '../lib/tokens.ts'
 import { useStored } from '../useStored.ts'
+import { FilterActs } from './AgentPicker.tsx'
 import { Chip } from './Chip.tsx'
 import { SidePanel } from './SidePanel.tsx'
 
@@ -33,6 +34,7 @@ const base = (p: string) => p.replace(/\/+$/, '').split('/').pop() || p
 
 export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, unseen, pinned, onPin, tab, onTab }: Props) {
   const [chips, setChips] = useState<ReadonlySet<string>>(new Set())
+  const [not, setNot] = useState(false)
   const [project, setProject] = useState('')
   const [text, setText] = useState('')
   const [fold, setFold] = useStored('wal.sbfilters', FOLDS, 'open')
@@ -43,23 +45,27 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, uns
   const all = useMemo(() => groupByProject(sessions), [sessions])
   // A 5 s poll re-sorts live sessions by `last`, which would move rows under the pointer between aim and click.
   const [frozen, setFrozen] = useState<ReadonlyMap<string, number> | null>(null)
-  const rows = useMemo(() => filterRows(sessions, { chips, project, text }), [sessions, chips, project, text])
+  const rows = useMemo(() => filterRows(sessions, { chips, not, project, text }), [sessions, chips, not, project, text])
   const top = useMemo(() => pinPicked(sessions, pick).picked, [sessions, pick])
   const rest = useMemo(() => pinPicked(rows, pick).rest, [rows, pick])
   const groups = useMemo(() => groupByProject(rest, frozen ? (r) => frozen.get(r.id) ?? 0 : undefined), [rest, frozen])
   const picked = new Set(pick)
   const shown = top.length + groups.reduce((n, g) => n + g.rows.length, 0)
   const now = Date.now()
-  const flip = (c: string) =>
-    setChips((s) => {
-      const n = new Set(s)
-      if (!n.delete(c)) n.add(c)
-      return n
-    })
+  // Emptying the chips also drops Not, so the next tick starts as an include again.
+  const put = (n: ReadonlySet<string>) => {
+    setChips(n)
+    if (!n.size) setNot(false)
+  }
+  const flip = (c: string) => {
+    const n = new Set(chips)
+    if (!n.delete(c)) n.add(c)
+    put(n)
+  }
   const label = (g: { slug: string; cwd: string | null }) => (g.cwd ? base(g.cwd) : g.slug)
   const chosen = all.find((g) => g.slug === project)
   const projectOf = new Map(all.flatMap((g) => g.rows.map((r) => [r.id, label(g)] as const)))
-  const summary = sidebarSummary({ chips, project, text }, chosen ? label(chosen) : project)
+  const summary = sidebarSummary({ chips, not, project, text }, chosen ? label(chosen) : project)
 
   const [tip, setTip] = useState<{ id: string; el: HTMLElement } | null>(null)
   const timer = useRef<number | undefined>(undefined)
@@ -243,7 +249,14 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, uns
             {folded ? ['▸ Filters', ...(summary.length ? summary : ['none'])].join(' · ') : '▾ Filters'}
           </button>
           <div className="sb-fs" id="sbfilters" hidden={folded}>
-            <div className="sb-chips">
+            <FilterActs
+              ticked={chips.size > 0}
+              not={not}
+              onAll={() => setChips(new Set(chipValues(sessions)))}
+              onNone={() => put(new Set())}
+              onNot={() => setNot((v) => !v)}
+            />
+            <div className="sb-chips" data-not={not ? '' : undefined}>
               {chipValues(sessions).map((c) => (
                 <Chip key={c} label={c} color="var(--cat-mcp)" on={chips.has(c)} onClick={() => flip(c)} />
               ))}

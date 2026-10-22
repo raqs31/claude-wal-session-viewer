@@ -635,15 +635,15 @@ first use.
 
 #### Automated
 
-- [ ] 3.1 Sidebar rule tests pass
-- [ ] 3.2 Full suite passes
-- [ ] 3.3 Types check
-- [ ] 3.4 Lint passes
+- [x] 3.1 Sidebar rule tests pass
+- [x] 3.2 Full suite passes
+- [x] 3.3 Types check
+- [x] 3.4 Lint passes
 
 #### Manual
 
-- [ ] 3.5 Not on `default` hides default source and workspace sessions
-- [ ] 3.6 All / None tick and untick every chip
+- [x] 3.5 Not on `default` hides default source and workspace sessions
+- [x] 3.6 All / None tick and untick every chip
 
 ### Phase 4: Trash on the server
 

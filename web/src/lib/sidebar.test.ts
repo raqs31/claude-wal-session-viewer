@@ -19,7 +19,7 @@ const row = (id: string, o: Partial<SessionMeta> = {}): SessionMeta => ({
   transcriptSize: 0,
   ...o,
 })
-const NONE: SidebarFilter = { chips: new Set(), project: '', text: '' }
+const NONE: SidebarFilter = { chips: new Set(), not: false, project: '', text: '' }
 const ids = (rs: readonly SessionMeta[]) => rs.map((r) => r.id)
 
 const rows = [
@@ -38,6 +38,18 @@ test('a chip matches the source or any workspace', () => {
   assert.deepEqual(ids(filterRows(rows, { ...NONE, chips: new Set(['work', 'unknown']) })), ['b', 'c'])
 })
 
+test('Not with a source chip hides the rows of that source', () => {
+  assert.deepEqual(ids(filterRows(rows, { ...NONE, chips: new Set(['work']), not: true })), ['a', 'c'])
+})
+
+test('Not with a workspace chip hides rows having that workspace', () => {
+  assert.deepEqual(ids(filterRows(rows, { ...NONE, chips: new Set(['priv']), not: true })), ['b', 'c'])
+})
+
+test('Not with empty chips filters nothing', () => {
+  assert.deepEqual(ids(filterRows(rows, { ...NONE, not: true })), ['a', 'b', 'c'])
+})
+
 test('text matches every word, case-insensitive, across title, id, project and worktree', () => {
   assert.deepEqual(ids(filterRows(rows, { ...NONE, text: 'LOGIN' })), ['a', 'c'])
   assert.deepEqual(ids(filterRows(rows, { ...NONE, text: 'login feat' })), ['c'])
@@ -46,9 +58,9 @@ test('text matches every word, case-insensitive, across title, id, project and w
 })
 
 test('chip AND project AND text all apply', () => {
-  assert.deepEqual(ids(filterRows(rows, { chips: new Set(['default']), project: 'p', text: 'login' })), ['a', 'c'])
-  assert.deepEqual(ids(filterRows(rows, { chips: new Set(['default']), project: 'p', text: 'page' })), ['c'])
-  assert.deepEqual(ids(filterRows(rows, { chips: new Set(['work']), project: 'p', text: '' })), [])
+  assert.deepEqual(ids(filterRows(rows, { chips: new Set(['default']), not: false, project: 'p', text: 'login' })), ['a', 'c'])
+  assert.deepEqual(ids(filterRows(rows, { chips: new Set(['default']), not: false, project: 'p', text: 'page' })), ['c'])
+  assert.deepEqual(ids(filterRows(rows, { chips: new Set(['work']), not: false, project: 'p', text: '' })), [])
 })
 
 test('chip values are the sorted union of sources and workspaces', () => {
@@ -90,8 +102,12 @@ test('a tie keeps list order; a worktree-only group takes the worktree cwd; no c
 
 test('summary lists only active sidebar filters', () => {
   assert.deepEqual(sidebarSummary(NONE, ''), [])
-  assert.deepEqual(sidebarSummary({ chips: new Set(['priv']), project: 'p', text: ' bug ' }, 'unix_conf'), ['priv', 'project: unix_conf', 'q: bug'])
+  assert.deepEqual(sidebarSummary({ chips: new Set(['priv']), not: false, project: 'p', text: ' bug ' }, 'unix_conf'), ['priv', 'project: unix_conf', 'q: bug'])
   assert.deepEqual(sidebarSummary({ ...NONE, chips: new Set(['a', 'b', 'c']) }, ''), ['chips: 3'])
+})
+
+test('summary marks negated chips', () => {
+  assert.deepEqual(sidebarSummary({ ...NONE, chips: new Set(['default', 'work']), not: true }, ''), ['≠ default, work'])
 })
 
 test('a frozen lastOf holds row and group order while `last` moves between polls', () => {
