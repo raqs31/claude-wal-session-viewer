@@ -1,0 +1,95 @@
+flowchart LR
+  classDef todo fill:#e5e7eb,stroke:#374151,color:#111827
+  classDef in_progress fill:#bfdbfe,stroke:#374151,color:#111827
+  classDef review fill:#ddd6fe,stroke:#374151,color:#111827
+  classDef blocked fill:#fecaca,stroke:#374151,color:#111827
+  classDef user_review fill:#fde68a,stroke:#374151,color:#111827
+  classDef done fill:#bbf7d0,stroke:#374151,color:#111827
+  classDef declined fill:#f3f4f6,stroke:#374151,color:#111827
+  subgraph phase_1["Phase 1"]
+    T1["T1 · Pick rules: stored-pick validator and wanted-to-effective derivation #interface #risk-high"]
+    T2["T2 · usePick: persist wanted pick in wal.pick, sync tabs, write only on intent #risk-high"]
+    T3{{"T3 · Phase 1 review: persist the session pick"}}
+    T22["T22 · Pick cleanup: effective(null) uses the frozen fallback, toggle/drop read latest via refs"]
+  end
+  subgraph phase_2["Phase 2"]
+    T4["T4 · Server negation: cat_not, tool_not, event_not, agent_not in matcher #interface"]
+    T5["T5 · Client filter model: Filters.not, _not params, summary, agent selectAll #interface"]
+    T6["T6 · Filter panel All / None / Not controls and README"]
+    T7{{"T7 · Phase 2 review: All / None / Not on the Events filter panel"}}
+  end
+  subgraph phase_3["Phase 3"]
+    T8["T8 · Sidebar chips All / None / Not: filter rule, controls, README"]
+    T9{{"T9 · Phase 3 review: All / None / Not on the sidebar chips"}}
+  end
+  subgraph phase_4["Phase 4"]
+    T10["T10 · Trash groundwork: shared types, SessionMeta.busy, cache drops, discovery Found accessor #interface #risk-high"]
+    T11["T11 · Trash module, trash/restore/purge routes and same-origin guard #security #risk-high"]
+    T12["T12 · Dev proxy for /trash and README trash docs; manual curl checks #config #docs"]
+    T13{{"T13 · Security review: trash routes and same-origin guard"}}
+    T14{{"T14 · Phase 4 review: trash on the server"}}
+  end
+  subgraph phase_5["Phase 5"]
+    T15["T15 · Trash client helpers: busy split and result summary #interface"]
+    T16["T16 · ConfirmDialog component on native dialog #interface"]
+    T17["T17 · Sidebar Delete picked / Delete N filtered actions #risk-high"]
+    T18["T18 · Trash tab: list, restore, delete forever, empty trash; README #risk-high"]
+    T19{{"T19 · Phase 5 review: trash UI"}}
+  end
+  subgraph phase_6["Phase 6"]
+    T20["T20 · Release 0.4.0: version bump and README consistency pass #docs #config"]
+    T21{{"T21 · Phase 6 review: release 0.4.0"}}
+  end
+  T1 --> T2
+  T1 --> T3
+  T1 --> T22
+  T2 --> T3
+  T2 --> T22
+  T4 --> T6
+  T4 --> T7
+  T5 --> T6
+  T5 --> T7
+  T6 --> T7
+  T6 --> T8
+  T8 --> T9
+  T10 --> T11
+  T10 --> T14
+  T10 --> T15
+  T11 --> T12
+  T11 --> T13
+  T11 --> T14
+  T11 --> T17
+  T12 --> T14
+  T13 --> T14
+  T15 --> T17
+  T15 --> T19
+  T16 --> T17
+  T16 --> T19
+  T17 --> T18
+  T17 --> T19
+  T18 --> T19
+  T19 --> T20
+  T20 --> T21
+  T22 --> T3
+  class T1 done
+  class T2 done
+  class T3 done
+  class T4 done
+  class T5 done
+  class T6 done
+  class T7 todo
+  class T8 todo
+  class T9 todo
+  class T10 todo
+  class T11 todo
+  class T12 todo
+  class T13 todo
+  class T14 todo
+  class T15 todo
+  class T16 todo
+  class T17 todo
+  class T18 todo
+  class T19 todo
+  class T20 todo
+  class T21 todo
+  class T22 done
