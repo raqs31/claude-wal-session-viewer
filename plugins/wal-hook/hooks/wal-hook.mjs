@@ -17,8 +17,12 @@
 //   3. One writeSync per event to an O_APPEND fd. Hooks for parallel tool calls and subagents
 //      run concurrently against this same file; a partial write would corrupt neighbouring
 //      lines, not just its own. Verified: 40 concurrent writers x 20 lines @ 9KB -> 0 corrupt.
+//
+// PostToolUse, PostToolUseFailure, Stop and SubagentStop records also carry `context`: the size
+// of the firing agent's last API call, read from the tail of that agent's own transcript. Any
+// failure there only omits the field; the record is still appended.
 
-import { appendFileSync, mkdirSync, realpathSync } from 'node:fs'
+import { appendFileSync, closeSync, fstatSync, mkdirSync, openSync, readSync, realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 
@@ -81,6 +85,75 @@ const workspaceName = () => {
   }
 }
 
+const CONTEXT_EVENTS = ['PostToolUse', 'PostToolUseFailure', 'Stop', 'SubagentStop']
+const TAIL_START = 64 * 1024
+const TAIL_MAX = 4 * 1024 * 1024
+
+// PostToolUse inside a subagent sends the MAIN transcript_path plus agent_id; reading that file
+// would report the main agent's context for the subagent's event.
+/** @param {Record<string, unknown>} parsed */
+const agentTranscript = (parsed) => {
+  const own = parsed.agent_transcript_path
+  if (typeof own === 'string' && own.endsWith('.jsonl')) return own
+  const transcript = parsed.transcript_path
+  if (parsed.agent_id !== undefined) {
+    const id = parsed.agent_id
+    if (typeof id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(id)) return null
+    if (typeof transcript !== 'string' || !transcript.endsWith('.jsonl')) return null
+    return join(transcript.slice(0, -'.jsonl'.length), 'subagents', `agent-${id}.jsonl`)
+  }
+  return typeof transcript === 'string' ? transcript : null
+}
+
+/** @param {string} text */
+const lastUsage = (text) => {
+  const lines = text.split('\n')
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i]
+    if (!line) continue
+    let entry
+    try {
+      entry = JSON.parse(line)
+    } catch {
+      continue
+    }
+    const message = entry?.message
+    // `<synthetic>` lines (API errors) carry all-zero usage and would report an empty context.
+    if (entry?.type !== 'assistant' || !message?.usage || message.model === '<synthetic>') continue
+    /** @param {unknown} n */
+    const num = (n) => (typeof n === 'number' ? n : 0)
+    const u = message.usage
+    return {
+      tokens: num(u.input_tokens) + num(u.cache_read_input_tokens) + num(u.cache_creation_input_tokens),
+      output: num(u.output_tokens),
+      model: message.model,
+    }
+  }
+  return null
+}
+
+// Scanning from the end, the first qualifying line is the last of its message.id group: the final
+// streaming snapshot, so duplicates of one reply are never summed.
+/** @param {string} path */
+const readContext = (path) => {
+  const fd = openSync(path, 'r')
+  try {
+    const { size } = fstatSync(fd)
+    for (let window = TAIL_START; ; window *= 4) {
+      const start = Math.max(0, size - window)
+      const buffer = Buffer.alloc(size - start)
+      readSync(fd, buffer, 0, buffer.length, start)
+      let text = buffer.toString('utf8')
+      // A window that starts mid-file starts mid-line; with no newline at all the whole window is partial.
+      if (start > 0) text = text.includes('\n') ? text.slice(text.indexOf('\n') + 1) : ''
+      const found = lastUsage(text)
+      if (found || start === 0 || window >= TAIL_MAX) return found
+    }
+  } finally {
+    closeSync(fd)
+  }
+}
+
 const main = async () => {
   const raw = await readStdin()
 
@@ -109,6 +182,15 @@ const main = async () => {
   } else {
     record.event = 'Unparseable'
     record.raw = clamp(raw)
+  }
+
+  if (parsed && typeof parsed === 'object' && CONTEXT_EVENTS.includes(record.event ?? '')) {
+    // Own try/catch: a throw reaching main's caller would skip the append below and lose the record.
+    try {
+      const path = agentTranscript(parsed)
+      const context = path ? readContext(path) : null
+      if (context) record.context = context
+    } catch {}
   }
 
   let line = JSON.stringify(record)
