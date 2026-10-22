@@ -1,6 +1,6 @@
 {
   "name": "@raqs31/claude-wal-session-viewer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A local viewer for Claude Code sessions: lifecycle events recorded by the wal-hook plugin, and token usage and cost read from the transcripts.",
   "repository": {
     "type": "git",
