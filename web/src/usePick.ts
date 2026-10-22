@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SessionMeta } from '../../shared/api.ts'
-import { effective, toggle as flip, prune, samePick, storedPick } from './lib/pick.ts'
+import { effective, toggle as flip, prune, revive, samePick, storedPick } from './lib/pick.ts'
 import { advance, type Baselines, isBaselines, unseen } from './lib/unseen.ts'
 import { useStoredJson } from './useStoredJson.ts'
 
@@ -17,9 +17,9 @@ const parse = (raw: string | null): string[] | null => {
 // `wanted` is what storage holds and the tabs share; `pick` is what this tab shows (see effective),
 // null until the first /sessions lands. Storage is written only by toggle, clear and drop: writing back
 // a pruned or fallback pick is what made a tab re-pick the newest session in the other tabs.
-export function usePick(sessions: readonly SessionMeta[] | null) {
+export function usePick(sessions: readonly SessionMeta[] | null, listedAt: number | null) {
   const [wanted, setWanted] = useState(() => parse(localStorage.getItem(KEY)))
-  const [gone, setGone] = useState<readonly string[]>([])
+  const [gone, setGone] = useState<ReadonlyMap<string, number>>(() => new Map())
   const [pick, setPick] = useState<string[] | null>(null)
   const fallback = useRef<string | null>(null)
   // toggle and drop read these, not the render's values: two calls in one JS task would otherwise both
@@ -27,7 +27,7 @@ export function usePick(sessions: readonly SessionMeta[] | null) {
   const wantedRef = useRef(wanted)
   const shownRef = useRef<string[] | null>(null)
 
-  const adopt = useCallback((w: string[]) => {
+  const adopt = useCallback((w: string[] | null) => {
     fallback.current = null
     wantedRef.current = w
     setWanted(w)
@@ -43,7 +43,10 @@ export function usePick(sessions: readonly SessionMeta[] | null) {
 
   useEffect(() => {
     const on = (e: StorageEvent) => {
-      const w = e.key === KEY ? parse(e.newValue) : null
+      if (e.key !== KEY) return
+      // Another tab's drop emptied the pick: show the newest session here too, not the old pick.
+      if (e.newValue === null) return adopt(null)
+      const w = parse(e.newValue)
       if (w) adopt(w)
     }
     addEventListener('storage', on)
@@ -51,32 +54,46 @@ export function usePick(sessions: readonly SessionMeta[] | null) {
   }, [adopt])
 
   useEffect(() => {
-    if (sessions === null) return
+    if (sessions === null || listedAt === null) return
+    const back = revive(gone, sessions, listedAt)
+    if (back !== gone) return setGone(back)
+    const ids = [...gone.keys()]
     // A frozen fallback that left the list would otherwise stay shown, since nothing re-picks it.
     let f = fallback.current
-    if (f !== null && (gone.includes(f) || !sessions.some((s) => s.id === f))) f = null
-    const n = effective(wanted, sessions, gone, f)
-    fallback.current = wanted === null || (wanted.length && !prune(wanted, sessions, gone).length) ? (n[0] ?? null) : null
+    if (f !== null && (ids.includes(f) || !sessions.some((s) => s.id === f))) f = null
+    const n = effective(wanted, sessions, ids, f)
+    fallback.current = wanted === null || (wanted.length && !prune(wanted, sessions, ids).length) ? (n[0] ?? null) : null
     shownRef.current = n
     setPick((p) => (p !== null && samePick(p, n) ? p : n))
-  }, [sessions, wanted, gone])
+  }, [sessions, listedAt, wanted, gone])
 
-  // For the `unknown` ids a query or stream reports. Keeping the old array spares consumers a requery.
+  // For the `unknown` ids a query or stream reports. Stamped, so a list requested later can revive them.
   const forget = useCallback((ids: readonly string[]) => {
-    setGone((g) => {
-      const add = [...new Set(ids)].filter((id) => !g.includes(id))
-      return add.length ? [...g, ...add] : g
-    })
+    if (!ids.length) return
+    const at = Date.now()
+    setGone((g) => new Map([...g, ...ids.map((id): [string, number] => [id, at])]))
   }, [])
   const clear = useCallback(() => save([]), [save])
   const toggle = useCallback((id: string) => save(flip(shownRef.current ?? [], id)), [save])
   // After a trash. Nothing stored stays nothing stored: the newest listed session is shown either way.
   const drop = useCallback(
     (ids: readonly string[]) => {
+      // The list held until the next refresh still has them; the fallback must not land on one.
+      forget(ids)
       const w = wantedRef.current
-      if (w !== null) save(w.filter((id) => !ids.includes(id)))
+      if (w === null) return
+      const shown = (shownRef.current ?? []).filter((id) => !ids.includes(id))
+      const left = w.filter((id) => !ids.includes(id))
+      if (left.length || !w.length) save(left)
+      else {
+        // A stored [] would show all sessions; nothing stored shows the newest, frozen.
+        localStorage.removeItem(KEY)
+        adopt(null)
+      }
+      // save points the ref at the stored list, ids this tab does not list included; a toggle in the same task would write them back.
+      shownRef.current = shown
     },
-    [save],
+    [save, adopt, forget],
   )
 
   return { pick, toggle, clear, forget, drop }

@@ -37,6 +37,9 @@ flowchart LR
     T17["T17 · Sidebar Delete picked / Delete N filtered actions #risk-high"]
     T18["T18 · Trash tab: list, restore, delete forever, empty trash; README #risk-high"]
     T19{{"T19 · Phase 5 review: trash UI"}}
+    T25["T25 · Pick: revive restored ids, drop marks gone, honour wal.pick removal #risk-high"]
+    T26["T26 · ConfirmDialog: key rows by index"]
+    T27["T27 · Trash tab: empty only listed refs, refetch after sidebar moves, result labels #risk-high"]
   end
   subgraph phase_6["Phase 6"]
     T20["T20 · Release 0.4.0: version bump and README consistency pass #docs #config"]
@@ -76,6 +79,10 @@ flowchart LR
   T22 --> T3
   T23 --> T7
   T24 --> T14
+  T25 --> T19
+  T25 --> T27
+  T26 --> T19
+  T27 --> T19
   class T1 done
   class T2 done
   class T3 done
@@ -92,11 +99,14 @@ flowchart LR
   class T14 done
   class T15 done
   class T16 done
-  class T17 todo
-  class T18 todo
-  class T19 todo
+  class T17 done
+  class T18 done
+  class T19 done
   class T20 todo
   class T21 todo
   class T22 done
   class T23 done
   class T24 done
+  class T25 done
+  class T26 done
+  class T27 done

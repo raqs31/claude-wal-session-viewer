@@ -106,7 +106,7 @@ If the server dies in between, a session can be left with a suffixed file; strip
 ## The page
 
 -  **Header**: the page title, the sessions root (Sessions only) and Toggle theme; it stays at the
-  top on both tabs.
+  top on every tab.
 -  **Sidebar**: lists sessions grouped by project, each with a live/idle dot, workspace and worktree
   badges, length and age (`2h 14m · 5m`: first transcript entry to last write, so a live session's
   length is so far; just the age when the start is unknown; both times on hover) and a `+N` count of
@@ -127,10 +127,16 @@ If the server dies in between, a session can be left with a suffixed file; strip
   Clear all store it. With nothing stored, the page opens with the most recently active session
   picked; a stored empty pick restores as all sessions. When none of the picked sessions is listed
   any more, the most recently active one is shown instead (not all sessions) until the pick changes.
+  **Delete picked** (beside Clear all) and **Delete N filtered** (on the count line; N is the number
+  of sessions the filters match) move those sessions to the [trash](#trash) after a dialog that lists
+  them; busy ones are listed as skipped (`live` or `not ended`) and stay. The result shows as one line
+  under the count (`2 moved · 1 live skipped`), and moved sessions leave the pick; when that empties
+  it, the most recently active session is shown.
   An empty pick means all sessions on the Events tab. The arrow in its top corner pins or unpins it:
   pinned, it stays shown; unpinned, it hides and slides in when the pointer reaches the left edge.
 -  **Usage tiles**: token and cost totals for the picked sessions, updated live. On Events they top
-  the sticky head under the header; on Sessions they sit under the header and scroll away.
+  the sticky head under the header; on Sessions they sit under the header and scroll away; Trash has
+  none.
 -  **Events**: the WAL rows of the picked sessions. A sticky head under the header keeps the usage
   tiles and one line in view while you scroll: the matching total with shown and recorded counts, a
   length (each picked session's first to last matching event, summed; it grows with live rows), a
@@ -157,6 +163,14 @@ If the server dies in between, a session can be left with a suffixed file; strip
   "Context per call" first, with a marker at each compaction, then cumulative tokens and tokens per
   API call. The Main row is open on load. Agents with 0 calls get none. It shows no event list; that
   is the Events tab.
+-  **Trash**: the trashed sessions of every source, latest trash date first, with name, project,
+  source, trashed date and size. Each row has Restore and Delete forever; ticked rows (the header box
+  ticks all) take Restore selected and Delete selected, and Empty trash deletes every listed session.
+  Deleting for good opens a dialog whose button stays disabled until you type `yes`. The list loads
+  when the tab opens, after each action and after a move from the sidebar, and a restore also
+  refreshes the sidebar. The result shows as one line (`Restore: 1 restored`,
+  `Empty trash: 3 deleted`) naming any conflict (`Restore: 1 conflict — conflict: <name> (session exists)`): a
+  restore conflicts when the session exists again or a file is in the way. See [Trash](#trash).
 
 ## What the numbers mean
 

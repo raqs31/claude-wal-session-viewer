@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { SessionMeta } from '../../../shared/api.ts'
-import { effective, newest, prune, storedPick, toggle } from './pick.ts'
+import { effective, newest, prune, revive, storedPick, toggle } from './pick.ts'
 
 const row = (id: string, last: number): SessionMeta => ({
   id,
@@ -118,4 +118,27 @@ test('regression: unpicking the last shown session with a dead id wanted gives a
 
 test('an adopted id not yet listed shows once it is listed', () => {
   assert.deepEqual(effective(['a', 'd'], [...rows, row('d', 5)], [], null), ['a', 'd'])
+})
+
+test('revive drops a gone id listed by a list requested after its stamp', () => {
+  assert.deepEqual([...revive(new Map([['a', 100]]), rows, 101).keys()], [])
+})
+
+test('revive keeps a gone id when the list was requested before or at its stamp', () => {
+  assert.deepEqual([...revive(new Map([['a', 100]]), rows, 99).keys()], ['a'])
+  assert.deepEqual([...revive(new Map([['a', 100]]), rows, 100).keys()], ['a'])
+})
+
+test('revive keeps a gone id the list does not hold', () => {
+  assert.deepEqual([...revive(new Map([['x', 100]]), rows, 101).keys()], ['x'])
+})
+
+test('revive leaves ids that are not gone alone', () => {
+  const gone = new Map([['x', 100]])
+  assert.equal(revive(gone, rows, 101), gone)
+})
+
+test('regression: a revived id shows alone, not all sessions', () => {
+  const both = [row(A, 10), row(B, 20)]
+  assert.deepEqual(effective([A], both, [], null), [A])
 })

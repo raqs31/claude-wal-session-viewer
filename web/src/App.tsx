@@ -3,6 +3,7 @@ import { EventsTab } from './components/EventsTab.tsx'
 import { LegacyBanner } from './components/LegacyBanner.tsx'
 import { SessionsTab } from './components/SessionsTab.tsx'
 import { Sidebar } from './components/Sidebar.tsx'
+import { TrashTab } from './components/TrashTab.tsx'
 import { UsageTiles } from './components/UsageTiles.tsx'
 import { EMPTY_FILTERS, type Filters } from './lib/params.ts'
 import { FORMATS } from './lib/tree.ts'
@@ -12,7 +13,7 @@ import { useSessions } from './useSessions.ts'
 import { useStored } from './useStored.ts'
 import { useUsage } from './useUsage.ts'
 
-const TABS = ['events', 'sessions'] as const
+const TABS = ['events', 'sessions', 'trash'] as const
 const PINS = ['pinned', 'unpinned'] as const
 
 const NONE: readonly string[] = []
@@ -39,8 +40,10 @@ export function App() {
     [setTab],
   )
   const list = useSessions()
+  // Bumped by a sidebar move so an open Trash tab refetches; the tab stays mounted, keeping its note and selection.
+  const [trashGen, setTrashGen] = useState(0)
   const rows = list.ready ? list.sessions : null
-  const { pick, toggle, clear, forget } = usePick(rows)
+  const { pick, toggle, clear, forget, drop } = usePick(rows, list.listedAt)
   const unseen = useUnseen(rows, pick ?? NONE)
   // null until the first list lands and the newest session is preselected, so no hook queries all sessions on startup.
   const ids = pick
@@ -67,6 +70,11 @@ export function App() {
         pick={pick ?? NONE}
         toggle={toggle}
         clear={clear}
+        drop={drop}
+        refresh={() => {
+          setTrashGen((g) => g + 1)
+          return list.refresh()
+        }}
         unseen={unseen}
         pinned={pin === 'pinned'}
         onPin={() => setPin(pin === 'pinned' ? 'unpinned' : 'pinned')}
@@ -76,7 +84,7 @@ export function App() {
       <div className="main">
         <header ref={head}>
           <div>
-            <h1>{tab === 'events' ? 'Claude Code event log' : 'Claude Code sessions'}</h1>
+            <h1>{tab === 'events' ? 'Claude Code event log' : tab === 'sessions' ? 'Claude Code sessions' : 'Claude Code trash'}</h1>
             {tab === 'sessions' && (
               <div className="file" id="file">
                 {list.root}
@@ -89,9 +97,11 @@ export function App() {
           </button>
         </header>
         {/* On Events the tiles ride in the sticky head instead. */}
-        {!events && <UsageTiles usage={usage.usage} live={usage.live} error={usage.error} picked={pick?.length ?? 0} />}
+        {!events && tab !== 'trash' && <UsageTiles usage={usage.usage} live={usage.live} error={usage.error} picked={pick?.length ?? 0} />}
         <LegacyBanner count={list.legacy} />
-        {pick === null ? (
+        {tab === 'trash' ? (
+          <TrashTab refreshSessions={list.refresh} gen={trashGen} />
+        ) : pick === null ? (
           <div className="empty">Loading sessions…</div>
         ) : tab === 'events' ? (
           <EventsTab

@@ -31,6 +31,16 @@ export const effective = (wanted: readonly string[] | null, sessions: readonly S
   return id === null ? [] : [id]
 }
 
+// `gone` maps an id reported unknown to when it was reported. A list requested after that and listing the id
+// means it came back (a restore from the trash); a list requested earlier may predate the report.
+export const revive = (gone: ReadonlyMap<string, number>, sessions: readonly SessionMeta[], listedAt: number): ReadonlyMap<string, number> => {
+  const back = sessions.filter((s) => (gone.get(s.id) ?? listedAt) < listedAt)
+  if (!back.length) return gone
+  const left = new Map(gone)
+  for (const s of back) left.delete(s.id)
+  return left
+}
+
 export const samePick = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((x, i) => x === b[i])
 
 export const toggle = (pick: readonly string[], id: string): string[] => (pick.includes(id) ? pick.filter((x) => x !== id) : [...pick, id])

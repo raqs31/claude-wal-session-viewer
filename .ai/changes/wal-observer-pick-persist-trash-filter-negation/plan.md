@@ -663,18 +663,18 @@ first use.
 
 #### Automated
 
-- [ ] 5.1 Helper tests pass
-- [ ] 5.2 Full suite passes
-- [ ] 5.3 Types check
-- [ ] 5.4 Lint passes
+- [x] 5.1 Helper tests pass
+- [x] 5.2 Full suite passes
+- [x] 5.3 Types check
+- [x] 5.4 Lint passes
 
 #### Manual
 
-- [ ] 5.5 Delete picked removes them from sidebar and pick
-- [ ] 5.6 Delete N filtered moves only matching idle sessions
-- [ ] 5.7 Restore works; second restore reports conflict
-- [ ] 5.8 Delete forever and Empty need typed yes and remove files
-- [ ] 5.9 Playwright pass in light and dark theme
+- [x] 5.5 Delete picked removes them from sidebar and pick
+- [x] 5.6 Delete N filtered moves only matching idle sessions
+- [x] 5.7 Restore works; second restore reports conflict
+- [x] 5.8 Delete forever and Empty need typed yes and remove files
+- [x] 5.9 Playwright pass in light and dark theme
 
 ### Phase 6: Release 0.4.0
 
