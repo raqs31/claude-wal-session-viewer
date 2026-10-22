@@ -1,0 +1,285 @@
+{
+  "change": "current-context-monitoring-with-compaction",
+  "statuses": {
+    "todo": {
+      "class": "open",
+      "color": "#e5e7eb"
+    },
+    "in_progress": {
+      "class": "active",
+      "color": "#bfdbfe"
+    },
+    "review": {
+      "class": "active",
+      "color": "#ddd6fe"
+    },
+    "blocked": {
+      "class": "waiting",
+      "color": "#fecaca"
+    },
+    "user_review": {
+      "class": "waiting",
+      "color": "#fde68a"
+    },
+    "done": {
+      "class": "closed",
+      "color": "#bbf7d0"
+    },
+    "declined": {
+      "class": "closed",
+      "color": "#f3f4f6"
+    }
+  },
+  "tags": [
+    "interface",
+    "risk-high",
+    "security",
+    "migration",
+    "refactor",
+    "docs",
+    "tests",
+    "config",
+    "coupled"
+  ],
+  "nodes": [
+    {
+      "id": "T1",
+      "title": "Hook context step and shell tests",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 1,
+      "parent": null,
+      "holder": "a8e4635b79cf70b3a",
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "plugins/wal-hook/hooks/wal-hook.mjs",
+        "plugins/wal-hook/hooks/wal-hook.test.sh"
+      ],
+      "path": "tickets/T1.md",
+      "updated": "2026-10-22 10:37"
+    },
+    {
+      "id": "T2",
+      "title": "Phase 1 review",
+      "kind": "review",
+      "status": "done",
+      "class": "closed",
+      "phase": 1,
+      "parent": null,
+      "holder": "a6b7c777a2b20114c",
+      "tags": [],
+      "files": [
+        "plugins/wal-hook/hooks/wal-hook.mjs",
+        "plugins/wal-hook/hooks/wal-hook.test.sh"
+      ],
+      "path": "tickets/T2.md",
+      "updated": "2026-10-22 10:37"
+    },
+    {
+      "id": "T3",
+      "title": "Benchmark tail read on largest real transcript",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 2,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        ".ai/changes/current-context-monitoring-with-compaction/plan.md",
+        "plugins/wal-hook/hooks/wal-hook.mjs"
+      ],
+      "path": "tickets/T3.md",
+      "updated": "2026-10-22 10:30"
+    },
+    {
+      "id": "T4",
+      "title": "Phase 2 review",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 2,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        ".ai/changes/current-context-monitoring-with-compaction/plan.md",
+        "plugins/wal-hook/hooks/wal-hook.mjs"
+      ],
+      "path": "tickets/T4.md",
+      "updated": "2026-10-22 10:30"
+    },
+    {
+      "id": "T5",
+      "title": "Context per call chart with compaction markers, Main open on load",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 3,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "web/src/lib/series.ts",
+        "web/src/lib/series.test.ts",
+        "web/src/components/charts/ContextOverTime.tsx",
+        "web/src/components/charts/AgentCharts.tsx",
+        "web/src/components/SessionStats.tsx"
+      ],
+      "path": "tickets/T5.md",
+      "updated": "2026-10-22 10:30"
+    },
+    {
+      "id": "T6",
+      "title": "Phase 3 review",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 3,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "web/src/lib/series.ts",
+        "web/src/lib/series.test.ts",
+        "web/src/components/charts/ContextOverTime.tsx",
+        "web/src/components/charts/AgentCharts.tsx",
+        "web/src/components/SessionStats.tsx"
+      ],
+      "path": "tickets/T6.md",
+      "updated": "2026-10-22 10:31"
+    },
+    {
+      "id": "T7",
+      "title": "Version 0.3.0 and README docs",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 4,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "docs"
+      ],
+      "files": [
+        "package.json",
+        "package-lock.json",
+        "plugins/wal-hook/.claude-plugin/plugin.json",
+        "README.md"
+      ],
+      "path": "tickets/T7.md",
+      "updated": "2026-10-22 10:31"
+    },
+    {
+      "id": "T8",
+      "title": "Phase 4 review",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 4,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "package.json",
+        "package-lock.json",
+        "plugins/wal-hook/.claude-plugin/plugin.json",
+        "README.md"
+      ],
+      "path": "tickets/T8.md",
+      "updated": "2026-10-22 10:31"
+    },
+    {
+      "id": "T9",
+      "title": "Phase 5 final checks",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 5,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "plugins/wal-hook/hooks/wal-hook.mjs",
+        "plugins/wal-hook/hooks/wal-hook.test.sh",
+        ".ai/changes/current-context-monitoring-with-compaction/plan.md",
+        "web/src/lib/series.ts",
+        "web/src/lib/series.test.ts",
+        "web/src/components/charts/ContextOverTime.tsx",
+        "web/src/components/charts/AgentCharts.tsx",
+        "web/src/components/SessionStats.tsx",
+        "package.json",
+        "package-lock.json",
+        "plugins/wal-hook/.claude-plugin/plugin.json",
+        "README.md"
+      ],
+      "path": "tickets/T9.md",
+      "updated": "2026-10-22 10:31"
+    }
+  ],
+  "edges": [
+    {
+      "from": "T1",
+      "to": "T2",
+      "type": "depends_on"
+    },
+    {
+      "from": "T1",
+      "to": "T3",
+      "type": "depends_on"
+    },
+    {
+      "from": "T1",
+      "to": "T7",
+      "type": "depends_on"
+    },
+    {
+      "from": "T2",
+      "to": "T9",
+      "type": "depends_on"
+    },
+    {
+      "from": "T3",
+      "to": "T4",
+      "type": "depends_on"
+    },
+    {
+      "from": "T3",
+      "to": "T7",
+      "type": "depends_on"
+    },
+    {
+      "from": "T4",
+      "to": "T9",
+      "type": "depends_on"
+    },
+    {
+      "from": "T5",
+      "to": "T6",
+      "type": "depends_on"
+    },
+    {
+      "from": "T5",
+      "to": "T7",
+      "type": "depends_on"
+    },
+    {
+      "from": "T6",
+      "to": "T9",
+      "type": "depends_on"
+    },
+    {
+      "from": "T7",
+      "to": "T8",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8",
+      "to": "T9",
+      "type": "depends_on"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+flowchart LR
+  classDef todo fill:#e5e7eb,stroke:#374151,color:#111827
+  classDef in_progress fill:#bfdbfe,stroke:#374151,color:#111827
+  classDef review fill:#ddd6fe,stroke:#374151,color:#111827
+  classDef blocked fill:#fecaca,stroke:#374151,color:#111827
+  classDef user_review fill:#fde68a,stroke:#374151,color:#111827
+  classDef done fill:#bbf7d0,stroke:#374151,color:#111827
+  classDef declined fill:#f3f4f6,stroke:#374151,color:#111827
+  subgraph phase_1["Phase 1"]
+    T1["T1 · Hook context step and shell tests #risk-high"]
+    T2{{"T2 · Phase 1 review"}}
+  end
+  subgraph phase_2["Phase 2"]
+    T3["T3 · Benchmark tail read on largest real transcript"]
+    T4{{"T4 · Phase 2 review"}}
+  end
+  subgraph phase_3["Phase 3"]
+    T5["T5 · Context per call chart with compaction markers, Main open on load"]
+    T6{{"T6 · Phase 3 review"}}
+  end
+  subgraph phase_4["Phase 4"]
+    T7["T7 · Version 0.3.0 and README docs #docs"]
+    T8{{"T8 · Phase 4 review"}}
+  end
+  subgraph phase_5["Phase 5"]
+    T9{{"T9 · Phase 5 final checks"}}
+  end
+  T1 --> T2
+  T1 --> T3
+  T1 --> T7
+  T2 --> T9
+  T3 --> T4
+  T3 --> T7
+  T4 --> T9
+  T5 --> T6
+  T5 --> T7
+  T6 --> T9
+  T7 --> T8
+  T8 --> T9
+  class T1 done
+  class T2 done
+  class T3 todo
+  class T4 todo
+  class T5 todo
+  class T6 todo
+  class T7 todo
+  class T8 todo
+  class T9 todo
