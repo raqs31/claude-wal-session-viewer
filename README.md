@@ -72,11 +72,12 @@ parallel hooks cannot interleave a partial line.
 agent's last API call, `tokens = input_tokens + cache_read_input_tokens + cache_creation_input_tokens`
 and `output = output_tokens`, with its `model`. It is the last reply, not summed and not a max, so it
 drops after a compaction. The transcript is read from the payload: `agent_transcript_path` on
-`SubagentStop`; otherwise, for a subagent event, the derived `subagents/agent-<agent_id>.jsonl` beside
-the session; otherwise `transcript_path`. An `agent_id` that is not a plain id, or a `transcript_path`
-that is not a `.jsonl`, gives no context rather than the main transcript's. `context` is omitted when
-no path qualifies, the file is missing or unreadable, no assistant line with usage (not `<synthetic>`)
-lies within the last 4 MB, or anything throws; the record is written either way.
+`SubagentStop`; otherwise, for a subagent event, `<session>/subagents/agent-<agent_id>.jsonl`, where
+`<session>` is the `transcript_path` without its `.jsonl`; otherwise `transcript_path`. For a subagent
+event, an `agent_id` that is not a plain id, or a `transcript_path` that is not a `.jsonl`, gives no
+context rather than the main transcript's. `context` is omitted when no path qualifies, the file is
+missing or unreadable, no assistant line with usage (not `<synthetic>`) lies within the last 4 MB, or
+anything throws; the record is written either way.
 
 ## `wal legacy`
 
