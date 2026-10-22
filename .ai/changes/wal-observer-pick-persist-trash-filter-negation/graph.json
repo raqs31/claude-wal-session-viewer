@@ -1,0 +1,682 @@
+{
+  "change": "wal-observer-pick-persist-trash-filter-negation",
+  "statuses": {
+    "todo": {
+      "class": "open",
+      "color": "#e5e7eb"
+    },
+    "in_progress": {
+      "class": "active",
+      "color": "#bfdbfe"
+    },
+    "review": {
+      "class": "active",
+      "color": "#ddd6fe"
+    },
+    "blocked": {
+      "class": "waiting",
+      "color": "#fecaca"
+    },
+    "user_review": {
+      "class": "waiting",
+      "color": "#fde68a"
+    },
+    "done": {
+      "class": "closed",
+      "color": "#bbf7d0"
+    },
+    "declined": {
+      "class": "closed",
+      "color": "#f3f4f6"
+    }
+  },
+  "tags": [
+    "interface",
+    "risk-high",
+    "security",
+    "migration",
+    "refactor",
+    "docs",
+    "tests",
+    "config",
+    "coupled"
+  ],
+  "nodes": [
+    {
+      "id": "T1",
+      "title": "Pick rules: stored-pick validator and wanted-to-effective derivation",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 1,
+      "parent": null,
+      "holder": "a1e82c3974fc7c6d7",
+      "tags": [
+        "interface",
+        "risk-high"
+      ],
+      "files": [
+        "web/src/lib/pick.ts",
+        "web/src/lib/pick.test.ts",
+        ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
+      ],
+      "path": "tickets/T1.md",
+      "updated": "2026-10-22 13:01"
+    },
+    {
+      "id": "T2",
+      "title": "usePick: persist wanted pick in wal.pick, sync tabs, write only on intent",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 1,
+      "parent": null,
+      "holder": "aa841f6091c367aa2",
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "web/src/usePick.ts",
+        "web/src/useStoredJson.ts",
+        "README.md",
+        ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
+      ],
+      "path": "tickets/T2.md",
+      "updated": "2026-10-22 13:10"
+    },
+    {
+      "id": "T3",
+      "title": "Phase 1 review: persist the session pick",
+      "kind": "review",
+      "status": "done",
+      "class": "closed",
+      "phase": 1,
+      "parent": null,
+      "holder": "af4846b135d2f27e7",
+      "tags": [],
+      "files": [
+        "web/src/lib/pick.ts",
+        "web/src/lib/pick.test.ts",
+        "web/src/usePick.ts",
+        "web/src/useStoredJson.ts",
+        "README.md",
+        ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
+      ],
+      "path": "tickets/T3.md",
+      "updated": "2026-10-22 13:38"
+    },
+    {
+      "id": "T4",
+      "title": "Server negation: cat_not, tool_not, event_not, agent_not in matcher",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 2,
+      "parent": null,
+      "holder": "a74c71c52171ec470",
+      "tags": [
+        "interface"
+      ],
+      "files": [
+        "scripts/wal-index.ts",
+        "scripts/query.test.ts",
+        "scripts/live-tail.test.ts"
+      ],
+      "path": "tickets/T4.md",
+      "updated": "2026-10-22 13:34"
+    },
+    {
+      "id": "T5",
+      "title": "Client filter model: Filters.not, _not params, summary, agent selectAll",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 2,
+      "parent": null,
+      "holder": "acf3527d18b059473",
+      "tags": [
+        "interface"
+      ],
+      "files": [
+        "web/src/lib/params.ts",
+        "web/src/lib/params.test.ts",
+        "web/src/lib/agents.ts",
+        "web/src/lib/agents.test.ts"
+      ],
+      "path": "tickets/T5.md",
+      "updated": "2026-10-22 13:33"
+    },
+    {
+      "id": "T6",
+      "title": "Filter panel All / None / Not controls and README",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 2,
+      "parent": null,
+      "holder": "a8f353b275fc03d92",
+      "tags": [],
+      "files": [
+        "web/src/components/FilterPanel.tsx",
+        "web/src/components/AgentPicker.tsx",
+        "web/src/styles.css",
+        "README.md",
+        ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
+      ],
+      "path": "tickets/T6.md",
+      "updated": "2026-10-22 13:40"
+    },
+    {
+      "id": "T7",
+      "title": "Phase 2 review: All / None / Not on the Events filter panel",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 2,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "scripts/wal-index.ts",
+        "scripts/query.test.ts",
+        "scripts/live-tail.test.ts",
+        "web/src/lib/params.ts",
+        "web/src/lib/params.test.ts",
+        "web/src/lib/agents.ts",
+        "web/src/lib/agents.test.ts",
+        "web/src/components/FilterPanel.tsx",
+        "web/src/components/AgentPicker.tsx",
+        "web/src/styles.css",
+        "README.md",
+        ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
+      ],
+      "path": "tickets/T7.md",
+      "updated": "2026-10-22 12:53"
+    },
+    {
+      "id": "T8",
+      "title": "Sidebar chips All / None / Not: filter rule, controls, README",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 3,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "web/src/lib/sidebar.ts",
+        "web/src/lib/sidebar.test.ts",
+        "web/src/components/Sidebar.tsx",
+        "web/src/styles.css",
+        "README.md",
+        ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
+      ],
+      "path": "tickets/T8.md",
+      "updated": "2026-10-22 12:53"
+    },
+    {
+      "id": "T9",
+      "title": "Phase 3 review: All / None / Not on the sidebar chips",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 3,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "web/src/lib/sidebar.ts",
+        "web/src/lib/sidebar.test.ts",
+        "web/src/components/Sidebar.tsx",
+        "web/src/styles.css",
+        "README.md",
+        ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
+      ],
+      "path": "tickets/T9.md",
+      "updated": "2026-10-22 12:53"
+    },
+    {
+      "id": "T10",
+      "title": "Trash groundwork: shared types, SessionMeta.busy, cache drops, discovery Found accessor",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 4,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "interface",
+        "risk-high"
+      ],
+      "files": [
+        "shared/api.ts",
+        "scripts/discovery.ts",
+        "scripts/discovery.test.ts",
+        "scripts/wal-index.ts",
+        "scripts/sessions.ts",
+        "scripts/sessions.test.ts",
+        "web/src/lib/sidebar.test.ts",
+        "web/src/lib/unseen.test.ts",
+        "web/src/lib/pick.test.ts"
+      ],
+      "path": "tickets/T10.md",
+      "updated": "2026-10-22 12:54"
+    },
+    {
+      "id": "T11",
+      "title": "Trash module, trash/restore/purge routes and same-origin guard",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 4,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "security",
+        "risk-high"
+      ],
+      "files": [
+        "scripts/trash.ts",
+        "scripts/trash.test.ts",
+        "scripts/wal-server.ts",
+        ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
+      ],
+      "path": "tickets/T11.md",
+      "updated": "2026-10-22 12:55"
+    },
+    {
+      "id": "T12",
+      "title": "Dev proxy for /trash and README trash docs; manual curl checks",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 4,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "config",
+        "docs"
+      ],
+      "files": [
+        "vite.config.ts",
+        "README.md",
+        ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
+      ],
+      "path": "tickets/T12.md",
+      "updated": "2026-10-22 12:55"
+    },
+    {
+      "id": "T13",
+      "title": "Security review: trash routes and same-origin guard",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 4,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "scripts/trash.ts",
+        "scripts/trash.test.ts",
+        "scripts/wal-server.ts",
+        ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
+      ],
+      "path": "tickets/T13.md",
+      "updated": "2026-10-22 12:55"
+    },
+    {
+      "id": "T14",
+      "title": "Phase 4 review: trash on the server",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 4,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "shared/api.ts",
+        "scripts/discovery.ts",
+        "scripts/discovery.test.ts",
+        "scripts/wal-index.ts",
+        "scripts/sessions.ts",
+        "scripts/sessions.test.ts",
+        "web/src/lib/sidebar.test.ts",
+        "web/src/lib/unseen.test.ts",
+        "web/src/lib/pick.test.ts",
+        "scripts/trash.ts",
+        "scripts/trash.test.ts",
+        "scripts/wal-server.ts",
+        "vite.config.ts",
+        "README.md",
+        ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
+      ],
+      "path": "tickets/T14.md",
+      "updated": "2026-10-22 12:55"
+    },
+    {
+      "id": "T15",
+      "title": "Trash client helpers: busy split and result summary",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 5,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "interface"
+      ],
+      "files": [
+        "web/src/lib/trash.ts",
+        "web/src/lib/trash.test.ts"
+      ],
+      "path": "tickets/T15.md",
+      "updated": "2026-10-22 12:55"
+    },
+    {
+      "id": "T16",
+      "title": "ConfirmDialog component on native dialog",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 5,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "interface"
+      ],
+      "files": [
+        "web/src/components/ConfirmDialog.tsx",
+        "web/src/styles.css"
+      ],
+      "path": "tickets/T16.md",
+      "updated": "2026-10-22 12:56"
+    },
+    {
+      "id": "T17",
+      "title": "Sidebar Delete picked / Delete N filtered actions",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 5,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "web/src/components/Sidebar.tsx",
+        "web/src/App.tsx",
+        "web/src/styles.css",
+        ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
+      ],
+      "path": "tickets/T17.md",
+      "updated": "2026-10-22 12:56"
+    },
+    {
+      "id": "T18",
+      "title": "Trash tab: list, restore, delete forever, empty trash; README",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 5,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "web/src/components/TrashTab.tsx",
+        "web/src/useTrash.ts",
+        "web/src/App.tsx",
+        "web/src/components/Sidebar.tsx",
+        "web/src/styles.css",
+        "README.md",
+        ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
+      ],
+      "path": "tickets/T18.md",
+      "updated": "2026-10-22 12:56"
+    },
+    {
+      "id": "T19",
+      "title": "Phase 5 review: trash UI",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 5,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "web/src/lib/trash.ts",
+        "web/src/lib/trash.test.ts",
+        "web/src/components/ConfirmDialog.tsx",
+        "web/src/components/Sidebar.tsx",
+        "web/src/App.tsx",
+        "web/src/components/TrashTab.tsx",
+        "web/src/useTrash.ts",
+        "web/src/styles.css",
+        "README.md",
+        ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
+      ],
+      "path": "tickets/T19.md",
+      "updated": "2026-10-22 12:56"
+    },
+    {
+      "id": "T20",
+      "title": "Release 0.4.0: version bump and README consistency pass",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 6,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "docs",
+        "config"
+      ],
+      "files": [
+        "package.json",
+        "package-lock.json",
+        "README.md",
+        ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
+      ],
+      "path": "tickets/T20.md",
+      "updated": "2026-10-22 12:57"
+    },
+    {
+      "id": "T21",
+      "title": "Phase 6 review: release 0.4.0",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 6,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "package.json",
+        "package-lock.json",
+        "README.md",
+        ".ai/changes/wal-observer-pick-persist-trash-filter-negation/plan.md"
+      ],
+      "path": "tickets/T21.md",
+      "updated": "2026-10-22 12:57"
+    },
+    {
+      "id": "T22",
+      "title": "Pick cleanup: effective(null) uses the frozen fallback, toggle/drop read latest via refs",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 1,
+      "parent": null,
+      "holder": "ae032773f2ca149fb",
+      "tags": [],
+      "files": [
+        "web/src/lib/pick.ts",
+        "web/src/lib/pick.test.ts",
+        "web/src/usePick.ts"
+      ],
+      "path": "tickets/T22.md",
+      "updated": "2026-10-22 13:37"
+    }
+  ],
+  "edges": [
+    {
+      "from": "T1",
+      "to": "T2",
+      "type": "depends_on"
+    },
+    {
+      "from": "T1",
+      "to": "T3",
+      "type": "depends_on"
+    },
+    {
+      "from": "T1",
+      "to": "T22",
+      "type": "depends_on"
+    },
+    {
+      "from": "T2",
+      "to": "T3",
+      "type": "depends_on"
+    },
+    {
+      "from": "T2",
+      "to": "T22",
+      "type": "depends_on"
+    },
+    {
+      "from": "T4",
+      "to": "T6",
+      "type": "depends_on"
+    },
+    {
+      "from": "T4",
+      "to": "T7",
+      "type": "depends_on"
+    },
+    {
+      "from": "T5",
+      "to": "T6",
+      "type": "depends_on"
+    },
+    {
+      "from": "T5",
+      "to": "T7",
+      "type": "depends_on"
+    },
+    {
+      "from": "T6",
+      "to": "T7",
+      "type": "depends_on"
+    },
+    {
+      "from": "T6",
+      "to": "T8",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8",
+      "to": "T9",
+      "type": "depends_on"
+    },
+    {
+      "from": "T10",
+      "to": "T11",
+      "type": "depends_on"
+    },
+    {
+      "from": "T10",
+      "to": "T14",
+      "type": "depends_on"
+    },
+    {
+      "from": "T10",
+      "to": "T15",
+      "type": "depends_on"
+    },
+    {
+      "from": "T11",
+      "to": "T12",
+      "type": "depends_on"
+    },
+    {
+      "from": "T11",
+      "to": "T13",
+      "type": "depends_on"
+    },
+    {
+      "from": "T11",
+      "to": "T14",
+      "type": "depends_on"
+    },
+    {
+      "from": "T11",
+      "to": "T17",
+      "type": "depends_on"
+    },
+    {
+      "from": "T12",
+      "to": "T14",
+      "type": "depends_on"
+    },
+    {
+      "from": "T13",
+      "to": "T14",
+      "type": "depends_on"
+    },
+    {
+      "from": "T15",
+      "to": "T17",
+      "type": "depends_on"
+    },
+    {
+      "from": "T15",
+      "to": "T19",
+      "type": "depends_on"
+    },
+    {
+      "from": "T16",
+      "to": "T17",
+      "type": "depends_on"
+    },
+    {
+      "from": "T16",
+      "to": "T19",
+      "type": "depends_on"
+    },
+    {
+      "from": "T17",
+      "to": "T18",
+      "type": "depends_on"
+    },
+    {
+      "from": "T17",
+      "to": "T19",
+      "type": "depends_on"
+    },
+    {
+      "from": "T18",
+      "to": "T19",
+      "type": "depends_on"
+    },
+    {
+      "from": "T19",
+      "to": "T20",
+      "type": "depends_on"
+    },
+    {
+      "from": "T20",
+      "to": "T21",
+      "type": "depends_on"
+    },
+    {
+      "from": "T22",
+      "to": "T3",
+      "type": "depends_on"
+    }
+  ]
+}
