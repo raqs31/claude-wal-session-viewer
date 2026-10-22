@@ -2,9 +2,11 @@ import type { SessionMeta } from '../../../shared/api.ts'
 
 // `chips` holds source labels and workspace names in one set: they share a namespace (`default`,
 // a `workspaces/<name>` basename), and a session from one source is often written by another
-// workspace. Empty chips or project means no filter.
+// workspace. Empty chips or project means no filter; with no chips ticked, `not` changes nothing.
+// `not` turns the chips from "only these" into "none of these".
 export interface SidebarFilter {
   chips: ReadonlySet<string>
+  not: boolean
   project: string
   text: string
 }
@@ -22,7 +24,7 @@ export const chipValues = (rows: readonly SessionMeta[]): string[] => [...new Se
 export const filterRows = (rows: readonly SessionMeta[], f: SidebarFilter): SessionMeta[] => {
   const words = f.text.toLowerCase().split(/\s+/).filter(Boolean)
   return rows.filter((r) => {
-    if (f.chips.size && !f.chips.has(r.source) && !r.workspaces.some((w) => f.chips.has(w))) return false
+    if (f.chips.size && (f.chips.has(r.source) || r.workspaces.some((w) => f.chips.has(w))) === f.not) return false
     if (f.project && r.project.slug !== f.project) return false
     if (!words.length) return true
     const hay = [r.title, r.id, r.project.slug, r.project.cwd ?? '', r.worktree ?? ''].join('\n').toLowerCase()
@@ -62,7 +64,7 @@ export const pinPicked = (rows: readonly SessionMeta[], pick: readonly string[])
 // The collapsed sidebar filters' one-line digest; `projectLabel` names the chosen project.
 export const sidebarSummary = (f: SidebarFilter, projectLabel: string): string[] => {
   const out: string[] = []
-  if (f.chips.size) out.push(f.chips.size <= 2 ? [...f.chips].join(', ') : `chips: ${f.chips.size}`)
+  if (f.chips.size) out.push(`${f.not ? '≠ ' : ''}${f.chips.size <= 2 ? [...f.chips].join(', ') : `chips: ${f.chips.size}`}`)
   if (f.project) out.push(`project: ${projectLabel}`)
   if (f.text.trim()) out.push(`q: ${f.text.trim()}`)
   return out

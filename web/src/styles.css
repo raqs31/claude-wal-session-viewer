@@ -306,7 +306,8 @@ select {
   gap: 6px;
   margin: 8px 0;
 }
-.fp-s > .acts {
+.fp-s > .acts,
+.sb-fs > .acts {
   display: flex;
   gap: 6px;
   margin-bottom: 6px;
