@@ -6,3 +6,4 @@
 /.ai/plans/
 /.ai/logs/
 .idea
+/.playwright-mcp/
