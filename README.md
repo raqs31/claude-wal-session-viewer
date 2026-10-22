@@ -27,12 +27,11 @@ The hook, from inside Claude Code:
 
 The hook needs `node` on PATH; without it the viewer still shows usage and cost, but no events.
 
-The plugin also adds `/wal-hook:wal`, which Claude runs only when you invoke it:
-`/wal-hook:wal install` walks through installing the viewer: by default it links `wal` to the plugin's marketplace checkout,
-or installs from GitHub Packages or a separate git clone,
-`/wal-hook:wal update` checks the viewer and this plugin for newer versions and offers to update
-them, and `/wal-hook:wal run` starts it in the background, reports its URL and mentions a newer
-viewer if there is one.
+The plugin also adds `/wal-hook:wal`, which Claude runs only when you invoke it: `/wal-hook:wal
+install` walks through installing the viewer: by default it links `wal` to the plugin's marketplace
+checkout, or installs from GitHub Packages or a separate git clone, `/wal-hook:wal update` checks
+the viewer and this plugin for newer versions and offers to update them, and `/wal-hook:wal run`
+starts it in the background, reports its URL and mentions a newer viewer if there is one.
 
 ## Running
 
@@ -44,11 +43,11 @@ wal legacy [--source=<config-dir>]...
 `wal` starts the server and opens the printed URL. From a checkout, `scripts/wal` does the same
 after installing dependencies when needed and building the page. The server binds `127.0.0.1` only:
 the data contains prompts, file contents and command output and must not be reachable off the
-machine. It also has write endpoints (`/trash`, `/trash/restore`, `/trash/purge`); a write that is
-not a POST gets 405, and a POST is refused with 403 unless it has `application/json`, a loopback
-`Host` (`127.0.0.1` or `localhost` on the server's port), an `Origin` equal to that host and, when
-the browser sends it, `Sec-Fetch-Site: same-origin`. A page from another site, or a DNS-rebound
-name, cannot pass.
+machine. It also has write endpoints (`/trash`, `/trash/restore`, `/trash/purge`); apart from `GET
+/trash`, which lists the trash, a request that is not a POST gets 405, and a POST is refused with
+403 unless it has `application/json`, a loopback `Host` (`127.0.0.1` or `localhost` on the server's
+port), an `Origin` equal to that host and, when the browser sends it, `Sec-Fetch-Site: same-origin`.
+A page from another site, or a DNS-rebound name, cannot pass.
 
 Sources are Claude config dirs whose `projects/` is scanned: `~/.claude`, every
 `~/.claude/workspaces/*`, and each `--source`. Sources are deduplicated by the realpath of their
@@ -72,16 +71,17 @@ It never breaks a turn: it always exits 0 (a non-zero `PreToolUse` exit blocks t
 nothing to stdout (injected into model context on some events), and does one append per event so
 parallel hooks cannot interleave a partial line.
 
-`PostToolUse`, `PostToolUseFailure`, `Stop` and `SubagentStop` records also carry `context`: the firing
-agent's last API call, `tokens = input_tokens + cache_read_input_tokens + cache_creation_input_tokens`
-and `output = output_tokens`, with its `model`. It is the last reply, not summed and not a max, so it
-drops after a compaction. The transcript is read from the payload: `agent_transcript_path` on
-`SubagentStop`; otherwise, for a subagent event, `<session>/subagents/agent-<agent_id>.jsonl`, where
-`<session>` is the `transcript_path` without its `.jsonl`; otherwise `transcript_path`. For a subagent
-event, an `agent_id` that is not a plain id, or a `transcript_path` that is not a `.jsonl`, gives no
-context rather than the main transcript's. `context` is omitted when no path qualifies, the file is
-missing or unreadable, no assistant line with usage (not `<synthetic>`) lies within the last 4 MB, or
-anything throws; the record is written either way.
+`PostToolUse`, `PostToolUseFailure`, `Stop` and `SubagentStop` records also carry `context`: the
+firing agent's last API call, `tokens = input_tokens + cache_read_input_tokens +
+cache_creation_input_tokens` and `output = output_tokens`, with its `model`. It is the last reply,
+not summed and not a max, so it drops after a compaction. The transcript is read from the payload:
+`agent_transcript_path` on `SubagentStop`; otherwise, for a subagent event,
+`<session>/subagents/agent-<agent_id>.jsonl`, where `<session>` is the `transcript_path` without its
+`.jsonl`; otherwise `transcript_path`. For a subagent event, an `agent_id` that is not a plain id,
+or a `transcript_path` that is not a `.jsonl`, gives no context rather than the main transcript's.
+`context` is omitted when no path qualifies, the file is missing or unreadable, no assistant line
+with usage (not `<synthetic>`) lies within the last 4 MB, or anything throws; the record is written
+either way.
 
 ## `wal legacy`
 
@@ -123,16 +123,16 @@ If the server dies in between, a session can be left with a suffixed file; strip
   workspace is ticked, and the collapsed summary shows it as `≠ default, work`. Click a session row
   to pick or unpick it; picked sessions are pinned on top under Selected and listed as chips with a
   × each, plus Clear all. The pick is kept in the browser (`localStorage` key `wal.pick`), so a
-  refresh restores it and every open tab follows a pick made in another; only picking, unpicking and
-  Clear all store it. With nothing stored, the page opens with the most recently active session
-  picked; a stored empty pick restores as all sessions. When none of the picked sessions is listed
-  any more, the most recently active one is shown instead (not all sessions) until the pick changes.
-  **Delete picked** (beside Clear all) and **Delete N filtered** (on the count line; N is the number
-  of sessions the filters match) move those sessions to the [trash](#trash) after a dialog that lists
-  them; busy ones are listed as skipped (`live` or `not ended`) and stay. The result shows as one line
-  under the count (`2 moved · 1 live skipped`), and moved sessions leave the pick; when that empties
-  it, the most recently active session is shown.
-  An empty pick means all sessions on the Events tab. The arrow in its top corner pins or unpins it:
+  refresh restores it and every open tab follows a pick made in another; only picking, unpicking,
+  Clear all and a move to the trash store it. With nothing stored, the page opens with the most
+  recently active session picked; a stored empty pick restores as all sessions. When none of the
+  picked sessions is listed any more, the most recently active one is shown instead (not all
+  sessions) until the pick changes. **Delete picked** (beside Clear all) and **Delete N filtered**
+  (on the count line; N is the number of sessions the filters match) move those sessions to the
+  [trash](#trash) after a dialog that lists them; busy ones are listed as skipped (`live` or `not
+  ended`) and stay. The result shows as one line under the count (`2 moved · 1 live skipped`), and
+  moved sessions leave the pick; when that empties it, the most recently active session is shown. An
+  empty pick means all sessions on the Events tab. The arrow in its top corner pins or unpins it:
   pinned, it stays shown; unpinned, it hides and slides in when the pointer reaches the left edge.
 -  **Usage tiles**: token and cost totals for the picked sessions, updated live. On Events they top
   the sticky head under the header; on Sessions they sit under the header and scroll away; Trash has
@@ -164,12 +164,12 @@ If the server dies in between, a session can be left with a suffixed file; strip
   API call. The Main row is open on load. Agents with 0 calls get none. It shows no event list; that
   is the Events tab.
 -  **Trash**: the trashed sessions of every source, latest trash date first, with name, project,
-  source, trashed date and size. Each row has Restore and Delete forever; ticked rows (the header box
-  ticks all) take Restore selected and Delete selected, and Empty trash deletes every listed session.
-  Deleting for good opens a dialog whose button stays disabled until you type `yes`. The list loads
-  when the tab opens, after each action and after a move from the sidebar, and a restore also
-  refreshes the sidebar. The result shows as one line (`Restore: 1 restored`,
-  `Empty trash: 3 deleted`) naming any conflict (`Restore: 1 conflict — conflict: <name> (session exists)`): a
+  source, trashed date and size. Each row has Restore and Delete forever; ticked rows (the header
+  box ticks all) take Restore selected and Delete selected, and Empty trash deletes every listed
+  session. Deleting for good opens a dialog whose button stays disabled until you type `yes`. The
+  list loads when the tab opens, after each action and after a move from the sidebar, and a restore
+  also refreshes the sidebar. The result shows as one line (`Restore: 1 restored`, `Empty trash: 3
+  deleted`) naming any conflict (`Restore: 1 conflict — conflict: <name> (session exists)`): a
   restore conflicts when the session exists again or a file is in the way. See [Trash](#trash).
 
 ## What the numbers mean
