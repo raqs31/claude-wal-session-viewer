@@ -1,4 +1,5 @@
 import { useAgentSeries } from '../../useSession.ts'
+import { ContextOverTime } from './ContextOverTime.tsx'
 import { TokensOverTime } from './TokensOverTime.tsx'
 import { TurnBars } from './TurnBars.tsx'
 
@@ -8,6 +9,7 @@ export function AgentCharts({ sess, agent, stamp }: { sess: string; agent: strin
   if (!series) return note || <div className="ag-note">Loading…</div>
   return (
     <div className="ag-charts">
+      <ContextOverTime series={series} />
       <TokensOverTime series={series} agent markers={false} />
       <TurnBars series={series} agent by="call" />
       {note}

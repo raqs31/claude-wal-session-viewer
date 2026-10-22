@@ -20,22 +20,27 @@ Implement plan.md e2e: hook context field + shell tests, benchmark, Context per 
 - 2026-10-22 orchestrator: Shipping: local commits per phase on this branch; no push, no PR.
 - 2026-10-22 orchestrator: Benchmark uses the largest real transcript under ~/.claude/projects, read-only; numbers go in plan.md Review, no committed bench code.
 - 2026-10-22 orchestrator: Tickets approved as planned. Bench on the 42.4 MB transcript is enough. No security tag on T1. Operator runs the manual checks (jq on a live WAL, viewer under npm run dev) at phase end.
+- 2026-10-22 orchestrator: Phase 2 follow-up accepted: fix short readSync (wal-hook.mjs:145, slice buffer to bytes read) as a phase 4 ticket.
+- 2026-10-22 orchestrator: [auto] T10: no risk-high tag; one-line subarray view, T8 reviews it.
 
 ## Tickets
 
 <!-- tickets:start — rendered by board.py refresh -->
 | id | status | phase | holder | needs | tags | title |
 | -- | ------ | ----- | ------ | ----- | ---- | ----- |
-| T4 (review) | todo | 2 |  |  |  | Phase 2 review |
-| T5 | todo | 3 |  |  |  | Context per call chart with compaction markers, Main open on load |
-| T6 (review) | todo | 3 |  | T5 |  | Phase 3 review |
-| T7 | todo | 4 |  | T5 | docs | Version 0.3.0 and README docs |
+| T6 (review) | todo | 3 |  |  |  | Phase 3 review |
+| T7 | todo | 4 |  |  | docs | Version 0.3.0 and README docs |
 | T8 (review) | todo | 4 |  | T7 |  | Phase 4 review |
-| T9 (review) | todo | 5 |  | T4, T6, T8 |  | Phase 5 final checks |
-Closed: T1 done · T2 done · T3 done
+| T9 (review) | todo | 5 |  | T6, T8 |  | Phase 5 final checks |
+Closed: T1 done · T2 done · T3 done · T4 done · T5 done
 <!-- tickets:end -->
 
 ## Log
 
 - 2026-10-22 10:39 orchestrator: T3 done: worst case +7.75ms -> guard (byte-level partial-line cut, allocUnsafe) -> +2.30ms; numbers in plan.md Review
 - 2026-10-22 10:41 orchestrator: T4 approve: phase 2 closed; 1 minor follow-up (short readSync)
+- 2026-10-22 10:43 orchestrator: T5 done: contextPerCall + ContextOverTime chart with compaction marks, Main open; check/biome/tests pass
+- 2026-10-22 10:44 planner: replan done: T10 (new, phase 4), T8 (depends_on T7,T10; files and goal/context extended)
+- 2026-10-22 10:45 orchestrator: T6 changes: contextPerCall O(n^2) at series.ts:34 (763ms @5000 calls); T5 reopened
+- 2026-10-22 10:46 orchestrator: T5 fixed: contextPerCall O(n) at series.ts:32-35; lint/check/test pass
+- 2026-10-22 10:47 orchestrator: T6 approve: phase 3 closed; only follow-up is operator manual checks 3.3-3.5

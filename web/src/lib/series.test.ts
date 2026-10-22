@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { SessionSeries, StatRow } from '../../../shared/api.ts'
-import { compactMarks, overTime, perCall, perTurn, shares, stack, turnMarkers } from './series.ts'
+import { compactMarks, contextPerCall, overTime, perCall, perTurn, shares, stack, turnMarkers } from './series.ts'
 
 const cols = (input: number[], output: number[], cacheRead: number[], w5: number[], w1: number[]) => ({
   input,
@@ -133,4 +133,20 @@ test("per call: x counts calls from 1, layers are each call's own usage", () => 
 test('a compaction marks its time, or the gap before the first call after it', () => {
   assert.deepEqual(compactMarks(S, 'time'), [{ x: 2500, label: 'auto 167k → 12k' }])
   assert.deepEqual(compactMarks(S, 'call'), [{ x: 1.5, label: 'auto 167k → 12k' }])
+})
+
+test('context per call: a smaller third call (a compaction) drops, output is excluded', () => {
+  const dip: SessionSeries = {
+    ...S,
+    cumulative: cols([1, 2, 3], [10, 20, 30], [100, 190, 200], [0, 0, 4], [0, 0, 1]),
+  }
+  assert.deepEqual(contextPerCall(dip), [
+    [1000, 2000, 3000],
+    [101, 91, 16],
+  ])
+})
+
+test('context per call: an empty series gives empty columns', () => {
+  const empty: SessionSeries = { ...S, t: [], cumulative: cols([], [], [], [], []), perTurn: cols([], [], [], [], []), turnStarts: [], compacts: [] }
+  assert.deepEqual(contextPerCall(empty), [[], []])
 })
