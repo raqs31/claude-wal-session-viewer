@@ -24,7 +24,7 @@ export const EventRow = memo(function EventRow({ r, gens, format, requery }: Pro
   const loaded = useRef(false)
 
   const meta = CATEGORY[r.cat] ?? CATEGORY.session
-  const label = r.virtual ? String(r.tool).split('__')[1] : r.mcp && (r.mcp === 'request' ? 'MCP req' : 'MCP res')
+  const label = r.virtual ? (r.tool?.split('__')[1] ?? r.tool) : r.mcp && (r.mcp === 'request' ? 'MCP req' : 'MCP res')
 
   const toggle = async () => {
     setOpen(!open)

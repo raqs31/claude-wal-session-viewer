@@ -86,7 +86,7 @@ const agentStat = (d: SessionData, agent: string): AgentStat => {
 }
 
 /** `id`, `gen` and `version` are the store's, not the target's. Null when an agent scope names no agent. */
-export const view = (d: SessionData, head: Pick<SessionView, 'id' | 'gen' | 'version'>, scope: Scope): SessionView | null => {
+export const view = (d: SessionData, head: Pick<SessionView, 'id' | 'gen' | 'version'>, scope: Scope): Omit<SessionView, 'pipe'> | null => {
   const agent = scope.startsWith('agent:') ? scope.slice(6) : null
   if (agent !== null && !d.agents.has(agent)) return null
   const inScope = [MAIN, ...d.agents.keys()].filter((id) => scope === 'all' || (scope === 'main' ? id === MAIN : id === agent))
@@ -100,7 +100,7 @@ export const view = (d: SessionData, head: Pick<SessionView, 'id' | 'gen' | 'ver
   }
 }
 
-export const usage = (ds: SessionData[], unknown: string[]): UsageTotals => {
+export const usage = (ds: SessionData[], unknown: string[]): Omit<UsageTotals, 'pipe'> => {
   const totals: StatRow = { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, thinking: 0, requests: 0, cost: 0 }
   let rec: number | null = null
   let missing = 0

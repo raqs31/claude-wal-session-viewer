@@ -26,13 +26,14 @@ Build plan.md phases 1-8: observer targets, readers on targets, token join, filt
 - 2026-10-26 orchestrator: [auto] Open T5 follow-ups (read-only no-WAL stale; transcript bytes in progress) go to T10.
 - 2026-10-26 orchestrator: [auto] Nested agents list spawner first (plan order), not readdir order; T8 states it and 4.4 expects it.
 - 2026-10-26 orchestrator: Session ends after T9 review: no more dispatch; commit all incl. .ai/changes; user pushes and resumes on VPS (findings, if any, stay open on T9).
+- 2026-10-26 orchestrator: Resume session: scope phases 4-8 to the end; recorded decisions stay in force; T9 minor follow-ups fixed in phase 4.
+- 2026-10-26 orchestrator: [auto] T9 follow-up wal-server.ts:209-213 (empty-pick stream sync) goes to T10: its background loop replaces that code. Other T9 follow-ups go to T8 rework.
 
 ## Tickets
 
 <!-- tickets:start — rendered by board.py refresh -->
 | id | status | phase | holder | needs | tags | title |
 | -- | ------ | ----- | ------ | ----- | ---- | ----- |
-| T9 (review) | blocked | 4 | a8a427540a7f682ac |  |  | Phase 4 review |
 | T10 | todo | 5 |  |  | interface, security, risk-high | Server lock, background loop, /observer and /rebuild |
 | T11 | todo | 5 |  | T10 |  | CLI wal rebuild |
 | T12 (review) | todo | 5 |  | T10 |  | Security review: T10 /rebuild and lock |
@@ -51,10 +52,15 @@ Build plan.md phases 1-8: observer targets, readers on targets, token join, filt
 | T25 | todo | 8 |  | T24, T23, T10 |  | Web: pipeline chip, building note, stale badge and Rebuild |
 | T26 | todo | 8 |  | T25, T11 | docs | README: Pipeline section and token features |
 | T27 (review) | todo | 8 |  | T22, T23, T24, T25, T26 |  | Phase 8 review |
-Closed: T1 done · T2 done · T3 done · T4 done · T5 done · T6 done · T7 done · T8 done
+Closed: T1 done · T2 done · T3 done · T4 done · T5 done · T6 done · T7 done · T8 done · T9 done
 <!-- tickets:end -->
 
 ## Log
 
 - 2026-10-26 16:32 orchestrator: T8 done (coordinator, T8.1-T8.10): readers on targets, budgeted sync, stale frames, call rows, purge deletes target; 4.4 on 5 copied sessions: diffs only planned.
 - 2026-10-26 16:39 orchestrator: T9 changes: major wal-server.ts:365 stream stale set seeded from own sync (missed stale on reconnect), owner T8; 5 minor follow-ups. Left open for the VPS resume: reopen T8 with the finding, then re-run T9.
+- 2026-10-26 17:01 planner: replan T8 stopped: see report (T8 closed, files set refused)
+- 2026-10-26 17:15 planner: replan done: T8 files +scripts/session-view.ts, +web/src/components/EventRow.tsx
+- 2026-10-26 17:15 orchestrator: T8 reopened for T9 rework (major + 4 follow-ups); old holder gone, fresh coordinator dispatched.
+- 2026-10-26 17:25 orchestrator: T8 done (rework T8.11-T8.13): stream stale set starts empty + reconnect test; OF 'Tool call'; pipe required; EventRow tool label. Coordinator added web/src/lib/usage.test.ts to files.
+- 2026-10-26 17:27 orchestrator: T9 done: Verdict approve after one fix round; verify 245 pass.

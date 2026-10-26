@@ -15,15 +15,10 @@ See the Goal of T8 in tickets/T8.md.
 <!-- tickets:start — rendered by board.py refresh -->
 | id | status | phase | holder | needs | tags | title |
 | -- | ------ | ----- | ------ | ----- | ---- | ----- |
-| T8.1 | todo | 4 |  |  | interface, risk-high | Contract: Pipe types, target and budget helpers, budgeted first sync |
-| T8.2 | todo | 4 |  | T8.1 | risk-high | Events index tails targets |
-| T8.3 | todo | 4 |  | T8.1 | risk-high | Sessions store reads targets through session-view |
-| T8.4 | todo | 4 |  | T8.2, T8.3 | risk-high | Server syncs before reads, stale frames, call records, purge deletes the target |
-| T8.5 | todo | 4 |  | T8.4 | tests | Events tests: call rows, stale frames, budget, prototype keys |
-| T8.6 | todo | 4 |  | T8.4 | tests | Sessions and usage tests: pipe, stale frame, spawner-first agents |
-| T8.7 | todo | 4 |  | T8.4 | tests | Trash and discovery tests: target kept, resumed, purged |
-| T8.8 | todo | 4 |  | T8.4 |  | bench-sessions builds the store over an observer |
-| T8.9 | todo | 4 |  | T8.1, T8.2, T8.3, T8.4, T8.5, T8.6, T8.7, T8.8 |  | Manual check 4.4: main vs branch on copied real sessions, and the final verify |
+| T8.11 | todo | 4 |  |  | interface | Rework: OF Tool call and required pipe types |
+| T8.12 | todo | 4 |  |  | tests | Rework: stale frame on stream reopen, stale comments |
+| T8.13 | todo | 4 |  |  |  | Rework: label for non-MCP Tool call row |
+Closed: T8.1 done · T8.2 done · T8.3 done · T8.4 done · T8.5 done · T8.6 done · T8.7 done · T8.8 done · T8.9 done · T8.10 done
 <!-- tickets:end -->
 
 ## Log
@@ -36,3 +31,6 @@ See the Goal of T8 in tickets/T8.md.
 - 2026-10-26 16:23 coordinator T8: T8.4 done: server syncs, stale frames, call records, purge deletes target
 - 2026-10-26 16:29 coordinator T8: T8.5-T8.8 done: tests and bench updated
 - 2026-10-26 16:31 coordinator T8: T8.9 done: check 4.4 only planned differences
+- 2026-10-26 17:19 planner: split T8 done: T8.11, T8.12, T8.13
+- 2026-10-26 17:20 planner: split T8 done: T8.11 extended with web/src/lib/usage.test.ts (T8 files too)
+- 2026-10-26 17:24 coordinator T8: T8.11 done: OF Tool call, pipe required; T8.12 done: stale set empty at stream open; T8.13 done: Tool call label

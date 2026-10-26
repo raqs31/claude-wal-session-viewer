@@ -14,7 +14,7 @@ test('no usage renders every tile as a dash', () => {
 })
 
 test('cache write sums 5m and 1h; tokens are compact', () => {
-  const t = of({ totals, recorded: 2, missing: 0, unknown: [] })
+  const t = of({ totals, recorded: 2, missing: 0, unknown: [], pipe: {} })
   assert.equal(t.input?.value, '1.2k')
   assert.equal(t.cacheRead?.value, '2M')
   assert.equal(t.cacheWrite?.value, '2k')
@@ -24,12 +24,12 @@ test('cache write sums 5m and 1h; tokens are compact', () => {
 })
 
 test('recorded cost is a dash when no session recorded one, with the missing count as tooltip', () => {
-  const t = of({ totals: { ...totals, cost: null }, recorded: null, missing: 2, unknown: [] })
+  const t = of({ totals: { ...totals, cost: null }, recorded: null, missing: 2, unknown: [], pipe: {} })
   assert.equal(t.recorded?.value, '—')
   assert.equal(t.recorded?.title, '2 sessions without recorded cost')
   assert.equal(t.estimated?.value, '—')
 })
 
 test('a partial recorded sum names the one missing session', () => {
-  assert.equal(of({ totals, recorded: 1, missing: 1, unknown: [] }).recorded?.title, '1 session without recorded cost')
+  assert.equal(of({ totals, recorded: 1, missing: 1, unknown: [], pipe: {} }).recorded?.title, '1 session without recorded cost')
 })

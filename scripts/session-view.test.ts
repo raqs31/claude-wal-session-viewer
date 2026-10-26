@@ -35,8 +35,8 @@ const store = createStore({ target: (id) => targetFile(discovery, id), observer 
 const source = discovery.sources()[0]
 
 interface Golden {
-  sessions: Record<string, { views: Record<string, Omit<SessionView, 'gen' | 'version'>>; usage: UsageTotals }>
-  usageAll: UsageTotals
+  sessions: Record<string, { views: Record<string, Omit<SessionView, 'gen' | 'version' | 'pipe'>>; usage: Omit<UsageTotals, 'pipe'> }>
+  usageAll: Omit<UsageTotals, 'pipe'>
 }
 
 const GOLDEN: Golden = {

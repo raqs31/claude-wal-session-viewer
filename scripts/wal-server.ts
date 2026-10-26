@@ -57,7 +57,7 @@ interface Client {
   hit: Matcher
   pos: Map<string, number>
   gens: Map<string, number>
-  // Picked ids whose stale reason the page already has: from the first page, or an `event: stale` sent.
+  // Picked ids this stream already sent an `event: stale` for.
   stale: Set<string>
 }
 
@@ -362,8 +362,7 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
     const pos =
       parseVector(req.headers['last-event-id'] as string | undefined) ?? parseVector(p.get('after')) ?? new Map(ixs.map((ix) => [ix.id, ix.entries.length]))
     const gens = parseVector(p.get('gens')) ?? new Map(ixs.map((ix) => [ix.id, ix.gen]))
-    const stale = new Set(ixs.filter((ix) => typeof pipe[ix.id]?.stale === 'string').map((ix) => ix.id))
-    const client: Client = { res, ixs, hit: matcher(p), pos, gens, stale }
+    const client: Client = { res, ixs, hit: matcher(p), pos, gens, stale: new Set() }
     clients.add(client)
     req.on('close', () => clients.delete(client))
     return
@@ -374,7 +373,7 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
     const id = p.get('id')
     if (!validId(id)) return void res.writeHead(400).end('bad id')
     syncAll(observer, [id])
-    // Acquiring tails first, catching a truncation since the last tick before `off` points at new bytes.
+    // The sync above freezes a shrunk target with its rows, so `off` still points at the bytes it indexed.
     const ix = indexes.acquire([id])?.ixs[0]
     if (!ix) return void res.writeHead(404).end('no such session')
     if (Number(p.get('gen')) !== ix.gen) return void res.writeHead(409).end('stale gen')
@@ -418,7 +417,7 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
     const scope = parseScope(p.get('scope') ?? 'all')
     if (!validId(id) || !scope) return void res.writeHead(400).end('bad id or scope')
     syncAll(observer, [id])
-    // Opening advances a cached session first, so a shrink since the last tick bumps gen here.
+    // The sync above freezes a shrunk target with the same gen, so the cached session keeps its rows.
     const s = store.get(id)
     if (!s) return void res.writeHead(404).end('no such session')
     const body = store.view(s, scope)
