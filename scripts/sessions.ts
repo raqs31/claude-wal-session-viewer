@@ -1,135 +1,66 @@
-// sessions.ts — keeps the picked Claude Code sessions parsed for stats, following their
-// transcripts as they grow. Ids come from the page, so no path is ever built from one unless it
-// matched its pattern and discovery found its transcript.
+// sessions.ts — keeps the picked Claude Code sessions' stats, built from their targets through session-view.ts and
+// following the targets as they grow. Ids come from the page, so no path is ever built from one unless it matched
+// its pattern and the targets know it.
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
-import type { AgentInfo, AgentStat, RecordedCost, Scope, SessionView, StatRow, UsageTotals } from '../shared/api.ts'
-import { type Discovery, readAt, SESSION_RE } from './discovery.ts'
-import { aggregate, createParser, type Parser, type Pricing, type UsageRecord } from './transcripts.ts'
+import type { Scope, SessionView, UsageTotals } from '../shared/api.ts'
+import { SESSION_RE } from './discovery.ts'
+import { pipeOf, type Targets } from './observer.ts'
+import { absorb, createSessionData, type SessionData, usage as usageOf, view as viewOf } from './session-view.ts'
+import { createTargetReader, type TargetReader } from './target.ts'
 
 const AGENT_RE = /^[A-Za-z0-9_-]+$/
-const CHUNK = 8 * 1024 * 1024
 // A full pick of 8, as the WAL indexes.
 const OPEN_MAX = 8
-
-const pricing = JSON.parse(readFileSync(join(import.meta.dirname, 'pricing.json'), 'utf8')) as Pricing
+// The records that make up the stats; `ev`, `call` and `ck` lines do not change a view.
+const STAT_KINDS = new Set(['use', 'turn', 'compact', 'agent', 'tools', 'cost', 'stale'])
 
 export const validId = (id: string | null): id is string => id !== null && SESSION_RE.test(id)
 
 export const parseScope = (s: string | null): Scope | null =>
   s === 'all' || s === 'main' ? s : s?.startsWith('agent:') && AGENT_RE.test(s.slice(6)) ? (s as Scope) : null
 
-interface Tracked {
-  path: string
-  parser: Parser
-  read: number
-}
-interface Agent extends Tracked {
-  info: AgentInfo
-  toolUseId: string
-}
 export interface Session {
   id: string
   gen: number
-  // Unique across re-opens: bumped from one clock whenever bytes are consumed or an agent appears.
+  // The target offset of the last stats record read: 0 until one is, and unique across re-opens through `gen`.
   version: number
-  // The folder holding `<id>.jsonl`.
-  dir: string
-  main: Tracked
-  agents: Map<string, Agent>
+  file: string
+  reader: TargetReader
+  data: SessionData
 }
 
-export const createStore = (discovery: Pick<Discovery, 'locate'>, busy: (id: string) => boolean) => {
+export const createStore = (targets: Targets, busy: (id: string) => boolean) => {
   const open = new Map<string, Session>()
   // Seeded per process, as the WAL's, so a page reconnecting to a restarted server sees a new gen.
   let gen = Date.now()
-  let clock = 0
-
-  // null: the file shrank or vanished, so every offset into it is void.
-  const grow = (f: Tracked): boolean | null => {
-    const size = existsSync(f.path) ? statSync(f.path).size : -1
-    if (size < f.read) return null
-    const from = f.read
-    while (f.read < size) {
-      const buf = readAt(f.path, f.read, Math.min(CHUNK, size - f.read))
-      if (!buf.length) break
-      f.parser.push(buf)
-      f.read += buf.length
-    }
-    // Nothing reads timeline updates any more; cleared so the set does not grow with the file.
-    f.parser.touched.clear()
-    return f.read > from
-  }
-
-  const discover = (s: Session): boolean => {
-    const sub = join(s.dir, s.id, 'subagents')
-    if (!existsSync(sub)) return false
-    let added = false
-    for (const name of readdirSync(sub)) {
-      const id = /^agent-(.+)\.meta\.json$/.exec(name)?.[1]
-      if (!id || !AGENT_RE.test(id) || s.agents.has(id) || !existsSync(join(sub, `agent-${id}.jsonl`))) continue
-      let m: { toolUseId: string; agentType?: string; description?: string; model?: string }
-      try {
-        m = JSON.parse(readFileSync(join(sub, name), 'utf8'))
-      } catch {
-        continue
-      }
-      // Nested agents are spawned from another subagent's transcript, not main's. A spawn not
-      // flushed yet belongs to the turn in progress.
-      const spawn = s.main.parser.tools.get(m.toolUseId) ?? [...s.agents.values()].map((a) => a.parser.tools.get(m.toolUseId)).find(Boolean)
-      const a: Agent = {
-        path: join(sub, `agent-${id}.jsonl`),
-        parser: createParser(id, spawn?.turn ?? s.main.parser.turnStarts.length, false),
-        read: 0,
-        toolUseId: m.toolUseId,
-        info: { id, type: m.agentType ?? '', description: m.description ?? '', model: m.model ?? '', prompt: null, parent: null },
-      }
-      s.agents.set(id, a)
-      grow(a)
-      added = true
-    }
-    return added
-  }
-
-  // false: the session must be re-parsed from scratch.
-  const advance = (s: Session): boolean => {
-    let changed = false
-    for (const f of [s.main, ...s.agents.values()]) {
-      const g = grow(f)
-      if (g === null) return false
-      if (g) changed = true
-    }
-    if (discover(s) || changed) s.version = ++clock
-    return true
-  }
 
   const load = (id: string): Session | null => {
     let s = open.get(id)
-    if (s && !advance(s)) s = undefined
     if (!s) {
-      const dir = discovery.locate(id)
-      if (!dir) {
+      const file = targets.target(id)
+      if (!file) {
         open.delete(id)
         return null
       }
-      s = {
-        id,
-        gen: ++gen,
-        version: ++clock,
-        dir,
-        main: { path: join(dir, `${id}.jsonl`), parser: createParser('main', 0, false), read: 0 },
-        agents: new Map(),
-      }
-      grow(s.main)
-      discover(s)
+      s = { id, gen: ++gen, version: 0, file, reader: createTargetReader(file), data: createSessionData() }
     }
+    const { items, reset } = s.reader.read()
+    if (reset) {
+      s.data = createSessionData()
+      s.gen = ++gen
+      s.version = 0
+    }
+    absorb(
+      s.data,
+      items.map((i) => i.rec),
+    )
+    for (const i of items) if (STAT_KINDS.has(i.rec.k)) s.version = i.off
     open.delete(id)
     open.set(id, s)
     return s
   }
 
-  /** Advances (or opens) each session; null if any id is malformed. Ids with no transcript are skipped into `unknown`. */
+  /** Reads (or opens) each session; null if any id is malformed. Ids with no target are skipped into `unknown`. */
   const acquire = (ids: string[]): { sessions: Session[]; unknown: string[] } | null => {
     if (!ids.every(validId)) return null
     const sessions: Session[] = []
@@ -145,76 +76,20 @@ export const createStore = (discovery: Pick<Discovery, 'locate'>, busy: (id: str
 
   const get = (id: string): Session | null => acquire([id])?.sessions[0] ?? null
 
-  const records = (s: Session): UsageRecord[] => [s.main.parser.usage, ...[...s.agents.values()].map((a) => a.parser.usage)].flat()
-
-  // Keys carry context-window suffixes (`claude-opus-5-5[1m]`) that transcripts and pricing lack.
-  const recorded = (s: Session): RecordedCost => {
-    const { costUsd, costByModel } = s.main.parser.meta
-    if (costUsd === null) return null
-    const models: Record<string, number> = {}
-    for (const [key, c] of Object.entries(costByModel)) {
-      const m = key.replace(/\[.*\]$/, '')
-      models[m] = (models[m] ?? 0) + c
-    }
-    return { total: costUsd, models }
-  }
-
-  const agentStat = (p: Parser): AgentStat => {
-    let lo = Infinity
-    let hi = -Infinity
-    for (const r of p.usage) {
-      lo = Math.min(lo, r.t)
-      hi = Math.max(hi, r.t)
-    }
-    // Last in file order: timestamps run backwards within a file.
-    const u = p.usage.at(-1)
-    return {
-      tools: p.meta.toolCalls,
-      duration: p.usage.length > 1 ? hi - lo : 0,
-      context: u ? u.input + u.cacheRead + u.cacheWrite5m + u.cacheWrite1h : 0,
-      compacts: p.compacts,
-    }
-  }
-
-  const has = (s: Session, scope: Scope): boolean => !scope.startsWith('agent:') || s.agents.has(scope.slice(6))
-
   const view = (s: Session, scope: Scope): SessionView | null => {
-    if (!has(s, scope)) return null
-    const parsers: [string, Parser][] = [['main', s.main.parser], ...[...s.agents].map(([id, a]): [string, Parser] => [id, a.parser])]
-    const inScope = parsers.filter(([id]) => scope === 'all' || (scope === 'main' ? id === 'main' : `agent:${id}` === scope))
-    return {
-      id: s.id,
-      gen: s.gen,
-      version: s.version,
-      scope,
-      ...aggregate(records(s), scope, pricing, s.main.parser.turnStarts, (s.agents.get(scope.slice(6))?.parser ?? s.main.parser).compacts),
-      // Looked up per view: a nested agent can be discovered before its spawner's transcript is read.
-      agents: [...s.agents.values()].map((a) => ({
-        ...a.info,
-        prompt: a.parser.meta.task,
-        parent: [...s.agents].find(([, p]) => p.parser.tools.has(a.toolUseId))?.[0] ?? null,
-      })),
-      agentStats: Object.fromEntries(inScope.map(([id, p]) => [id, agentStat(p)])),
-      recordedCostUsd: scope === 'all' ? recorded(s) : null,
-    }
+    const v = viewOf(s.data, { id: s.id, gen: s.gen, version: s.version }, scope)
+    return v && { ...v, pipe: pipeOf(targets.observer, s.id) }
   }
 
-  const usage = (ss: Session[], unknown: string[]): UsageTotals => {
-    const totals: StatRow = { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, thinking: 0, requests: 0, cost: 0 }
-    let rec: number | null = null
-    let missing = 0
-    for (const s of ss) {
-      const t = aggregate(records(s), 'all', pricing, s.main.parser.turnStarts).stats.totals
-      for (const k of ['input', 'output', 'cacheRead', 'cacheWrite5m', 'cacheWrite1h', 'thinking', 'requests'] as const) totals[k] += t[k]
-      totals.cost = totals.cost === null || t.cost === null ? null : totals.cost + t.cost
-      const r = s.main.parser.meta.costUsd
-      if (r === null) missing++
-      else rec = (rec ?? 0) + r
-    }
-    return { totals, recorded: rec, missing, unknown }
-  }
+  const usage = (ss: Session[], unknown: string[]): UsageTotals => ({
+    ...usageOf(
+      ss.map((s) => s.data),
+      unknown,
+    ),
+    pipe: Object.fromEntries(ss.map((s) => [s.id, pipeOf(targets.observer, s.id)])),
+  })
 
-  /** Unlike the LRU, also drops a session a stream holds: its next acquire resolves through locate. */
+  /** Unlike the LRU, also drops a session a stream holds: its next acquire resolves through the targets. */
   const drop = (id: string): void => {
     open.delete(id)
   }

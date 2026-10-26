@@ -1,31 +1,23 @@
-// wal-index.ts — per-session indexes over `<id>.wal.jsonl`, kept in a small LRU, and the
+// wal-index.ts — per-session indexes over the observer's target file, kept in a small LRU, and the
 // newest-first merge that /events and /events-stream run over a pick of them.
 
-import { closeSync, openSync, readSync, statSync } from 'node:fs'
-import { join } from 'node:path'
-import { type AgentNode, CATEGORIES, type Category, catOf, type FirstPage, type McpRole, type Page, type Row } from '../shared/api.ts'
-import type { Discovery } from './discovery.ts'
+import { closeSync, openSync, readSync } from 'node:fs'
+import { type AgentNode, CATEGORIES, type Category, catOf, type FirstPage, type McpRole, type Page, type Pipe, type Row } from '../shared/api.ts'
+import type { Targets } from './observer.ts'
 import { validId } from './sessions.ts'
+import { createTargetReader } from './target.ts'
 
-const MCP_ROLE: Record<string, McpRole> = { PreToolUse: 'request', PostToolUse: 'response', PostToolUseFailure: 'response' }
-// A Pre whose Post never lands (killed session, crashed server) would otherwise be held forever.
+// A Pre or Post whose call row never lands (killed session, crashed server) would otherwise be held forever.
 const PENDING_MAX = 10_000
-const CHUNK = 8 * 1024 * 1024
 // A reader's window: an 8 MB one per picked index per miss kept RSS near the budget, while 1 MB
 // still holds hundreds of rows per disk read.
 const WINDOW = 1024 * 1024
 const OPEN_MAX = 8
 
-// The fields indexLine reads, typed as the hook writes them; a line is not validated against it.
-interface WalLine {
-  ts?: string
-  event?: string
-  tool_name?: string | null
-  tool_use_id?: string | null
-  agent_id?: unknown
-  agent_type?: unknown
-  duration_ms?: unknown
-  payload?: { tool_response?: { agentId?: unknown }; background_tasks?: unknown }
+// The parts of a WAL line's payload the tree state reads. The line is untyped JSON, so every step is optional.
+interface Payload {
+  tool_response?: { agentId?: unknown }
+  background_tasks?: unknown
 }
 
 // Indexes in bounds by construction, which noUncheckedIndexedAccess cannot see.
@@ -35,11 +27,23 @@ const nth = <T>(a: readonly T[], i: number): T => {
   return v
 }
 
+// What `q` searches: the source part of a target line, which serialize puts last. Quotes inside string
+// values are escaped, so a key's text never matches in the middle of one.
+const sourceOf = (line: string): string => {
+  const keys = line.startsWith('{"k":"call"') ? ['"input":', '"response":'] : ['"rec":', '"raw":']
+  for (const key of keys) {
+    const at = line.indexOf(key)
+    if (at !== -1) return line.slice(at)
+  }
+  return ''
+}
+
 // Seeded per process so a page reconnecting to a restarted server always sees a new gen, even
 // if the file was truncated while the server was down.
 let genSeed = Date.now()
 
 export interface IndexEntry {
+  // The byte span of the entry's line in the target.
   off: number
   len: number
   t: number
@@ -50,23 +54,25 @@ export interface IndexEntry {
   tool: string | null
   dur: number | null
   tuid: string | null
-  // `agent_id`; null is the session's main agent.
+  // The WAL's `agent_id`; null is the session's main agent.
   agent: string | null
   agentType: string | null
   mcp: McpRole | null
   err: boolean
+  // On a call row: the seqs of the Pre and Post entries it stands for.
   virtual: { pre: number; post: number } | null
 }
 
 export interface WalIndex {
   id: string
+  // The target file.
   path: string
   gen: number
   entries: IndexEntry[]
-  // Seqs sorted by `t` (ties keep seq order): legacy lines folded in can be out of time order.
+  // Seqs sorted by `t` (ties keep seq order): a call row's `t` is its Pre's, earlier than the rows before it.
   order: number[]
   tools: Set<string>
-  // Event names in first-seen order, including the synthetic 'MCP call'.
+  // Event names in first-seen order, including 'MCP call' and 'Tool call'.
   events: Set<string>
   cats: Set<Category>
   // First-seen order; 'main' for rows without `agent_id`.
@@ -87,9 +93,9 @@ export interface Reader {
 }
 
 export const createWalIndex = (id: string, path: string): WalIndex => {
-  // tool_use_id → seq of an MCP PreToolUse still waiting for its Post.
-  let pending = new Map<string, number>()
-  const pos: { ino: number; offset: number; carry: Buffer } = { ino: 0, offset: 0, carry: Buffer.alloc(0) }
+  const source = createTargetReader(path)
+  // tool_use_id → seqs of its Pre and Post entries, until the call row that pairs them arrives.
+  let pending = new Map<string, { pre?: number; post?: number }>()
 
   const ix: WalIndex = {
     id,
@@ -126,33 +132,33 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
     o.splice(lo, 0, seq)
   }
 
-  const indexLine = (buf: Buffer, off: number): void => {
-    const line = buf.toString('utf8')
-    if (!line.trim()) return
-    let rec: WalLine
-    try {
-      rec = Object(JSON.parse(line))
-    } catch {
-      rec = { event: 'Unparseable' }
-    }
-    const { entries } = ix
-    // Falling back to the previous row's time, not now, keeps old unparseable lines from looking
-    // new after every restart.
-    // `?? ''` keeps Date.parse's NaN for a missing ts.
-    let t = Date.parse(rec.ts ?? '')
-    if (Number.isNaN(t)) t = entries.at(-1)?.t ?? Date.now()
-    const d = new Date(t)
-    const tool = rec.tool_name ?? null
+  const noteAgent = (agent: string | null, agentType: string | null, tool: string | null): void => {
     if (tool !== null) ix.tools.add(tool)
-    const agent = typeof rec.agent_id === 'string' && rec.agent_id ? rec.agent_id : null
-    const agentType = typeof rec.agent_type === 'string' && rec.agent_type ? rec.agent_type : null
     const known = ix.agents.get(agent ?? 'main')
     if (known === undefined || (known === null && agentType !== null)) {
       ix.agents.set(agent ?? 'main', agentType)
       ix.links++
     }
-    const payload = rec.payload
-    if (tool === 'Agent' && rec.event === 'PostToolUse') {
+  }
+
+  const notePending = (tuid: string, event: string | null, seq: number): void => {
+    const role = event === 'PreToolUse' ? 'pre' : event === 'PostToolUse' || event === 'PostToolUseFailure' ? 'post' : null
+    if (role === null) return
+    const held = pending.get(tuid)
+    if (held) held[role] = seq
+    else {
+      pending.set(tuid, { [role]: seq })
+      if (pending.size > PENDING_MAX) {
+        const oldest = pending.keys().next().value
+        if (oldest !== undefined) pending.delete(oldest)
+      }
+    }
+  }
+
+  // `w` is the WAL line an ev entry was built from: absent on a raw line, a transcript line on a session without a WAL.
+  const noteTree = (event: string | null, tool: string | null, agent: string | null, w: unknown): void => {
+    const payload = (w !== null && typeof w === 'object' ? (w as { payload?: Payload | null }).payload : undefined) ?? undefined
+    if (tool === 'Agent' && event === 'PostToolUse') {
       const child = payload?.tool_response?.agentId
       if (typeof child === 'string' && child && child !== agent && ix.parents.get(child) !== agent) {
         ix.parents.set(child, agent)
@@ -160,56 +166,23 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
       }
     }
     const tasks = payload?.background_tasks
-    if (rec.event === 'SubagentStop' && agent !== null && Array.isArray(tasks)) {
-      // With two subagents running the summary could be about either, so it stays unattributed.
+    if (event === 'SubagentStop' && agent !== null && Array.isArray(tasks)) {
+      // With two background agents running the summary could be about either, so it stays unattributed.
       const subs = tasks.filter((b) => b?.type === 'subagent' && typeof b.id === 'string' && b.id)
       if (subs.length === 1) ix.about.set(agent, subs[0].id)
     }
-    const tuid = rec.tool_use_id ?? null
-    const mcp = (typeof tool === 'string' && tool.startsWith('mcp__') && MCP_ROLE[rec.event ?? '']) || null
-    // Every entry carries every key, so the index stays one hidden class.
-    const entry: IndexEntry = {
-      off,
-      len: buf.length,
-      t,
-      day: d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(),
-      minute: d.getHours() * 60 + d.getMinutes(),
-      event: rec.event,
-      cat: catOf(rec.event),
-      tool,
-      dur: typeof rec.duration_ms === 'number' ? rec.duration_ms : null,
-      tuid,
-      agent,
-      agentType,
-      mcp,
-      err: mcp !== null && rec.event === 'PostToolUseFailure',
-      virtual: null,
-    }
-    push(entry)
-    if (tuid === null) return
-    if (mcp === 'request') {
-      pending.set(tuid, entries.length - 1)
-      if (pending.size > PENDING_MAX) {
-        const oldest = pending.keys().next().value
-        if (oldest !== undefined) pending.delete(oldest)
-      }
-    } else if (mcp === 'response') {
-      const pre = pending.get(tuid)
-      if (pre === undefined) return
-      // Deleted on pairing, so a duplicate Post never yields a second call row.
-      pending.delete(tuid)
-      push({ ...entry, event: 'MCP call', cat: 'mcp', mcp: null, virtual: { pre, post: entries.length - 1 } })
-    }
   }
 
-  // Lines are split on the newline byte, never on decoded-string indices: multibyte UTF-8 would
-  // otherwise shift every later offset. A missing file is an empty index until it appears.
+  const stamp = (t: number): Pick<IndexEntry, 'day' | 'minute'> => {
+    const d = new Date(t)
+    return { day: d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(), minute: d.getHours() * 60 + d.getMinutes() }
+  }
+
+  // A missing target is an empty index until it appears.
   function tail(): void {
-    // A deleted file is a truncation to zero: streams must get `reset` and the index must not
-    // outlive the bytes it points at. A new inode is a replaced file, whatever its size.
-    const st = statSync(path, { throwIfNoEntry: false })
-    const size = st?.size ?? 0
-    if (size < pos.offset || (st && pos.offset > 0 && st.ino !== pos.ino)) {
+    const { items, reset } = source.read()
+    // A deleted or replaced target voids every seq: streams must get a new `gen`.
+    if (reset) {
       ix.entries = []
       ix.order = []
       ix.tools = new Set()
@@ -221,41 +194,51 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
       ix.links++
       pending = new Map()
       ix.gen = ++genSeed
-      pos.offset = 0
-      pos.carry = Buffer.alloc(0)
     }
-    if (st) pos.ino = st.ino
-    if (size === pos.offset) return
-
-    const fd = openSync(path, 'r')
-    // One buffer per call: the carried partial line moves to its front, and the buffer grows only
-    // once a long line leaves less than half a read of room.
-    let buf = Buffer.allocUnsafe(pos.carry.length + Math.min(CHUNK, size - pos.offset))
-    let have = pos.carry.copy(buf)
-    try {
-      while (pos.offset < size) {
-        const next = Math.min(CHUNK, size - pos.offset)
-        if (buf.length - have < next / 2) {
-          const wider = Buffer.allocUnsafe(have + next)
-          buf.copy(wider, 0, 0, have)
-          buf = wider
-        }
-        const n = readSync(fd, buf, have, Math.min(buf.length - have, next), pos.offset)
-        if (n === 0) break
-        const view = buf.subarray(0, have + n)
-        const base = pos.offset - have
-        pos.offset += n
-        let start = 0
-        for (let nl = view.indexOf(0x0a); nl !== -1; nl = view.indexOf(0x0a, start)) {
-          indexLine(view.subarray(start, nl), base + start)
-          start = nl + 1
-        }
-        have = buf.copy(buf, 0, start, view.length)
+    for (const { rec, off, len } of items) {
+      if (rec.k === 'ev') {
+        const event = rec.event ?? undefined
+        noteAgent(rec.agent, rec.agentType, rec.tool)
+        noteTree(rec.event, rec.tool, rec.agent, rec.rec)
+        // Every entry carries every key, so the index stays one hidden class.
+        push({
+          off,
+          len,
+          t: rec.t,
+          ...stamp(rec.t),
+          event,
+          cat: catOf(event),
+          tool: rec.tool,
+          dur: rec.dur,
+          tuid: rec.tuid,
+          agent: rec.agent,
+          agentType: rec.agentType,
+          mcp: rec.mcp,
+          err: rec.err,
+          virtual: null,
+        })
+        if (rec.tuid !== null) notePending(rec.tuid, rec.event, ix.entries.length - 1)
+      } else if (rec.k === 'call') {
+        noteAgent(rec.agent, rec.agentType, rec.tool)
+        const held = pending.get(rec.tuid)
+        pending.delete(rec.tuid)
+        push({
+          off,
+          len,
+          t: rec.t,
+          ...stamp(rec.t),
+          event: rec.mcp ? 'MCP call' : 'Tool call',
+          cat: rec.err ? 'fail' : rec.mcp ? 'mcp' : 'tool',
+          tool: rec.tool,
+          dur: rec.dur,
+          tuid: rec.tuid,
+          agent: rec.agent,
+          agentType: rec.agentType,
+          mcp: null,
+          err: rec.err,
+          virtual: held?.pre !== undefined && held.post !== undefined ? { pre: held.pre, post: held.post } : null,
+        })
       }
-    } finally {
-      closeSync(fd)
-      // Copied so the carry does not pin the whole buffer.
-      pos.carry = Buffer.from(buf.subarray(0, have))
     }
   }
 
@@ -284,7 +267,7 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
           if (room.length < end - start) room = Buffer.allocUnsafe(end - start)
           buf = room.subarray(0, readSync(fd, room, 0, end - start, start))
         }
-        return buf.toString('utf8', r.off - start, r.off - start + r.len)
+        return sourceOf(buf.toString('utf8', r.off - start, r.off - start + r.len))
       },
       close() {
         if (fd !== null) closeSync(fd)
@@ -297,38 +280,37 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
 }
 
 /**
- * Indexes by session id, created lazily from discovery. Beyond OPEN_MAX the least recently used
- * go, except those a stream holds (`busy`) or the current request asked for.
+ * Indexes by target path, created lazily. Beyond OPEN_MAX the least recently used go, except those
+ * a stream holds (`busy`) or the current request asked for.
  */
-export const createIndexes = (discovery: Pick<Discovery, 'locate'>, busy: (id: string) => boolean) => {
+export const createIndexes = (targets: Pick<Targets, 'target'>, busy: (id: string) => boolean) => {
   const open = new Map<string, WalIndex>()
 
-  /** null: an invalid id. Ids with no transcript are skipped into `unknown`. Tails every index it returns. */
+  /** null: an invalid id. Ids with no target are skipped into `unknown`. Tails every index it returns. */
   const acquire = (ids: string[]): { ixs: WalIndex[]; unknown: string[] } | null => {
     if (!ids.every(validId)) return null
     const ixs: WalIndex[] = []
     const unknown: string[] = []
     for (const id of ids) {
-      let ix = open.get(id)
-      if (!ix) {
-        const dir = discovery.locate(id)
-        if (!dir) {
-          unknown.push(id)
-          continue
-        }
-        ix = createWalIndex(id, join(dir, `${id}.wal.jsonl`))
-      } else ix.tail()
-      open.delete(id)
-      open.set(id, ix)
+      const path = targets.target(id)
+      if (path === null) {
+        unknown.push(id)
+        continue
+      }
+      let ix = open.get(path)
+      if (!ix) ix = createWalIndex(id, path)
+      else ix.tail()
+      open.delete(path)
+      open.set(path, ix)
       ixs.push(ix)
     }
-    for (const k of open.keys()) if (open.size > OPEN_MAX && !ids.includes(k) && !busy(k)) open.delete(k)
+    for (const [k, ix] of open) if (open.size > OPEN_MAX && !ids.includes(ix.id) && !busy(ix.id)) open.delete(k)
     return { ixs, unknown }
   }
 
-  /** Unlike the LRU, also drops an index a stream holds: its next acquire resolves through locate. */
+  /** Unlike the LRU, also drops an index a stream holds: its next acquire builds a fresh one. */
   const drop = (id: string): void => {
-    open.delete(id)
+    for (const [k, ix] of open) if (ix.id === id) open.delete(k)
   }
 
   return { acquire, drop }
@@ -537,7 +519,7 @@ export const parseVector = (s: string | null | undefined): Map<string, number> |
 
 const CURSOR = /^(-?\d+)\.([0-9a-f-]{36})\.(\d+)$/
 
-export const query = (ixs: WalIndex[], p: URLSearchParams, unknown: string[] = []): Page | FirstPage => {
+export const query = (ixs: WalIndex[], p: URLSearchParams, unknown: string[], pipe: Record<string, Pipe>): Page | FirstPage => {
   const hit = matcher(p)
   const n = Math.floor(Number(p.get('limit')))
   const limit = n > 0 ? n : 200
@@ -625,6 +607,7 @@ export const query = (ixs: WalIndex[], p: URLSearchParams, unknown: string[] = [
       cats: CATEGORIES.filter((c) => ixs.some((ix) => ix.cats.has(c))),
       agents,
       sessions: live.map((ix) => ix.id),
+      pipe,
     }
   } finally {
     for (const r of readers) r.close()

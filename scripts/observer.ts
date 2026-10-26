@@ -6,7 +6,7 @@
 
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { catOf, type McpRole } from '../shared/api.ts'
+import { catOf, type McpRole, type Pipe } from '../shared/api.ts'
 import type { Discovery } from './discovery.ts'
 import { appendRecords, createTargetReader, type Pos, TARGET_VERSION, type TargetItem, type TargetReader, type TargetRecord, targetPath } from './target.ts'
 import { createParser, type Parser } from './transcripts.ts'
@@ -42,12 +42,7 @@ type Line = Record<string, any>
 type Ev = Extract<TargetRecord, { k: 'ev' }>
 type Head = Extract<TargetRecord, { k: 'head' }>
 
-export interface SyncResult {
-  // WAL bytes the target covers, and the WAL size.
-  done: number
-  total: number
-  stale: string | null
-}
+export type SyncResult = Pipe
 
 interface AgentMeta {
   toolUseId: string
@@ -82,6 +77,10 @@ interface Transcript {
 interface Session {
   file: string
   reader: TargetReader
+  // Write mode: the target byte offset absorbed so far, and whether the rest is still to absorb. A new
+  // session reads its target in pieces under the sync budget; `fresh` makes sessions with nothing to absorb.
+  absorbed: number
+  absorbing: boolean
   head: boolean
   // `head.wal`; null until the head is known.
   wal: boolean | null
@@ -174,6 +173,16 @@ const lines = (path: string, from: number, size: number, deadline: number, each:
   return off
 }
 
+/** A target line as `createTargetReader` reads it: null when it is not JSON or has no string `k`. */
+const targetRecord = (line: Buffer): TargetRecord | null => {
+  try {
+    const rec = JSON.parse(line.toString('utf8'))
+    return rec !== null && typeof rec === 'object' && typeof rec.k === 'string' ? rec : null
+  } catch {
+    return null
+  }
+}
+
 /** Line 1 of a target, without reading the rest. */
 const headOf = (file: string): Head | null => {
   let fd: number
@@ -201,6 +210,8 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
   const fresh = (file: string, reader = createTargetReader(file)): Session => ({
     file,
     reader,
+    absorbed: 0,
+    absorbing: false,
     head: false,
     wal: null,
     version: null,
@@ -256,6 +267,21 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
         s.trRedo.clear()
       } else if (rec.k === 'stale') s.stale = rec.reason
     }
+  }
+
+  /** Absorbs the next whole lines of the target until its end or the deadline; clears `absorbing` at the end. */
+  const absorbSome = (s: Session, deadline: number): void => {
+    const size = statSync(s.file, { throwIfNoEntry: false })?.size ?? 0
+    const items: TargetItem[] = []
+    const end = lines(s.file, s.absorbed, size, deadline, (buf, off) => {
+      const rec = targetRecord(buf.subarray(0, -1))
+      if (rec !== null) items.push({ rec, off, len: buf.length - 1 })
+    })
+    absorb(s, items)
+    // `lines` stops short of the end only at the deadline or at a rest with no newline, a torn tail that the
+    // next append completes: before the deadline it can only be the tail.
+    if (end === null || end === s.absorbed || end >= size || Date.now() < deadline) s.absorbing = false
+    else s.absorbed = end
   }
 
   const result = (s: Session): SyncResult => ({ done: Math.max(s.off, s.replayTo), total: s.total, stale: s.stale })
@@ -599,13 +625,14 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     if (dir === null) return skip()
     const wal = join(dir, `${id}.wal.jsonl`)
     const st = statSync(wal, { throwIfNoEntry: false })
-    const file = s?.file ?? targetPath({ label: '', projectsDir: dirname(dir) }, id)
+    const file = s?.file ?? targetFile(discovery, id)
+    if (file === null) return skip()
     if (st === undefined && (!write || (s ? s.wal === true : headOf(file)?.wal === true))) return skip()
     if (!s) {
       s = fresh(file)
       sessions.set(id, s)
-      absorb(s, s.reader.read().items)
-      if (write && s.stale === null && s.version !== null) freeze(s, `format version ${s.version}`)
+      if (write) s.absorbing = true
+      else absorb(s, s.reader.read().items)
     }
     s.total = st?.size ?? 0
     if (!write) {
@@ -618,6 +645,11 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
       }
       absorb(s, r.items)
       return result(s)
+    }
+    if (s.absorbing) {
+      absorbSome(s, now + budgetMs)
+      if (s.absorbing) return result(s)
+      if (s.stale === null && s.version !== null) freeze(s, `format version ${s.version}`)
     }
     if (s.stale !== null) return result(s)
     if (st !== undefined) {
@@ -684,4 +716,42 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
   }
 
   return { sync, state, drop }
+}
+
+export type Observer = ReturnType<typeof createObserver>
+
+/** The target file of a session; null when discovery does not know the session. */
+export const targetFile = (discovery: Pick<Discovery, 'locate'>, id: string): string | null => {
+  const dir = discovery.locate(id)
+  return dir === null ? null : targetPath({ label: '', projectsDir: dirname(dir) }, id)
+}
+
+/** What the index and the store read the pipeline through: where a session's target is, and how far it is built. */
+export interface Targets {
+  target: (id: string) => string | null
+  observer: Pick<Observer, 'state'>
+}
+
+export const pipeOf = (observer: Pick<Observer, 'state'>, id: string): Pipe => observer.state(id) ?? { done: 0, total: 0, stale: null }
+
+// WAL_SYNC_BUDGET_MS exists for tests only, so they can make the budget 0.
+export const syncBudget = (): number => {
+  const env = process.env.WAL_SYNC_BUDGET_MS?.trim()
+  const ms = env ? Number(env) : Number.NaN
+  return Number.isFinite(ms) && ms >= 0 ? ms : 150
+}
+
+/** Syncs the sessions in order under one shared deadline. A session whose sync throws keeps its last known progress. */
+export const syncAll = (observer: Pick<Observer, 'sync' | 'state'>, ids: string[], budgetMs = syncBudget()): Record<string, Pipe> => {
+  const deadline = Date.now() + budgetMs
+  const pipe: Record<string, Pipe> = {}
+  for (const id of ids) {
+    try {
+      pipe[id] = observer.sync(id, Math.max(0, deadline - Date.now()))
+    } catch (e) {
+      console.error(`observer: sync ${id}: ${e instanceof Error ? e.message : String(e)}`)
+      pipe[id] = pipeOf(observer, id)
+    }
+  }
+  return pipe
 }

@@ -5,15 +5,17 @@
 //
 // The server runs with TZ=UTC so the local day and minute of each fixture record are fixed.
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { request } from 'node:http'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { catOf, type FirstPage, type Row, type WalRecord } from '../shared/api.ts'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { type CallRecord, catOf, type FirstPage, type Row, type WalRecord } from '../shared/api.ts'
 import { startServer } from './test-server.ts'
 import { agentTree, type IndexEntry, lineageOf, matcher } from './wal-index.ts'
 
 const dir = mkdtempSync(join(tmpdir(), 'walquery.'))
+const dir2 = mkdtempSync(join(tmpdir(), 'walbudget.'))
 const proj = join(dir, '.claude', 'projects', '-tmp-q')
 mkdirSync(proj, { recursive: true })
 const sid = (n: number): string => `aaaaaaaa-0000-4000-8000-${String(n).padStart(12, '0')}`
@@ -52,8 +54,8 @@ const at = (n: number): string => (n < 4 ? `${S1}:${n}` : `${S2}:${n - 4}`)
 const BOTH = `ids=${S1},${S2}`
 
 // MCP log as a third session. Seqs after indexing: 0 find Pre, 1 Bash Pre, 2 find Post,
-// 3 call(0,2), 4 add Pre, 5 orphan Pre, 6 add Failure, 7 call(4,6), 8 Bash Post, 9 find Post
-// without a Pre.
+// 3 call(0,2), 4 add Pre, 5 orphan Pre, 6 add Failure, 7 call(4,6), 8 Bash Post, 9 call(1,8),
+// 10 find Post without a Pre, 11 its call row.
 const FIND = 'mcp__claude_ai_Todoist__find-tasks'
 const ADD = 'mcp__claude_ai_Todoist__add-tasks'
 const M1 = sid(3)
@@ -72,6 +74,34 @@ session(M1, [
   mrec('06', 'PostToolUse', 'Bash', 'tB', { duration_ms: 5, payload: { tool_response: 'ok' } }),
   mrec('07', 'PostToolUse', FIND, 'tE', { duration_ms: 9, payload: { tool_response: 'no pre' } }),
 ])
+
+// A Bash pair whose input only the Pre holds, and a WAL line whose event is a prototype key.
+const P1 = sid(14)
+const P2 = sid(15)
+const PRE = JSON.stringify({
+  ts: '2026-09-29T11:00:00.000Z',
+  event: 'PreToolUse',
+  session_id: P1,
+  tool_name: 'Bash',
+  tool_use_id: 'tP',
+  payload: { tool_input: { command: 'zqx-only-in-the-pre' } },
+})
+const POST = JSON.stringify({
+  ts: '2026-09-29T11:00:05.000Z',
+  event: 'PostToolUse',
+  session_id: P1,
+  tool_name: 'Bash',
+  tool_use_id: 'tP',
+  duration_ms: 5000,
+  payload: { tool_response: 'done' },
+})
+session(P1, [PRE, POST])
+session(P2, [JSON.stringify({ ts: '2026-09-29T11:30:00.000Z', event: 'constructor', session_id: P2, tool_name: 'mcp__s__t' })])
+
+// A transcript with tool calls and no WAL: the observer builds its rows from the transcript alone.
+const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'projects', '-tmp-proj')
+const TR = 'd01c2dfc-0a01-4e1f-825a-5b0462780f18'
+copyFileSync(join(FIXTURE, `${TR}.jsonl`), join(proj, `${TR}.jsonl`))
 
 // Interleaved in time, with a tie across sessions (I1 seq 2 and I2 seq 2 share 00:04).
 const I1 = sid(4)
@@ -276,8 +306,8 @@ try {
   const whole = await pageAll(BOTH, 2)
   check('paging returns every row exactly once', same(whole.seen, [7, 6, 5, 4, 3, 2, 1, 0].map(at)), JSON.stringify(whole.seen))
   check(
-    'next-page responses carry no totals',
-    !('total' in whole.last) && !('counts' in whole.last) && !('spans' in whole.last) && !('agents' in whole.last),
+    'next-page responses carry no totals or pipe',
+    !('total' in whole.last) && !('counts' in whole.last) && !('spans' in whole.last) && !('agents' in whole.last) && !('pipe' in whole.last),
     JSON.stringify(whole.last),
   )
   const filtered = await pageAll(`${BOTH}&tool=-`, 2)
@@ -402,7 +432,7 @@ try {
   }
 
   const status = async (path: string) => (await fetch(`${BASE}${path}`)).status
-  const withWal = [S1, S2, NE, M1, I1, I2, G1, G2, G3, T1, T2]
+  const withWal = [S1, S2, NE, M1, P1, P2, I1, I2, G1, G2, G3, T1, T2]
   for (const qs of ['ids=', '']) {
     const every = await events(`${qs}${qs ? '&' : ''}limit=500`)
     const rowSess = [...new Set(every.rows.map((r) => r.sess))].sort()
@@ -501,14 +531,14 @@ try {
       m.rows.find((r) => r.seq === seq),
       `row ${seq}`,
     )
-  check('mcp: head counts one call row per completed pair', m.head === `${M1}:10` && m.total === 10, `${m.head} ${m.total}`)
+  check('mcp: head counts a call row per Post', m.head === `${M1}:12` && m.total === 12, `${m.head} ${m.total}`)
   check('mcp: Pre is marked request', row(0).mcp === 'request' && row(0).cat === 'tool' && !('err' in row(0)), JSON.stringify(row(0)))
   check('mcp: Post is marked response', row(2).mcp === 'response' && !('virtual' in row(2)), JSON.stringify(row(2)))
   check('mcp: Failure is a response with an error flag', row(6).mcp === 'response' && row(6).err === true && row(6).cat === 'fail', JSON.stringify(row(6)))
   check('mcp: non-mcp tool rows carry no marker', !('mcp' in row(1)) && !('mcp' in row(8)), JSON.stringify([row(1), row(8)]))
   check(
-    'mcp: call row follows its Post',
-    same(row(3), { sess: M1, seq: 3, cat: 'mcp', t: row(2).t, event: 'MCP call', tool: FIND, dur: 120, virtual: { pre: 0, post: 2 } }),
+    "mcp: call row follows its Post, at its Pre's time",
+    same(row(3), { sess: M1, seq: 3, cat: 'mcp', t: row(0).t, event: 'MCP call', tool: FIND, dur: 120, virtual: { pre: 0, post: 2 } }),
     JSON.stringify(row(3)),
   )
   check(
@@ -517,15 +547,19 @@ try {
     JSON.stringify(row(7)),
   )
   check('mcp: orphan Pre stays a plain request row', row(5).mcp === 'request' && !m.rows.some((r) => r.virtual?.pre === 5), JSON.stringify(row(5)))
-  check('mcp: Post without a Pre gets no call row', row(9).mcp === 'response' && m.rows.length === 10, JSON.stringify(row(9)))
+  check(
+    'mcp: Post without a Pre gets a call row at the Post time, with no virtual',
+    row(10).mcp === 'response' && row(11).event === 'MCP call' && row(11).t === row(10).t && !('virtual' in row(11)),
+    JSON.stringify([row(10), row(11)]),
+  )
   check('mcp: counts include the mcp category', m.counts.mcp === 2, JSON.stringify(m.counts))
-  await expectKeys('mcp: cat filter', `${MB}&cat=mcp`, [7, 3].map(mk))
-  await expectKeys('mcp: tool filter includes the call row', `${MB}&tool=${FIND}`, [9, 3, 2, 0].map(mk))
-  await expectKeys('mcp: q matches the call row through its Post', `${MB}&q=quota`, [7, 6].map(mk))
-  await expectKeys('mcp: cursor before the call row', `${MB}&before=${row(3).t}.${M1}.3`, [2, 1, 0].map(mk))
-  await expectKeys('mcp: cursor after the call row', `${MB}&before=${row(4).t}.${M1}.4`, [3, 2, 1, 0].map(mk))
+  await expectKeys('mcp: cat filter', `${MB}&cat=mcp`, [11, 3].map(mk))
+  await expectKeys('mcp: tool filter includes the call row', `${MB}&tool=${FIND}`, [11, 10, 2, 3, 0].map(mk))
+  await expectKeys('mcp: q matches the call row through its Post', `${MB}&q=quota`, [6, 7].map(mk))
+  await expectKeys('mcp: cursor before the call row', `${MB}&before=${row(3).t}.${M1}.3`, [0].map(mk))
+  await expectKeys('mcp: cursor after the call row', `${MB}&before=${row(4).t}.${M1}.4`, [2, 9, 1, 3, 0].map(mk))
   const mseen = await pageAll(MB, 1)
-  check('mcp: limit=1 paging returns every seq once', same(mseen.seen, [9, 8, 7, 6, 5, 4, 3, 2, 1, 0].map(mk)), JSON.stringify(mseen.seen))
+  check('mcp: limit=1 paging returns every seq once', same(mseen.seen, [11, 10, 8, 6, 5, 7, 4, 2, 9, 1, 3, 0].map(mk)), JSON.stringify(mseen.seen))
   check('mcp: pairing survives a merge with another session', (await events(`ids=${M1},${S1}&cat=mcp`)).total === 2)
 
   // Loose on purpose: one shape covers the plain record and the paired call record.
@@ -555,6 +589,60 @@ try {
   const plain = await mrecord(2)
   check('mcp: /record of a raw Post is the plain record', plain.event === 'PostToolUse' && !('virtual' in plain), JSON.stringify(plain))
 
+  const p1 = await events(`ids=${P1}`)
+  const preRow = must(
+    p1.rows.find((r) => r.event === 'PreToolUse'),
+    'Pre row',
+  )
+  const calls = p1.rows.filter((r) => r.event === 'Tool call')
+  check(
+    'call row: one per Bash pair, cat tool, at the Pre time, pointing at the Pre and Post',
+    calls.length === 1 && calls[0]?.cat === 'tool' && calls[0]?.t === preRow.t && same(calls[0]?.virtual, { pre: 0, post: 1 }),
+    JSON.stringify(p1.rows),
+  )
+  const pRecord = async (id: string, gen: number | undefined, seq: number) => (await (await record(id, seq, gen)).json()) as Record<string, unknown>
+  const callBody = await pRecord(P1, p1.gens[P1], must(calls[0], 'call row').seq)
+  check(
+    '/record of a call row pairs the WAL records and carries the call',
+    callBody.virtual === true &&
+      same(callBody.pre, JSON.parse(PRE)) &&
+      same(callBody.post, JSON.parse(POST)) &&
+      (callBody.call as CallRecord | undefined)?.tuid === 'tP',
+    JSON.stringify(callBody),
+  )
+  check('/record of an ev row is the plain WAL record', same(await pRecord(P1, p1.gens[P1], 0), JSON.parse(PRE)))
+
+  await expectKeys('search: a derived key is not searched', `ids=${P1}&q=woff`, [])
+  await expectKeys(
+    'search: text only in a call input matches its Pre row and call row',
+    `ids=${P1}&q=zqx-only`,
+    [2, 0].map((n) => `${P1}:${n}`),
+  )
+
+  const noWal = await events(`ids=${TR}&limit=500`)
+  check(
+    'no WAL: the transcript gives Tool call and UserPromptSubmit rows',
+    noWal.rows.some((r) => r.event === 'Tool call') && noWal.rows.some((r) => r.event === 'UserPromptSubmit'),
+    JSON.stringify(noWal.events),
+  )
+  check('no WAL: pipe reports nothing read and nothing stale', same(noWal.pipe[TR], { done: 0, total: 0, stale: null }), JSON.stringify(noWal.pipe))
+  const noWalCall = await pRecord(
+    TR,
+    noWal.gens[TR],
+    must(
+      noWal.rows.find((r) => r.event === 'Tool call'),
+      'transcript call row',
+    ).seq,
+  )
+  check('no WAL: /record of a call row is { call } with no virtual', same(Object.keys(noWalCall), ['call']), JSON.stringify(noWalCall))
+
+  const proto = await events(`ids=${P2}`)
+  check(
+    'prototype key: an event named constructor is a session row with no mcp marker',
+    proto.rows.length === 1 && proto.rows[0]?.cat === 'session' && !('mcp' in (proto.rows[0] ?? {})),
+    JSON.stringify(proto.rows),
+  )
+
   const empty = await events(`ids=${LATE}`)
   check(
     'missing WAL: /events answers with nothing',
@@ -564,12 +652,63 @@ try {
   writeFileSync(walOf(LATE), `${JSON.stringify({ ts: '2026-09-30T10:00:00.000Z', event: 'SessionStart', session_id: LATE })}\n`)
   const first = await events(`ids=${LATE}`)
   check('missing WAL: a file created later is picked up', first.total === 1 && first.rows[0]?.event === 'SessionStart', JSON.stringify(first))
+
+  // Budget 0 reads one chunk per request, so a WAL of many chunks needs many requests.
+  const BUDGET = sid(16)
+  const PAIRS = 1500
+  const pad = 'x'.repeat(150)
+  const wal: string[] = []
+  for (let i = 0; i < PAIRS; i++) {
+    const base = { session_id: BUDGET, tool_name: 'Bash', tool_use_id: `b${i}`, payload: { pad } }
+    const sec = String(i % 60).padStart(2, '0')
+    wal.push(JSON.stringify({ ts: `2026-09-29T09:${sec}:00.000Z`, event: 'PreToolUse', ...base }))
+    wal.push(JSON.stringify({ ts: `2026-09-29T09:${sec}:01.000Z`, event: 'PostToolUse', duration_ms: 1, ...base }))
+  }
+  const proj2 = join(dir2, '.claude', 'projects', '-tmp-b')
+  mkdirSync(proj2, { recursive: true })
+  writeFileSync(join(proj2, `${BUDGET}.jsonl`), '')
+  writeFileSync(join(proj2, `${BUDGET}.wal.jsonl`), `${wal.join('\n')}\n`)
+  if (statSync(join(proj2, `${BUDGET}.wal.jsonl`)).size < 8 * 64 * 1024) throw new Error('budget WAL is under 8 chunks')
+  const WANT = PAIRS * 3
+
+  const budgeted = async (label: string, base: string): Promise<void> => {
+    const get = async (): Promise<FirstPage> => {
+      const r = await fetch(`${base}/events?ids=${BUDGET}&limit=1`)
+      if (!r.ok) throw new Error(`status ${r.status}`)
+      return (await r.json()) as FirstPage
+    }
+    const firstPage = await get()
+    const first = firstPage.pipe[BUDGET]
+    check(`${label}: the first page is partial`, first !== undefined && first.done < first.total, JSON.stringify(firstPage.pipe))
+    let page = firstPage
+    for (let i = 0; i < 100 && page.pipe[BUDGET]?.done !== page.pipe[BUDGET]?.total; i++) page = await get()
+    check(
+      `${label}: repeated requests complete it, with a row per WAL line and call`,
+      page.pipe[BUDGET]?.done === page.pipe[BUDGET]?.total && page.total === WANT,
+      JSON.stringify([page.pipe, page.total]),
+    )
+  }
+  const env2 = { HOME: dir2, WAL_SYNC_BUDGET_MS: '0' }
+  const second = await startServer([], env2)
+  try {
+    await budgeted('budget 0', second.base)
+  } finally {
+    second.server.kill()
+    await new Promise((r) => second.server.once('exit', r))
+  }
+  const third = await startServer([], env2)
+  try {
+    await budgeted('budget 0, restarted over the built target', third.base)
+  } finally {
+    third.server.kill()
+  }
 } catch (err) {
   console.log(`  FAIL harness error — ${(err as Error).message}`)
   fail = 1
 } finally {
   server.kill()
   rmSync(dir, { recursive: true, force: true })
+  rmSync(dir2, { recursive: true, force: true })
 }
 
 console.log(fail ? '\nFAILED' : '\nall checks passed')

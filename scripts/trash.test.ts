@@ -5,7 +5,7 @@
 // same-origin guard on every write.
 
 import assert from 'node:assert/strict'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { type IncomingMessage, request } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -20,6 +20,7 @@ const proj = join(dir, '.claude', 'projects', SLUG)
 const otherProj = join(other, 'projects', '-tmp-o')
 const trashOf = (base: string): string => join(base, 'wal-trash')
 const TRASH = trashOf(join(dir, '.claude'))
+const targetOf = (base: string, id: string): string => join(base, 'wal-viewer', `${id}.jsonl`)
 const OTHER_TRASH = trashOf(other)
 // The server runs with TZ=UTC, so its local date is the UTC one.
 const TODAY = new Date().toISOString().slice(0, 10)
@@ -38,6 +39,7 @@ const session = (folder: string, id: string, { last = 'SessionEnd', age = HOUR, 
   const t = new Date(Date.now() - age)
   for (const n of piecesOf(id)) utimesSync(join(folder, n), t, t)
 }
+let kept = { rows: 0, size: 0 }
 const present = (folder: string, id: string): string[] => piecesOf(id).filter((n) => existsSync(join(folder, n)))
 
 mkdirSync(proj, { recursive: true })
@@ -261,6 +263,47 @@ test('purge one removes its pieces; purge all removes the rest and the emptied s
   assert.deepEqual(readdirSync(TRASH), ['2020-01-01'])
   assert.deepEqual(readdirSync(OTHER_TRASH), [])
   assert.ok(existsSync(join(TRASH, '2020-01-01', SLUG, `${sid(9)}.jsonl.wal-trash`)))
+})
+
+test('trash keeps the target of a synced session', async () => {
+  const id = sid(15)
+  session(proj, id)
+  assert.equal((await events(id)).rows.length, 2)
+  const target = targetOf(join(dir, '.claude'), id)
+  const size = statSync(target).size
+  assert.deepEqual(await trash(id), [{ id, status: 'ok' }])
+  assert.equal(statSync(target).size, size)
+  kept = { rows: 2, size }
+})
+
+test('restore resumes the target: one more WAL line is one more row, the target grew', async () => {
+  const id = sid(15)
+  assert.deepEqual(await post('/trash/restore', { refs: [await refOf(id)] }), [{ id, status: 'ok' }])
+  appendFileSync(join(proj, `${id}.wal.jsonl`), wal('Stop'))
+  assert.equal((await events(id)).rows.length, kept.rows + 1)
+  assert.ok(statSync(targetOf(join(dir, '.claude'), id)).size > kept.size)
+})
+
+test('purge one deletes the target', async () => {
+  const id = sid(16)
+  session(proj, id)
+  await events(id)
+  const target = targetOf(join(dir, '.claude'), id)
+  assert.ok(existsSync(target), 'target written by the sync')
+  await trash(id)
+  assert.deepEqual(await post('/trash/purge', { refs: [await refOf(id)] }), [{ id, status: 'ok' }])
+  assert.equal(existsSync(target), false)
+})
+
+test('purge all deletes the target of a --source session', async () => {
+  const id = sid(17)
+  session(otherProj, id)
+  await events(id)
+  const target = targetOf(other, id)
+  assert.ok(existsSync(target), 'target written by the sync')
+  await trash(id)
+  await post('/trash/purge', { all: true })
+  assert.equal(existsSync(target), false)
 })
 
 test('guard: cross-site or malformed writes are refused', async () => {

@@ -10,6 +10,7 @@ import { appendFileSync, closeSync, mkdirSync, mkdtempSync, openSync, rmSync, sy
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { SessionList, SessionView } from '../shared/api.ts'
+import { createObserver, targetFile } from './observer.ts'
 import { createStore } from './sessions.ts'
 import { startServer } from './test-server.ts'
 
@@ -210,7 +211,10 @@ try {
 
   try {
     // In-process, so the numbers are the store's own work without HTTP or JSON on top.
-    const store = createStore({ locate: () => join(wsRoot, SLUG) }, () => false)
+    const discovery = { locate: () => join(wsRoot, SLUG) }
+    const observer = createObserver({ discovery, write: true })
+    const store = createStore({ target: (id) => targetFile(discovery, id), observer }, () => false)
+    observer.sync(MAIN, Number.POSITIVE_INFINITY)
     const s = store.get(MAIN)
     const before = s && store.view(s, 'all')
     if (!s || !before) throw new Error(`no session ${MAIN}`)
@@ -236,13 +240,14 @@ try {
       lines.push(l)
       bytes += Buffer.byteLength(l)
     }
-    appendFileSync(s.main.path, lines.join(''))
+    appendFileSync(join(wsRoot, SLUG, `${MAIN}.jsonl`), lines.join(''))
     const t = performance.now()
+    observer.sync(MAIN, 150)
     const after = store.get(MAIN)
     const v = after && store.view(after, 'all')
     const tickMs = Math.round(performance.now() - t)
     if (!v) throw new Error(`no session ${MAIN} after the append`)
-    console.log(`tick, 1 MB append ${tickMs} ms (advance + view, ${lines.length} new requests)`)
+    console.log(`tick, 1 MB append ${tickMs} ms (sync + read + view, ${lines.length} new requests)`)
     check('append reaches the view', v.stats.totals.requests === requests + lines.length, `got ${v.stats.totals.requests - requests}`)
   } catch (err) {
     console.log(`  FAIL ${(err as Error).message}`)

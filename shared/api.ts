@@ -24,9 +24,19 @@ const OF: Record<string, Category> = {
   StopFailure: 'fail',
   Unparseable: 'fail',
 }
-export const catOf = (ev: string | undefined): Category => (ev !== undefined && OF[ev]) || 'session'
+export const catOf = (ev: string | undefined): Category => (ev !== undefined && Object.hasOwn(OF, ev) && OF[ev]) || 'session'
 
-// A row is identified by its session and its line number in that session's WAL (`seq`).
+// How far a session's target is built: `done` is the WAL bytes it covers, `total` the WAL size, `stale` the
+// reason the target stopped following its sources, or null.
+export type Pipe = { done: number; total: number; stale: string | null }
+
+// The data of an `event: stale` frame on /events-stream.
+export interface StaleFrame {
+  sess: string
+  reason: string
+}
+
+// A row is identified by its session and its line number in that session's target (`seq`).
 export interface Row {
   sess: string
   seq: number
@@ -43,7 +53,7 @@ export interface Row {
 
 // `head` is a position vector `<sess>:<n>,…` (rows indexed per picked session), passed back to
 // /events-stream as `after`; stream frame ids use the same format. `next` is an opaque cursor
-// for `before`. `gens` changes for a session whose WAL was truncated or re-indexed. `unknown`
+// for `before`. `gens` changes for a session whose target was re-indexed. `unknown`
 // lists picked ids with no transcript (deleted, or newer than the last /sessions), skipped rather
 // than failing the pick; every stream (/events-stream, /session-stream, /usage-stream) instead
 // opens with an `event: unknown` frame whose data is that array, sent only when it is non-empty.
@@ -89,6 +99,8 @@ export interface FirstPage extends Page {
   agents: SessionAgents[]
   // Picked sessions whose WAL holds any row.
   sessions: string[]
+  // One per picked session that discovery found.
+  pipe: Record<string, Pipe>
 }
 
 export interface WalRecord {
@@ -98,13 +110,37 @@ export interface WalRecord {
   [key: string]: unknown
 }
 
+// A target `call` line as /record returns it.
+export interface CallRecord {
+  k: 'call'
+  tuid: string
+  t: number
+  end: number
+  dur: number | null
+  tool: string | null
+  mcp: boolean
+  err: boolean
+  agent: string | null
+  agentType: string | null
+  input: unknown
+  response: unknown
+}
+
 export interface McpCallRecord {
   virtual: true
   pre: WalRecord
   post: WalRecord
+  call: CallRecord
 }
 
-export type RecordResponse = WalRecord | McpCallRecord
+// A call row with no Pre or Post `ev`, as in a session without a WAL.
+export interface CallOnlyRecord {
+  // Never set; lets the page read `virtual` on any RecordResponse without a cast.
+  virtual?: undefined
+  call: CallRecord
+}
+
+export type RecordResponse = WalRecord | McpCallRecord | CallOnlyRecord
 
 // ---- Sessions tab ----
 
@@ -213,9 +249,9 @@ export interface AgentStat {
 
 export type RecordedCost = { total: number; models: Record<string, number> } | null
 
-// /session, and each /session-stream frame (one per session whose `version` moved). `version` is
-// unique across re-opens, so a version vector alone tells a stream what the page already holds:
-// pass `since=<id>:<version>,…` and the Last-Event-ID carries the same vector.
+// /session, and each /session-stream frame (one per session whose `version` moved). `version` is the
+// target offset of the last stats record the store read, and it moves when the target turns stale; it is
+// not unique across re-opens. Pass `since=<id>:<version>,…`; the Last-Event-ID carries the same vector.
 export interface SessionView {
   id: string
   gen: number
@@ -227,6 +263,8 @@ export interface SessionView {
   // Keyed like `stats.agents`, plus agents in scope that made no request yet.
   agentStats: Record<string, AgentStat>
   recordedCostUsd: RecordedCost
+  // Optional only because scripts/session-view.ts builds this type without it; the store always sets it.
+  pipe?: Pipe
 }
 
 // /usage and each /usage-stream frame, summed over the pick. `totals.cost` is null when any
@@ -238,6 +276,8 @@ export interface UsageTotals {
   recorded: number | null
   missing: number
   unknown: string[]
+  // Optional only because scripts/session-view.ts builds this type without it; the store always sets it.
+  pipe?: Record<string, Pipe>
 }
 
 // ---- Trash ----
