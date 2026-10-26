@@ -4,11 +4,23 @@
 // a WAL gets its call and turn rows from the transcripts instead. After a restart a pass replays each
 // source up to the last `ck` without writing, to rebuild its parser state, then continues.
 
-import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, rmSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { catOf, type McpRole, type Pipe } from '../shared/api.ts'
-import type { Discovery } from './discovery.ts'
-import { appendRecords, createTargetReader, type Pos, TARGET_VERSION, type TargetItem, type TargetReader, type TargetRecord, targetPath } from './target.ts'
+import { catOf, type McpRole, type Pipe, type RebuildResult } from '../shared/api.ts'
+import { createDiscovery, type Discovery, SESSION_RE } from './discovery.ts'
+import {
+  acquireLock,
+  appendRecords,
+  createTargetReader,
+  type Pos,
+  releaseLock,
+  TARGET_VERSION,
+  type TargetItem,
+  type TargetReader,
+  type TargetRecord,
+  targetDir,
+  targetPath,
+} from './target.ts'
 import { createParser, type Parser } from './transcripts.ts'
 
 const MCP_ROLE = new Map<string, McpRole>([
@@ -61,6 +73,8 @@ interface Transcript {
   off: number
   // Lines before this offset are already in the target: replay them without writing.
   replayTo: number
+  // The file size at its last stat.
+  size: number
   // New, or bytes were read in this pass: its records may have changed.
   grew: boolean
   // The row fields: null for main.
@@ -81,6 +95,8 @@ interface Session {
   // session reads its target in pieces under the sync budget; `fresh` makes sessions with nothing to absorb.
   absorbed: number
   absorbing: boolean
+  // The last pass stopped short of its sources' last whole lines (at its deadline), or none ran yet.
+  behind: boolean
   head: boolean
   // `head.wal`; null until the head is known.
   wal: boolean | null
@@ -212,6 +228,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     reader,
     absorbed: 0,
     absorbing: false,
+    behind: true,
     head: false,
     wal: null,
     version: null,
@@ -284,7 +301,22 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     else s.absorbed = end
   }
 
-  const result = (s: Session): SyncResult => ({ done: Math.max(s.off, s.replayTo), total: s.total, stale: s.stale })
+  /** WAL plus transcript bytes. A transcript known only from the last `ck` (not read in this process) counts as done. */
+  const result = (s: Session): SyncResult => {
+    let done = Math.max(s.off, s.replayTo)
+    let total = s.total
+    for (const [name, ck] of Object.entries(s.ckTr)) {
+      if (s.tr.has(name)) continue
+      done += ck.off
+      total += ck.off
+    }
+    for (const tr of s.tr.values()) {
+      const at = Math.max(tr.off, tr.replayTo)
+      done += at
+      total += Math.max(tr.size, at)
+    }
+    return { done, total, stale: s.stale }
+  }
 
   const freeze = (s: Session, reason: string): void => {
     s.stale = reason
@@ -464,6 +496,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
       ino: ck?.ino ?? 0,
       off: 0,
       replayTo: ck?.off ?? 0,
+      size: 0,
       // A new agent gets its `agent` record even before its transcript has a line.
       grew: true,
       agent: meta ? name : null,
@@ -483,6 +516,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     if (st === undefined) return null
     if (tr.ino !== 0 && st.ino !== tr.ino) return 'transcript replaced'
     if (st.size < Math.max(tr.off, tr.replayTo)) return 'transcript shrank'
+    tr.size = st.size
     const end = lines(tr.path, tr.off, st.size, Number.POSITIVE_INFINITY, (buf, off) => trLine(s, tr, buf, off, rows, now, out))
     // Nothing reads timeline updates; cleared so the set does not grow with the file, as the store does.
     tr.parser.touched.clear()
@@ -615,7 +649,8 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
 
   /**
    * Brings the session's target up to its sources within about `budgetMs` of WAL reading. A missing session is
-   * skipped, and so is a missing WAL of a target built from one (it may be in trash).
+   * skipped, and so is a missing WAL of a target built from one (it may be in trash). Read-only, a session without a
+   * WAL still reads its target, so a frozen one reports its stale reason.
    */
   const sync = (id: string, budgetMs: number): SyncResult => {
     const now = Date.now()
@@ -627,7 +662,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     const st = statSync(wal, { throwIfNoEntry: false })
     const file = s?.file ?? targetFile(discovery, id)
     if (file === null) return skip()
-    if (st === undefined && (!write || (s ? s.wal === true : headOf(file)?.wal === true))) return skip()
+    if (st === undefined && (s ? s.wal === true : headOf(file)?.wal === true)) return skip()
     if (!s) {
       s = fresh(file)
       sessions.set(id, s)
@@ -687,6 +722,8 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
       }
       s.ino = st.ino
     }
+    // Short of the WAL end before the deadline is a torn tail: the pass is caught up to the last whole line.
+    s.behind = st !== undefined && s.off < st.size && Date.now() >= now + budgetMs
     if (out.length) {
       if (!s.head) out.unshift({ k: 'head', v: TARGET_VERSION, id, wal: st !== undefined })
       const tr = Object.fromEntries([...s.tr.values()].filter((t) => t.off > 0).map((t) => [t.name, { ino: t.ino, off: t.off }]))
@@ -715,7 +752,13 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     sessions.delete(id)
   }
 
-  return { sync, state, drop }
+  /** Whether the last pass caught the session up to its sources' last whole lines; false while it absorbs its target. */
+  const built = (id: string): boolean => {
+    const s = sessions.get(id)
+    return s !== undefined && !s.absorbing && !s.behind
+  }
+
+  return { sync, state, drop, built }
 }
 
 export type Observer = ReturnType<typeof createObserver>
@@ -730,6 +773,25 @@ export const targetFile = (discovery: Pick<Discovery, 'locate'>, id: string): st
 export interface Targets {
   target: (id: string) => string | null
   observer: Pick<Observer, 'state'>
+}
+
+/**
+ * Deletes a session's target and forgets its in-memory state, so its next sync builds it again from the sources.
+ * A target built from a WAL that is gone is kept, as sync keeps it: its events exist nowhere else.
+ * The caller holds the cache lock; the id must have passed `validId`.
+ */
+export const rebuild = (observer: Pick<Observer, 'drop'>, discovery: Pick<Discovery, 'locate'>, id: string): RebuildResult => {
+  const dir = discovery.locate(id)
+  const file = targetFile(discovery, id)
+  if (dir === null || file === null) return { id, ok: false, error: 'unknown session' }
+  if (!existsSync(join(dir, `${id}.wal.jsonl`)) && headOf(file)?.wal === true) return { id, ok: false, error: 'wal missing' }
+  try {
+    rmSync(file, { force: true })
+  } catch (e) {
+    return { id, ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+  observer.drop(id)
+  return { id, ok: true }
 }
 
 export const pipeOf = (observer: Pick<Observer, 'state'>, id: string): Pipe => observer.state(id) ?? { done: 0, total: 0, stale: null }
@@ -754,4 +816,63 @@ export const syncAll = (observer: Pick<Observer, 'sync' | 'state'>, ids: string[
     }
   }
   return pipe
+}
+
+/**
+ * `wal rebuild [ids…]`: deletes the targets of the given sessions, or of all, and builds them again, one session at
+ * a time, saying how far each is. Takes the cache lock of every source for the run. Returns the exit code.
+ */
+export const runRebuild = (discovery: Discovery, ids: string[], say: (s: string) => void, complain: (s: string) => void): number => {
+  const taken: string[] = []
+  const release = (): void => {
+    for (const dir of taken) releaseLock(dir)
+  }
+  for (const dir of new Set(discovery.sources().map(targetDir))) {
+    if (!acquireLock(dir)) {
+      release()
+      complain('server running — use Rebuild in the page')
+      return 1
+    }
+    taken.push(dir)
+  }
+  try {
+    const observer = createObserver({ discovery, write: true })
+    const all = ids.length === 0 ? discovery.list().sessions.map((s) => s.id) : ids
+    let failed = 0
+    for (const id of all) {
+      const r = rebuild(observer, discovery, id)
+      if (!r.ok) {
+        failed++
+        complain(`${id}: ${r.error}`)
+        continue
+      }
+      let pipe = observer.sync(id, 50)
+      // A pass that moves nothing ends the session: a partial last line would otherwise never reach `total`.
+      for (let last = -1; pipe.stale === null && pipe.done < pipe.total && pipe.done !== last; ) {
+        last = pipe.done
+        pipe = observer.sync(id, 50)
+      }
+      say(`${id} ${pipe.done}/${pipe.total}${pipe.stale === null ? '' : ` stale: ${pipe.stale}`}`)
+    }
+    return failed === 0 ? 0 : 1
+  } finally {
+    release()
+  }
+}
+
+if (process.argv[1] === import.meta.filename) {
+  const args = process.argv.slice(2)
+  const extra = args.filter((a) => a.startsWith('--source=')).map((a) => a.slice('--source='.length))
+  const flag = args.find((a) => a.startsWith('-') && !a.startsWith('--source='))
+  if (flag !== undefined) {
+    console.error(`unknown option: ${flag}\nusage: wal rebuild [ids…] [--source=<config-dir>]...`)
+    process.exit(2)
+  }
+  const ids = args.filter((a) => !a.startsWith('--source='))
+  const bad = ids.find((id) => !SESSION_RE.test(id))
+  if (bad !== undefined) {
+    console.error(`not a session id: ${bad}`)
+    process.exit(2)
+  }
+  process.exit(runRebuild(createDiscovery(extra), ids, console.log, console.error))
 }

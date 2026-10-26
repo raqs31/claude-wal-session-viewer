@@ -624,7 +624,7 @@ test('no WAL: UserPromptSubmit per turn start, Stop and SubagentStop only on end
 test('no WAL: a WAL that appears later makes the target stale with wal appeared', () => {
   const { id, tr, wal, target } = session()
   appendFileSync(tr, `${JSON.stringify({ type: 'user', uuid: 'u1', timestamp: sec(1), message: { role: 'user', content: 'hi' } })}\n`)
-  assert.deepEqual(sync(id), { done: 0, total: 0, stale: null })
+  assert.deepEqual(sync(id), { done: statSync(tr).size, total: statSync(tr).size, stale: null })
   assert.deepEqual(records(target)[0], { k: 'head', v: TARGET_VERSION, id, wal: false })
 
   put(wal, [rec(2, 'SessionStart')])

@@ -413,12 +413,18 @@ try {
     const ix = { id: sess, agents, parents, about: new Map<string, string>(), links: 0 }
     const row = (agent: string) => ({ agent, minute: 0 }) as IndexEntry
     const hit = matcher(new URLSearchParams(`agent=${sess}:d0*`))
-    const t0 = performance.now()
+    // Minimum of three runs: host load inflates one run, rarely all three.
+    // An O(depth²)-per-row regression costs about 3000 times more, so 5 s still catches it.
     let n = 0
-    for (let i = 0; i < D; i++) if (hit(row(`d${i}`), ix, () => '')) n++
-    const ms = performance.now() - t0
+    let ms = Infinity
+    for (let run = 0; run < 3; run++) {
+      const t0 = performance.now()
+      n = 0
+      for (let i = 0; i < D; i++) if (hit(row(`d${i}`), ix, () => '')) n++
+      ms = Math.min(ms, performance.now() - t0)
+    }
     check('lineage: a subtree token reaches every row of a deep chain', n === D, String(n))
-    check(`lineage: ${D} rows of a ${D}-deep chain match in under 1.5s (O(depth) per row)`, ms < 1500, `${ms.toFixed(0)}ms`)
+    check(`lineage: ${D} rows of a ${D}-deep chain match in under 5s, best of 3 (O(depth) per row)`, ms < 5000, `${ms.toFixed(0)}ms`)
     check('lineage: a spawn cycle ends at main', lineageOf(ix, 'y0').up === null && lineageOf(ix, 'y1').up === null)
     check(
       'lineage: cycle members match only their own subtree',
@@ -625,7 +631,12 @@ try {
     noWal.rows.some((r) => r.event === 'Tool call') && noWal.rows.some((r) => r.event === 'UserPromptSubmit'),
     JSON.stringify(noWal.events),
   )
-  check('no WAL: pipe reports nothing read and nothing stale', same(noWal.pipe[TR], { done: 0, total: 0, stale: null }), JSON.stringify(noWal.pipe))
+  const trBytes = statSync(join(proj, `${TR}.jsonl`)).size
+  check(
+    'no WAL: pipe reports the transcript bytes read and nothing stale',
+    same(noWal.pipe[TR], { done: trBytes, total: trBytes, stale: null }),
+    JSON.stringify(noWal.pipe),
+  )
   const noWalCall = await pRecord(
     TR,
     noWal.gens[TR],

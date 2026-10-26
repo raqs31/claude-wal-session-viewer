@@ -10,11 +10,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import type { AddressInfo } from 'node:net'
 import { dirname, extname, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { CallRecord, RecordResponse, Row, StaleFrame, TrashRef, TrashResult, WalRecord } from '../shared/api.ts'
+import type { CallRecord, ObserverStatus, Pipe, RebuildResult, RecordResponse, Row, StaleFrame, TrashRef, TrashResult, WalRecord } from '../shared/api.ts'
 import { createDiscovery } from './discovery.ts'
-import { createObserver, pipeOf, syncAll, targetFile } from './observer.ts'
+import { createObserver, pipeOf, rebuild, syncAll, targetFile } from './observer.ts'
 import { createStore, parseScope, type Session, validId } from './sessions.ts'
-import { type TargetRecord, targetPath } from './target.ts'
+import { acquireLock, type TargetRecord, targetDir, targetPath } from './target.ts'
 import { createTrash } from './trash.ts'
 import { cmp, createIndexes, type IndexEntry, type Matcher, matcher, parseVector, query, type Reader, summary, vector, type WalIndex } from './wal-index.ts'
 
@@ -72,7 +72,64 @@ interface SessionClient {
 }
 
 const sessionClients = new Set<SessionClient>()
-const observer = createObserver({ discovery, write: true })
+
+const TICK_MS = 1000
+const SLICE_MS = 50
+
+// One writer per target dir. A dir's lock is taken before the first write to it, so a source found after the start
+// is locked too; a dir another server holds is only read here. A refused dir is asked again at most once per TICK_MS.
+const held = new Set<string>()
+// Dirs whose refusal was logged: once per dir, however often it is asked again.
+const refused = new Set<string>()
+const asked = new Map<string, number>()
+const hold = (dir: string): boolean => {
+  if (held.has(dir)) return true
+  const now = Date.now()
+  if (now - (asked.get(dir) ?? Number.NEGATIVE_INFINITY) < TICK_MS) return false
+  asked.set(dir, now)
+  let ok = false
+  let why = 'another server holds the observer lock'
+  try {
+    ok = acquireLock(dir)
+  } catch (err) {
+    why = `the observer lock cannot be taken (${(err as Error).message})`
+  }
+  if (ok) held.add(dir)
+  else if (!refused.has(dir)) {
+    refused.add(dir)
+    console.log(`wal-server: ${dir}: ${why}; its targets are read-only here`)
+  }
+  return ok
+}
+for (const dir of new Set(discovery.sources().map(targetDir))) hold(dir)
+// Owner only while it holds at least one lock: with none, /rebuild is refused.
+const owner = (): boolean => held.size > 0
+
+const writer = createObserver({ discovery, write: true })
+const reader = createObserver({ discovery, write: false })
+const dirOf = (id: string): string | null => {
+  const file = targetFile(discovery, id)
+  return file === null ? null : dirname(file)
+}
+/** Each session goes to the writer when this server holds (or can take) its dir's lock, else to the reader. */
+const observer = {
+  sync: (id: string, budgetMs: number): Pipe => {
+    const dir = dirOf(id)
+    if (dir === null || !hold(dir)) return reader.sync(id, budgetMs)
+    reader.drop(id)
+    return writer.sync(id, budgetMs)
+  },
+  state: (id: string): Pipe | null => {
+    const dir = dirOf(id)
+    return (dir !== null && held.has(dir) ? writer : reader).state(id)
+  },
+  drop: (id: string): void => {
+    writer.drop(id)
+    reader.drop(id)
+  },
+}
+/** Asked for and refused at the last try: held dirs are never released. */
+const elsewhere = (dir: string | null): boolean => dir !== null && !held.has(dir) && asked.has(dir)
 const targets = { target: (id: string) => targetFile(discovery, id), observer }
 const store = createStore(targets, (id) => [...sessionClients].some((c) => c.ids.includes(id)))
 const indexes = createIndexes(targets, (id) => [...clients].some((c) => c.ixs.some((ix) => ix.id === id)))
@@ -121,10 +178,10 @@ const sessionTick = (): void => {
 }
 
 /**
- * Runs after a trash and after a restore, so an open stream on `id` learns at once: the ticks
+ * Runs after a trash, a restore and a rebuild, so an open stream on `id` learns at once: the ticks
  * alone skip a session that resolves null, and a tail of an empty WAL never sees it go.
  */
-const trash = createTrash(discovery, (id) => {
+const forget = (id: string): void => {
   observer.drop(id)
   indexes.drop(id)
   store.drop(id)
@@ -144,7 +201,9 @@ const trash = createTrash(discovery, (id) => {
     if (client.usage) writeUsage(client, ss)
     else client.res.write(`event: unknown\ndata: ${JSON.stringify(client.ids.filter((_, i) => ss[i] === null))}\n\n`)
   }
-})
+}
+
+const trash = createTrash(discovery, forget)
 
 const walTick = (): void => {
   // Each index is tailed once per tick; one failing file is logged and its clients skipped.
@@ -215,6 +274,61 @@ setInterval(() => {
   sessionTick()
 }, 250)
 
+// Sessions the loop synced; /observer counts one the writer keeps no state for (a skipped sync) as built.
+const seen = new Set<string>()
+
+/**
+ * The background build: once a second, every discovered session in a dir this server holds (or can take) the lock
+ * of is synced, in slices of SLICE_MS with a yield between them, so requests stay fast. Sessions in another server's
+ * dirs are skipped. The first tick waits a full TICK_MS after the start.
+ */
+const build = async (): Promise<void> => {
+  for (;;) {
+    await new Promise((r) => setTimeout(r, TICK_MS))
+    try {
+      const ids = discovery.list().sessions.map((s) => s.id)
+      // `done` after the session's last slice in this tick: a session that stops moving waits for the next tick.
+      const last = new Map<string, number>()
+      for (let i = 0; i < ids.length; ) {
+        const deadline = Date.now() + SLICE_MS
+        while (i < ids.length && Date.now() < deadline) {
+          const id = ids[i] as string
+          const dir = dirOf(id)
+          if (dir === null || !hold(dir)) {
+            i++
+            continue
+          }
+          const p = syncAll(observer, [id], deadline - Date.now())[id] ?? pipeOf(observer, id)
+          seen.add(id)
+          if (p.stale !== null || p.done >= p.total || last.get(id) === p.done) i++
+          else last.set(id, p.done)
+        }
+        await new Promise((r) => setImmediate(r))
+      }
+    } catch (err) {
+      console.error(`wal-server: build: ${(err as Error).message}`)
+    }
+  }
+}
+void build()
+
+const observerStatus = (): ObserverStatus => {
+  const status: ObserverStatus = { owner: owner(), total: 0, built: 0, building: [], stale: [], elsewhere: 0 }
+  for (const { id } of discovery.list().sessions) {
+    status.total++
+    if (elsewhere(dirOf(id))) {
+      status.elsewhere++
+      continue
+    }
+    // `done` can stay short of `total` for good: a torn last line is not read until its newline lands.
+    const p = writer.state(id)
+    if (p && p.stale !== null) status.stale.push({ id, reason: p.stale })
+    else if (p ? writer.built(id) : seen.has(id)) status.built++
+    else status.building.push(id)
+  }
+  return status
+}
+
 // Only files under web/dist are served: the URL is decoded first, so `%2e%2e` cannot climb out.
 const serveStatic = (pathname: string, res: ServerResponse): boolean => {
   let rel: string
@@ -275,12 +389,28 @@ const purge = (refs: TrashRef[] | 'all'): TrashResult[] => {
   return results
 }
 
+/** Rebuilt by the build loop, or by the next request that picks it. */
+const rebuildAll = (ids: string[]): RebuildResult[] =>
+  ids.map((id) => {
+    const dir = dirOf(id)
+    if (dir !== null && !hold(dir)) return { id, ok: false, error: 'another server holds the lock' }
+    const r = rebuild(observer, discovery, id)
+    if (r.ok) {
+      forget(id)
+      seen.delete(id)
+    }
+    return r
+  })
+
 /** null: a bad shape or a bad id, which fails the whole request. */
-const writeOf = (path: string, body: unknown): (() => TrashResult[]) | null => {
+const writeOf = (path: string, body: unknown): (() => TrashResult[] | RebuildResult[]) | null => {
   const b = body as Record<string, unknown> | null
   if (typeof b !== 'object' || b === null) return null
   const { ids, refs } = b
-  if (path === '/trash') return Array.isArray(ids) && ids.every((id) => typeof id === 'string' && validId(id)) ? () => trash.trash(ids) : null
+  if (path === '/trash' || path === '/rebuild') {
+    if (!Array.isArray(ids) || !ids.every((id) => typeof id === 'string' && validId(id))) return null
+    return path === '/trash' ? () => trash.trash(ids) : () => rebuildAll(ids)
+  }
   if (path === '/trash/purge' && b.all === true) return () => purge('all')
   if (!Array.isArray(refs) || !refs.every(isRef)) return null
   return path === '/trash/restore' ? () => trash.restore(refs) : () => purge(refs)
@@ -289,6 +419,7 @@ const writeOf = (path: string, body: unknown): (() => TrashResult[]) | null => {
 /** The body arrives after handle() returns, so its errors never reach the server's catch. */
 const post = (req: IncomingMessage, res: ServerResponse, path: string): void => {
   if (crossSite(req)) return void res.writeHead(403).end('forbidden')
+  if (path === '/rebuild' && !owner()) return void res.writeHead(409).end('read-only: another server builds the targets')
   const chunks: Buffer[] = []
   let size = 0
   req.on('data', (c: Buffer) => {
@@ -463,7 +594,13 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
     return
   }
 
-  if (url.pathname === '/trash' || url.pathname === '/trash/restore' || url.pathname === '/trash/purge') {
+  if (url.pathname === '/observer') {
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(JSON.stringify(observerStatus()))
+    return
+  }
+
+  if (url.pathname === '/trash' || url.pathname === '/trash/restore' || url.pathname === '/trash/purge' || url.pathname === '/rebuild') {
     if (req.method !== 'POST') return void res.writeHead(405, { allow: url.pathname === '/trash' ? 'GET, POST' : 'POST' }).end('method not allowed')
     return void post(req, res, url.pathname)
   }
