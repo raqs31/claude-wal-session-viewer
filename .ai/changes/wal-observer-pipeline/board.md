@@ -8,15 +8,18 @@ Build plan.md phases 1-8: observer targets, readers on targets, token join, filt
 
 ## Facts
 
-- Phases 1 to 4 closed. Phase 1: 516b183 (target format, append, tail reader, lock). Phase 2: bafbfc1 (observer ev, call, ck, resume, stale). Phase 3: d8689e0 (transcript pass, session view, golden test). Phase 4: 90f90bd (readers on targets, budgeted sync, stale frames).
+- Phases 1 to 5 closed. Phase 1: 516b183 (target format, append, tail reader, lock). Phase 2: bafbfc1 (observer ev, call, ck, resume, stale). Phase 3: d8689e0 (transcript pass, session view, golden test). Phase 4: 90f90bd (readers on targets, budgeted sync, stale frames). Phase 5: 5e1900b (observer lock, background loop, /observer, /rebuild, wal rebuild CLI).
+- Phase 5 detail: T10 cache lock or read-only, 1s/50ms loop, transcript bytes in progress (T5 follow-up). T11 wal rebuild CLI, exit 1 on held lock. T12 and T13 approved after fix rounds; 257 pass.
+- T14 done: createParser returns replyInfo and toolInfo (transcripts.ts), 4 tests.
 - Lock uses a hard link; release checks the pid.
 - T5 files were widened to target.ts and session-view.ts(+test) by replan.
-- T8 closed after rework T8.11-T8.13: stream stale set starts empty, reconnect test, OF 'Tool call', pipe required, EventRow tool label. T9 approved after one fix round; verify 245 pass.
+- T8 closed after rework T8.11-T8.13. T9 approved after one fix round.
 - T8 owned the T4 follow-ups #2 (first sync ignores budgetMs) and the prototype-key lookup (wal-index.ts:169, shared/api.ts:27). The log does not say they were fixed.
 - Nested agents list the spawner first (plan order), not readdir order. T8 states it; 4.4 expects it.
-- Open, owner T10: T5 follow-ups (read-only no-WAL stale; transcript bytes in progress) and T9 follow-up wal-server.ts:209-213 (empty-pick stream sync), replaced by its background loop.
-- Open, owner T28: T8.4 lineage bound and orphan test server. Purge-target test already in trash.test.ts:287,298.
-- Phase 5 is next: T10 and T28 are ready.
+- Open follow-up: T9 wal-server.ts:209-213 (empty-pick stream sync), replaced by the background loop from T10.
+- Open, owner T28 done: lineage best-of-3 at 5s bound; test-server kills its server on exit; live-tail open rejects on error.
+- Open, owner T29: phase 5 follow-ups (test hold for the build loop, purge lock, failed append). T20 owns the empty-pick tick budget.
+- Phase 6 is in progress: T29 in flight; T15, T16, T17 wait on it.
 
 ## Decisions
 
@@ -28,42 +31,32 @@ Build plan.md phases 1-8: observer targets, readers on targets, token join, filt
 - 2026-10-26 orchestrator: Manual checks run on copies of real sessions in a temp HOME only; real ~/.claude and live-session checks are user items.
 - 2026-10-26 orchestrator: T8 stays coupled. Purge deletes the target, detected in wal-server.ts; ask before any trash.ts edit.
 - 2026-10-26 orchestrator: Resume session: scope phases 4-8 to the end; recorded decisions stay in force; T9 minor follow-ups fixed in phase 4.
-- 2026-10-26 orchestrator: [auto] T10: keep transcript bytes in done/total (T5 follow-up routed to T10); update expected values in observer.test.ts:627, sessions.test.ts:168-169, query.test.ts:634.
-- 2026-10-26 orchestrator: [auto] T13: transcript read budget (50 ms slice Decision) deferred to Phase 7 T20 with the bench limits, as the reviewer recommends.
+- 2026-10-26 orchestrator: [auto] Transcript bytes stay in done/total; expected values update at observer.test.ts:627, sessions.test.ts:168-169, query.test.ts:634 (T10, done). Transcript read budget (50 ms slice) deferred to T20 with the bench limits. Phase 5 follow-ups: test hold, purge lock, failed append to T29; empty-pick tick budget to T20.
+- 2026-10-26 orchestrator: [auto] T17: isMeta and isCompactSummary user lines do not count as a user prompt for the interrupted-turn rule
 
 ## Tickets
 
 <!-- tickets:start — rendered by board.py refresh -->
 | id | status | phase | holder | needs | tags | title |
 | -- | ------ | ----- | ------ | ----- | ---- | ----- |
-| T13 (review) | todo | 5 |  |  |  | Phase 5 review |
-| T14 | todo | 6 |  |  |  | Parser data for the token join |
-| T15 | todo | 6 |  | T14 | risk-high | Token join in the observer |
-| T16 | todo | 6 |  | T15 | interface | Index applies tok entries to rows |
-| T17 (review) | todo | 6 |  | T14, T15, T16 |  | Phase 6 review |
-| T18 | todo | 7 |  | T16 | risk-high | Token filter and Tokens order in the index |
+| T18 | todo | 7 |  |  | risk-high | Token filter and Tokens order in the index |
 | T19 | todo | 7 |  | T18 | risk-high | Stream tokens frames and held rows |
-| T20 | todo | 7 |  | T18 | tests | Bench: pipeline build and token queries |
+| T20 | todo | 7 |  | T18, T19 | tests | Bench: pipeline build and token queries |
 | T21 (review) | todo | 7 |  | T18, T19, T20 |  | Phase 7 review |
 | T22 | todo | 8 |  | T18 |  | Web: Tokens filter params and panel |
-| T23 | todo | 8 |  | T16 |  | Web: Output, Result, Total columns and call row detail |
+| T23 | todo | 8 |  |  |  | Web: Output, Result, Total columns and call row detail |
 | T24 | todo | 8 |  | T19, T22, T23 | risk-high | Web: Order Time/Tokens, tokens frames, late rows |
 | T25 | todo | 8 |  | T24, T23 |  | Web: pipeline chip, building note, stale badge and Rebuild |
 | T26 | todo | 8 |  | T25 | docs | README: Pipeline section and token features |
 | T27 (review) | todo | 8 |  | T22, T23, T24, T25, T26 |  | Phase 8 review |
-Closed: T1 done · T2 done · T3 done · T4 done · T5 done · T6 done · T7 done · T8 done · T9 done · T10 done · T11 done · T12 done · T28 done
+Closed: T1 done · T2 done · T3 done · T4 done · T5 done · T6 done · T7 done · T8 done · T9 done · T10 done · T11 done · T12 done · T13 done · T14 done · T15 done · T16 done · T17 done · T28 done · T29 done
 <!-- tickets:end -->
 
 ## Log
 
-- 2026-10-26 17:30 orchestrator: T28 done: lineage best-of-3 at 5s bound; test-server kills its server on exit; live-tail open rejects on error.
-- 2026-10-26 17:40 planner: replan done: T10 files and verify extended (observer, sessions, query tests), T13 files extended
-- 2026-10-26 17:41 orchestrator: T10 done: cache lock or read-only, 1s/50ms background loop, /observer, /rebuild (validId, 403 cross-site, 409 read-only); transcript bytes in progress; 27 tests.
-- 2026-10-26 17:43 orchestrator: T11 done: wal rebuild CLI (runRebuild in observer.ts, cli.ts case, README usage); exit 1 on held lock; 7 tests.
-- 2026-10-26 17:44 orchestrator: T12 changes: major lock bypass for later-discovered sources (owner T10); minor rebuild drops target with missing WAL. T10 reopened.
-- 2026-10-26 17:48 orchestrator: T10 done (T12 fix round): per-dir lock before first write, skip unlockable dirs, owner only with a lock; rebuild keeps target if WAL missing; 32 tests.
-- 2026-10-26 17:49 orchestrator: T12 done: approve after one fix round; purge-without-lock classed minor (safe, sources gone).
-- 2026-10-26 17:53 orchestrator: T13 changes: major torn-tail never built (T10) + 2 T10 minors, 1 T11 minor; T10 and T11 reopened.
-- 2026-10-26 17:57 orchestrator: T10 done (T13 round): built(id) treats torn tails as caught up; ObserverStatus.elsewhere; lock errors logged once per dir; 33 tests.
-- 2026-10-26 17:58 orchestrator: T11 done (T13 round): unknown options exit 2 with usage; 12 tests.
-- 2026-10-26 17:59 orchestrator: T13 done: Phase 5 approve after one fix round; 257 pass.
+- 2026-10-26 18:07 orchestrator: T29 done: WAL_NO_BUILD hold, purge gated on hold(), failed append stays building; 36 tests pass
+- 2026-10-26 18:20 orchestrator: T15 done: token join in observer.ts:699-766, tokens.test.ts 11 tests, manual check on a real session copy matched
+- 2026-10-26 18:23 orchestrator: T16 done: wal-index applies tok (out/res, hidden entries), Row out?/res? in shared/api.ts:73-76, query tests
+- 2026-10-26 18:29 orchestrator: T17 changes: 1 major (T14 prompted flag on isMeta lines drops Skill res); T14 reopened; 5 minors to follow-ups
+- 2026-10-26 18:30 orchestrator: T14 re-closed: prompted skips isMeta/isCompactSummary (transcripts.ts:237-238), 2 tests
+- 2026-10-26 18:31 orchestrator: T17 approve: 276 pass; join probe res 47467 confirmed

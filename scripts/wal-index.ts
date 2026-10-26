@@ -61,6 +61,11 @@ export interface IndexEntry {
   err: boolean
   // On a call row: the seqs of the Pre and Post entries it stands for.
   virtual: { pre: number; post: number } | null
+  // Output tokens of the reply behind a call or Stop row, and the context its result added; set by a `tok` entry.
+  out: number | null
+  res: number | null
+  // A `tok` entry: it has a seq but is no row, so it sits in `entries` only, never in `order`, the sets or a result.
+  hidden: boolean
 }
 
 export interface WalIndex {
@@ -96,6 +101,9 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
   const source = createTargetReader(path)
   // tool_use_id → seqs of its Pre and Post entries, until the call row that pairs them arrives.
   let pending = new Map<string, { pre?: number; post?: number }>()
+  // Where a `tok` record lands: a call row by its tool_use_id, a Stop row by its WAL offset.
+  let callSeq = new Map<string, number>()
+  let stopSeq = new Map<number, number>()
 
   const ix: WalIndex = {
     id,
@@ -117,6 +125,7 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
   const push = (e: IndexEntry): void => {
     const seq = ix.entries.length
     ix.entries.push(e)
+    if (e.hidden) return
     if (e.event !== undefined) ix.events.add(e.event)
     ix.cats.add(e.cat)
     const o = ix.order
@@ -193,6 +202,8 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
       ix.about = new Map()
       ix.links++
       pending = new Map()
+      callSeq = new Map()
+      stopSeq = new Map()
       ix.gen = ++genSeed
     }
     for (const { rec, off, len } of items) {
@@ -216,8 +227,13 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
           mcp: rec.mcp,
           err: rec.err,
           virtual: null,
+          out: rec.out ?? null,
+          res: null,
+          hidden: false,
         })
-        if (rec.tuid !== null) notePending(rec.tuid, rec.event, ix.entries.length - 1)
+        const seq = ix.entries.length - 1
+        if (rec.tuid !== null) notePending(rec.tuid, rec.event, seq)
+        if (rec.woff !== null && (rec.event === 'Stop' || rec.event === 'SubagentStop')) stopSeq.set(rec.woff, seq)
       } else if (rec.k === 'call') {
         noteAgent(rec.agent, rec.agentType, rec.tool)
         const held = pending.get(rec.tuid)
@@ -237,6 +253,36 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
           mcp: null,
           err: rec.err,
           virtual: held?.pre !== undefined && held.post !== undefined ? { pre: held.pre, post: held.post } : null,
+          out: null,
+          res: null,
+          hidden: false,
+        })
+        callSeq.set(rec.tuid, ix.entries.length - 1)
+      } else if (rec.k === 'tok') {
+        const target = ix.entries[('tuid' in rec ? callSeq.get(rec.tuid) : stopSeq.get(rec.woff)) ?? -1]
+        if (target) {
+          target.out = rec.out
+          if ('res' in rec && rec.res !== undefined) target.res = rec.res
+        }
+        push({
+          off,
+          len,
+          t: 0,
+          day: 0,
+          minute: 0,
+          event: undefined,
+          cat: 'session',
+          tool: null,
+          dur: null,
+          tuid: null,
+          agent: null,
+          agentType: null,
+          mcp: null,
+          err: false,
+          virtual: null,
+          out: null,
+          res: null,
+          hidden: true,
         })
       }
     }
@@ -471,6 +517,7 @@ export const matcher = (p: URLSearchParams): Matcher => {
   const nodur = p.get('nodur') === 'include'
   const q = (p.get('q') || '').toLowerCase()
   return (r, ix, text) => {
+    if (r.hidden) return false
     if (cats && !cats.has(r.cat)) return false
     if (tls && !tls.has(r.tool ?? '-')) return false
     if (evs && !evs.has(r.event ?? '')) return false
@@ -491,8 +538,10 @@ export const matcher = (p: URLSearchParams): Matcher => {
 }
 
 export const summary = (ix: WalIndex, seq: number): Row => {
-  const { cat, t, event, tool, dur, mcp, err, virtual } = nth(ix.entries, seq)
+  const { cat, t, event, tool, dur, mcp, err, virtual, out, res } = nth(ix.entries, seq)
   const s: Row = { sess: ix.id, seq, cat, t, event, tool, dur }
+  if (out !== null) s.out = out
+  if (res !== null) s.res = res
   if (mcp) s.mcp = mcp
   if (err) s.err = true
   if (virtual) s.virtual = virtual

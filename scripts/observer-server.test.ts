@@ -4,12 +4,12 @@
 // backlog, the loop following a WAL no client reads, a shrunk WAL frozen as stale, /rebuild, and a second server
 // that finds the lock held and only reads. `wal rebuild` refuses while a server holds the lock and rebuilds when none does.
 // Then the lock per target dir: a rebuild that would lose a WAL's events, a source added after the start, and a server
-// started before any projects dir exists. Last, torn last lines still count as built, and a dir whose lock cannot be
-// taken is logged once.
+// started before any projects dir exists. Then torn last lines still count as built, and a dir whose lock cannot be
+// taken is logged once. Last, a purge leaves a target in a dir another server holds, and a failed append is not built.
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { type IncomingMessage, request } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -316,6 +316,68 @@ test('torn last lines count as built, and a dir whose lock cannot be taken is lo
     assert.equal(logged.length, 1, JSON.stringify(out))
   } finally {
     torn.server.kill()
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('purge keeps the target in a dir another server holds, and still purges the trash', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'walobspurge.'))
+  const p = join(home, '.claude', 'projects', '-tmp-purge')
+  mkdirSync(p, { recursive: true })
+  const P1 = sid(51)
+  writeFileSync(join(p, `${P1}.jsonl`), userLine('p1-u1'))
+  writeFileSync(join(p, `${P1}.wal.jsonl`), wal('SessionStart') + wal('SessionEnd'))
+  const target = join(home, '.claude', 'wal-viewer', `${P1}.jsonl`)
+  const owner = await startServer([], { HOME: home })
+  const owned = new Promise((r) => owner.server.once('exit', r))
+  let reader: Awaited<ReturnType<typeof startServer>> | null = null
+  try {
+    await until('the target built', async () => ((await status(owner.base)).built === 1 ? true : null))
+    owner.server.kill()
+    await owned
+    // A live pid that is not a server's: this test process stands in for another server.
+    writeFileSync(join(home, '.claude', 'wal-viewer', 'observer.lock'), String(process.pid))
+    reader = await startServer([], { HOME: home })
+    assert.equal((await status(reader.base)).owner, false)
+
+    assert.deepEqual(JSON.parse((await post(reader.base, '/trash', { ids: [P1] })).text), { results: [{ id: P1, status: 'ok' }] })
+    const { entries } = (await (await fetch(`${reader.base}/trash`)).json()) as { entries: { source: string; date: string; slug: string; id: string }[] }
+    const ref = entries.map(({ source, date, slug, id }) => ({ source, date, slug, id })).find((e) => e.id === P1)
+    assert.ok(ref, 'the session is in the trash listing')
+    assert.deepEqual(JSON.parse((await post(reader.base, '/trash/purge', { refs: [ref] })).text), { results: [{ id: P1, status: 'ok' }] })
+    assert.equal(((await (await fetch(`${reader.base}/trash`)).json()) as { entries: unknown[] }).entries.length, 0, 'the trash is purged')
+    assert.ok(existsSync(target), 'the target stays')
+  } finally {
+    owner.server.kill()
+    reader?.server.kill()
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('a sync whose append fails does not count the session as built', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'walobsfail.'))
+  const p = join(home, '.claude', 'projects', '-tmp-fail')
+  mkdirSync(p, { recursive: true })
+  const F1 = sid(61)
+  writeFileSync(join(p, `${F1}.jsonl`), userLine('f1-u1'))
+  writeFileSync(join(p, `${F1}.wal.jsonl`), wal('SessionStart'))
+  const target = join(home, '.claude', 'wal-viewer', `${F1}.jsonl`)
+  const failing = await startServer([], { HOME: home })
+  try {
+    await until('the session built', async () => ((await status(failing.base)).built === 1 ? true : null))
+    chmodSync(target, 0o444)
+    appendFileSync(join(p, `${F1}.wal.jsonl`), wal('Stop'))
+    const s = await until('the failed append', async () => {
+      const st = await status(failing.base)
+      return st.built === 0 ? st : null
+    })
+    assert.deepEqual(s.building, [F1])
+    await sleep(2500)
+    assert.deepEqual((await status(failing.base)).building, [F1], 'it stays building while every append fails')
+    chmodSync(target, 0o644)
+    await until('the append to succeed', async () => ((await status(failing.base)).built === 1 ? true : null))
+  } finally {
+    failing.server.kill()
     rmSync(home, { recursive: true, force: true })
   }
 })

@@ -574,28 +574,28 @@
       "id": "T14",
       "title": "Parser data for the token join",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 6,
       "parent": null,
-      "holder": null,
+      "holder": "a842e4c2116095742",
       "tags": [],
       "files": [
         "scripts/transcripts.ts",
         "scripts/transcripts.test.ts"
       ],
       "path": "tickets/T14.md",
-      "updated": "2026-10-26 14:49"
+      "updated": "2026-10-26 18:30"
     },
     {
       "id": "T15",
       "title": "Token join in the observer",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 6,
       "parent": null,
-      "holder": null,
+      "holder": "a6d459c713ee02600",
       "tags": [
         "risk-high"
       ],
@@ -604,17 +604,17 @@
         "scripts/tokens.test.ts"
       ],
       "path": "tickets/T15.md",
-      "updated": "2026-10-26 14:50"
+      "updated": "2026-10-26 18:20"
     },
     {
       "id": "T16",
       "title": "Index applies tok entries to rows",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 6,
       "parent": null,
-      "holder": null,
+      "holder": "aa7cacb9cf9a166fd",
       "tags": [
         "interface"
       ],
@@ -624,17 +624,17 @@
         "scripts/query.test.ts"
       ],
       "path": "tickets/T16.md",
-      "updated": "2026-10-26 14:50"
+      "updated": "2026-10-26 18:23"
     },
     {
       "id": "T17",
       "title": "Phase 6 review",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 6,
       "parent": null,
-      "holder": null,
+      "holder": "a948b3f2e3a42e742",
       "tags": [],
       "files": [
         "scripts/transcripts.ts",
@@ -643,10 +643,12 @@
         "scripts/tokens.test.ts",
         "scripts/wal-index.ts",
         "shared/api.ts",
-        "scripts/query.test.ts"
+        "scripts/query.test.ts",
+        "scripts/wal-server.ts",
+        "scripts/observer-server.test.ts"
       ],
       "path": "tickets/T17.md",
-      "updated": "2026-10-26 14:50"
+      "updated": "2026-10-26 18:31"
     },
     {
       "id": "T18",
@@ -700,10 +702,13 @@
       ],
       "files": [
         "scripts/bench.ts",
-        "scripts/bench-sessions.ts"
+        "scripts/bench-sessions.ts",
+        "scripts/observer.ts",
+        "scripts/wal-server.ts",
+        "scripts/observer.test.ts"
       ],
       "path": "tickets/T20.md",
-      "updated": "2026-10-26 17:53"
+      "updated": "2026-10-26 18:01"
     },
     {
       "id": "T21",
@@ -721,10 +726,12 @@
         "scripts/wal-server.ts",
         "scripts/live-tail.test.ts",
         "scripts/bench.ts",
-        "scripts/bench-sessions.ts"
+        "scripts/bench-sessions.ts",
+        "scripts/observer.ts",
+        "scripts/observer.test.ts"
       ],
       "path": "tickets/T21.md",
-      "updated": "2026-10-26 14:51"
+      "updated": "2026-10-26 18:01"
     },
     {
       "id": "T22",
@@ -873,6 +880,27 @@
       ],
       "path": "tickets/T28.md",
       "updated": "2026-10-26 17:30"
+    },
+    {
+      "id": "T29",
+      "title": "Phase 5 follow-ups: test hold for the build loop, purge lock, failed append",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 6,
+      "parent": null,
+      "holder": "add8f23da3b4e6cc7",
+      "tags": [
+        "tests"
+      ],
+      "files": [
+        "scripts/wal-server.ts",
+        "scripts/observer.ts",
+        "scripts/query.test.ts",
+        "scripts/observer-server.test.ts"
+      ],
+      "path": "tickets/T29.md",
+      "updated": "2026-10-26 18:06"
     }
   ],
   "edges": [
@@ -1157,6 +1185,11 @@
       "type": "depends_on"
     },
     {
+      "from": "T13",
+      "to": "T29",
+      "type": "depends_on"
+    },
+    {
       "from": "T14",
       "to": "T15",
       "type": "depends_on"
@@ -1209,6 +1242,11 @@
     {
       "from": "T18",
       "to": "T22",
+      "type": "depends_on"
+    },
+    {
+      "from": "T19",
+      "to": "T20",
       "type": "depends_on"
     },
     {
@@ -1279,6 +1317,16 @@
     {
       "from": "T28",
       "to": "T13",
+      "type": "depends_on"
+    },
+    {
+      "from": "T29",
+      "to": "T15",
+      "type": "depends_on"
+    },
+    {
+      "from": "T29",
+      "to": "T17",
       "type": "depends_on"
     }
   ]

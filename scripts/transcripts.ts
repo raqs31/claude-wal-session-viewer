@@ -43,6 +43,20 @@ export interface UsageRecord extends Usage {
   model: string
   turn: number
 }
+// What the token join needs of a reply, keyed by `message.id` (a reply's lines can be split by other lines).
+export interface ReplyInfo {
+  /** `tool_use` / `server_tool_use` blocks in block order; `size` is `JSON.stringify(input).length`. */
+  calls: { id: string; size: number }[]
+  /** Prefix of the reply's last text block. */
+  lastText: string
+  /** A non-tool_result user line came after this reply. */
+  prompted: boolean
+}
+export interface ToolInfo {
+  reply: string
+  /** Length of the tool_result content; null until it arrives. */
+  resultSize: number | null
+}
 interface TranscriptMeta {
   title: string | null
   first: number | null
@@ -67,6 +81,7 @@ export interface Pricing {
 }
 
 const MAX = 200
+const LAST_TEXT = 2000
 const TAG_RE = /<\/?(?:command-name|command-message|command-args|local-command-caveat|local-command-stdout|task-notification)>/g
 const WRAP_RE = /^<(?:command-|local-command-)/
 
@@ -122,6 +137,9 @@ export const createParser = (agent: string, turn = 0, keepItems = true) => {
   // Items mutated after they were added: a reader that already streamed them must resend them.
   const touched = new Set<ParsedItem>()
   const replies = new Map<string, { rec: UsageRecord | null; item: ParsedItem | null }>()
+  const replyInfo = new Map<string, ReplyInfo>()
+  const toolInfo = new Map<string, ToolInfo>()
+  let lastReply: ReplyInfo | null = null
   let pending: Buffer = Buffer.alloc(0)
   let offset = 0
   // A typed command without `origin` (/goal) and a local-only one (/clear, /mcp) look alike when
@@ -151,6 +169,8 @@ export const createParser = (agent: string, turn = 0, keepItems = true) => {
   }
 
   const result = (b: E, e: E, src: Span): void => {
+    const info = toolInfo.get(b.tool_use_id)
+    if (info) info.resultSize = typeof b.content === 'string' ? b.content.length : (JSON.stringify(b.content)?.length ?? 0)
     const it = tools.get(b.tool_use_id)
     if (!it) return
     it.resultSrc = src
@@ -181,8 +201,16 @@ export const createParser = (agent: string, turn = 0, keepItems = true) => {
       reply.rec = { id: key, t, agent, model: m.model, turn, ...u }
       usage.push(reply.rec)
     }
+    const info = replyInfo.get(key) ?? { calls: [], lastText: '', prompted: false }
+    replyInfo.set(key, info)
+    lastReply = info
     blocks.forEach((b, i) => {
       let it: ParsedItem | null = null
+      if (b.type === 'text') info.lastText = String(b.text ?? '').slice(0, LAST_TEXT)
+      if (b.type === 'tool_use' || b.type === 'server_tool_use') {
+        info.calls.push({ id: b.id, size: JSON.stringify(b.input)?.length ?? 0 })
+        toolInfo.set(b.id, { reply: key, resultSize: null })
+      }
       if (b.type === 'text') it = add(e, t, src, 'text', b.text, {}, i)
       else if (b.type === 'thinking') it = add(e, t, src, 'thinking', b.thinking, {}, i)
       else if (b.type === 'tool_use' && b.name === 'Agent') {
@@ -206,6 +234,8 @@ export const createParser = (agent: string, turn = 0, keepItems = true) => {
 
   const user = (e: E, t: number, src: Span): void => {
     const c = e.message?.content
+    // A Skill body (isMeta) or a compact summary follows its reply but is no prompt.
+    if (lastReply && !e.isMeta && !e.isCompactSummary && !(Array.isArray(c) && c.some((b: E) => b.type === 'tool_result'))) lastReply.prompted = true
     if (typeof c === 'string') {
       if (e.isSidechain) meta.task ??= c
       const kind = userKind(e, c)
@@ -262,6 +292,8 @@ export const createParser = (agent: string, turn = 0, keepItems = true) => {
     turnStarts,
     compacts,
     tools,
+    replyInfo,
+    toolInfo,
     touched,
     /** Consumes complete lines only; decoding per whole line keeps a split multibyte char intact. */
     push(chunk: Buffer): void {
