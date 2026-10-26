@@ -1,0 +1,1172 @@
+{
+  "change": "wal-observer-pipeline",
+  "statuses": {
+    "todo": {
+      "class": "open",
+      "color": "#e2e8f0",
+      "stroke": "#94a3b8"
+    },
+    "in_progress": {
+      "class": "active",
+      "color": "#bfdbfe",
+      "stroke": "#3b82f6"
+    },
+    "review": {
+      "class": "active",
+      "color": "#ddd6fe",
+      "stroke": "#8b5cf6"
+    },
+    "blocked": {
+      "class": "waiting",
+      "color": "#fecaca",
+      "stroke": "#ef4444"
+    },
+    "user_review": {
+      "class": "waiting",
+      "color": "#fde68a",
+      "stroke": "#f59e0b"
+    },
+    "done": {
+      "class": "closed",
+      "color": "#bbf7d0",
+      "stroke": "#22c55e"
+    },
+    "declined": {
+      "class": "closed",
+      "color": "#4b5563",
+      "stroke": "#9ca3af"
+    }
+  },
+  "tags": [
+    "interface",
+    "risk-high",
+    "security",
+    "migration",
+    "refactor",
+    "docs",
+    "tests",
+    "config",
+    "coupled"
+  ],
+  "nodes": [
+    {
+      "id": "T1",
+      "title": "Target module: format, append, reader, lock",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 1,
+      "parent": null,
+      "holder": "a396c133ab0e3061f",
+      "tags": [
+        "interface"
+      ],
+      "files": [
+        "scripts/target.ts",
+        "scripts/target.test.ts"
+      ],
+      "path": "tickets/T1.md",
+      "updated": "2026-10-26 15:05"
+    },
+    {
+      "id": "T2",
+      "title": "Phase 1 review",
+      "kind": "review",
+      "status": "done",
+      "class": "closed",
+      "phase": 1,
+      "parent": null,
+      "holder": "ad7bad033dfb3cce6",
+      "tags": [],
+      "files": [
+        "scripts/target.ts",
+        "scripts/target.test.ts"
+      ],
+      "path": "tickets/T2.md",
+      "updated": "2026-10-26 15:06"
+    },
+    {
+      "id": "T3",
+      "title": "Observer: WAL to target",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 2,
+      "parent": null,
+      "holder": "a4c44ce06a68915f5",
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "scripts/observer.ts",
+        "scripts/observer.test.ts"
+      ],
+      "path": "tickets/T3.md",
+      "updated": "2026-10-26 15:23"
+    },
+    {
+      "id": "T4",
+      "title": "Phase 2 review",
+      "kind": "review",
+      "status": "done",
+      "class": "closed",
+      "phase": 2,
+      "parent": null,
+      "holder": "aedc01f766f2cd4fd",
+      "tags": [],
+      "files": [
+        "scripts/observer.ts",
+        "scripts/observer.test.ts"
+      ],
+      "path": "tickets/T4.md",
+      "updated": "2026-10-26 15:24"
+    },
+    {
+      "id": "T5",
+      "title": "Observer: transcript pass and no-WAL rows",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 3,
+      "parent": null,
+      "holder": "a968b893f03ef5d71",
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "scripts/observer.ts",
+        "scripts/observer.test.ts",
+        "scripts/target.ts",
+        "scripts/session-view.ts",
+        "scripts/session-view.test.ts"
+      ],
+      "path": "tickets/T5.md",
+      "updated": "2026-10-26 15:48"
+    },
+    {
+      "id": "T6",
+      "title": "Target-based session views and golden test",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 3,
+      "parent": null,
+      "holder": "a1b086d251ee792f6",
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "scripts/session-view.ts",
+        "scripts/session-view.test.ts"
+      ],
+      "path": "tickets/T6.md",
+      "updated": "2026-10-26 15:39"
+    },
+    {
+      "id": "T7",
+      "title": "Phase 3 review",
+      "kind": "review",
+      "status": "done",
+      "class": "closed",
+      "phase": 3,
+      "parent": null,
+      "holder": "a34adc3f7c6ea4ac7",
+      "tags": [],
+      "files": [
+        "scripts/observer.ts",
+        "scripts/observer.test.ts",
+        "scripts/session-view.ts",
+        "scripts/session-view.test.ts"
+      ],
+      "path": "tickets/T7.md",
+      "updated": "2026-10-26 15:49"
+    },
+    {
+      "id": "T8",
+      "title": "Readers switch to targets",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 4,
+      "parent": null,
+      "holder": "a2837158b40d9eb61",
+      "tags": [
+        "coupled",
+        "risk-high"
+      ],
+      "files": [
+        "scripts/wal-index.ts",
+        "scripts/sessions.ts",
+        "scripts/wal-server.ts",
+        "shared/api.ts",
+        "scripts/observer.ts",
+        "scripts/query.test.ts",
+        "scripts/live-tail.test.ts",
+        "scripts/sessions.test.ts",
+        "scripts/usage.test.ts",
+        "scripts/trash.test.ts",
+        "scripts/discovery.test.ts",
+        "scripts/bench-sessions.ts",
+        "scripts/observer.test.ts",
+        "scripts/session-view.test.ts"
+      ],
+      "path": "tickets/T8.md",
+      "updated": "2026-10-26 16:32"
+    },
+    {
+      "id": "T8.1",
+      "title": "Contract: Pipe types, target and budget helpers, budgeted first sync",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 4,
+      "parent": "T8",
+      "holder": "a4a48aca4ce754f3a",
+      "tags": [
+        "interface",
+        "risk-high"
+      ],
+      "files": [
+        "shared/api.ts",
+        "scripts/observer.ts"
+      ],
+      "path": "tickets/T8/T8.1.md",
+      "updated": "2026-10-26 16:06"
+    },
+    {
+      "id": "T8.2",
+      "title": "Events index tails targets",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 4,
+      "parent": "T8",
+      "holder": "ad5eb9ebd3c66b3a7",
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "scripts/wal-index.ts"
+      ],
+      "path": "tickets/T8/T8.2.md",
+      "updated": "2026-10-26 16:08"
+    },
+    {
+      "id": "T8.3",
+      "title": "Sessions store reads targets through session-view",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 4,
+      "parent": "T8",
+      "holder": "a890bcc139cfa90e7",
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "scripts/sessions.ts"
+      ],
+      "path": "tickets/T8/T8.3.md",
+      "updated": "2026-10-26 16:08"
+    },
+    {
+      "id": "T8.4",
+      "title": "Server syncs before reads, stale frames, call records, purge deletes the target",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 4,
+      "parent": "T8",
+      "holder": "ae4bd4de99a89cbff",
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "scripts/wal-server.ts"
+      ],
+      "path": "tickets/T8/T8.4.md",
+      "updated": "2026-10-26 16:23"
+    },
+    {
+      "id": "T8.5",
+      "title": "Events tests: call rows, stale frames, budget, prototype keys",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 4,
+      "parent": "T8",
+      "holder": "afbc65b88e58f7eba",
+      "tags": [
+        "tests"
+      ],
+      "files": [
+        "scripts/query.test.ts",
+        "scripts/live-tail.test.ts"
+      ],
+      "path": "tickets/T8/T8.5.md",
+      "updated": "2026-10-26 16:29"
+    },
+    {
+      "id": "T8.6",
+      "title": "Sessions and usage tests: pipe, stale frame, spawner-first agents",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 4,
+      "parent": "T8",
+      "holder": "a1d385e6f848eb3ee",
+      "tags": [
+        "tests"
+      ],
+      "files": [
+        "scripts/sessions.test.ts",
+        "scripts/usage.test.ts"
+      ],
+      "path": "tickets/T8/T8.6.md",
+      "updated": "2026-10-26 16:24"
+    },
+    {
+      "id": "T8.7",
+      "title": "Trash and discovery tests: target kept, resumed, purged",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 4,
+      "parent": "T8",
+      "holder": "a7f461e5c31e8ffc2",
+      "tags": [
+        "tests"
+      ],
+      "files": [
+        "scripts/trash.test.ts",
+        "scripts/discovery.test.ts"
+      ],
+      "path": "tickets/T8/T8.7.md",
+      "updated": "2026-10-26 16:24"
+    },
+    {
+      "id": "T8.8",
+      "title": "bench-sessions builds the store over an observer",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 4,
+      "parent": "T8",
+      "holder": "a11662ff96824f67b",
+      "tags": [],
+      "files": [
+        "scripts/bench-sessions.ts"
+      ],
+      "path": "tickets/T8/T8.8.md",
+      "updated": "2026-10-26 16:24"
+    },
+    {
+      "id": "T8.9",
+      "title": "Manual check 4.4: main vs branch on copied real sessions, and the final verify",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 4,
+      "parent": "T8",
+      "holder": "aafedab0800f33b55",
+      "tags": [],
+      "files": [],
+      "path": "tickets/T8/T8.9.md",
+      "updated": "2026-10-26 16:31"
+    },
+    {
+      "id": "T8.10",
+      "title": "Observer and session-view tests: frozen expectations instead of the old index and store",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 4,
+      "parent": "T8",
+      "holder": "a48219c323c9fcf6a",
+      "tags": [
+        "tests"
+      ],
+      "files": [
+        "scripts/observer.test.ts",
+        "scripts/session-view.test.ts"
+      ],
+      "path": "tickets/T8/T8.10.md",
+      "updated": "2026-10-26 16:10"
+    },
+    {
+      "id": "T9",
+      "title": "Phase 4 review",
+      "kind": "review",
+      "status": "blocked",
+      "class": "waiting",
+      "phase": 4,
+      "parent": null,
+      "holder": "a8a427540a7f682ac",
+      "tags": [],
+      "files": [
+        "scripts/wal-index.ts",
+        "scripts/sessions.ts",
+        "scripts/wal-server.ts",
+        "shared/api.ts",
+        "scripts/observer.ts",
+        "scripts/query.test.ts",
+        "scripts/live-tail.test.ts",
+        "scripts/sessions.test.ts",
+        "scripts/usage.test.ts",
+        "scripts/trash.test.ts",
+        "scripts/discovery.test.ts",
+        "scripts/bench-sessions.ts"
+      ],
+      "path": "tickets/T9.md",
+      "updated": "2026-10-26 16:38"
+    },
+    {
+      "id": "T10",
+      "title": "Server lock, background loop, /observer and /rebuild",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 5,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "interface",
+        "security",
+        "risk-high"
+      ],
+      "files": [
+        "scripts/wal-server.ts",
+        "scripts/observer.ts",
+        "shared/api.ts",
+        "scripts/observer-server.test.ts"
+      ],
+      "path": "tickets/T10.md",
+      "updated": "2026-10-26 15:37"
+    },
+    {
+      "id": "T11",
+      "title": "CLI wal rebuild",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 5,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "scripts/cli.ts",
+        "scripts/observer.ts",
+        "README.md",
+        "scripts/observer-server.test.ts"
+      ],
+      "path": "tickets/T11.md",
+      "updated": "2026-10-26 14:51"
+    },
+    {
+      "id": "T12",
+      "title": "Security review: T10 /rebuild and lock",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 5,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "scripts/wal-server.ts",
+        "scripts/observer.ts",
+        "shared/api.ts",
+        "scripts/observer-server.test.ts"
+      ],
+      "path": "tickets/T12.md",
+      "updated": "2026-10-26 14:49"
+    },
+    {
+      "id": "T13",
+      "title": "Phase 5 review",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 5,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "scripts/wal-server.ts",
+        "scripts/observer.ts",
+        "shared/api.ts",
+        "scripts/observer-server.test.ts",
+        "scripts/cli.ts",
+        "README.md"
+      ],
+      "path": "tickets/T13.md",
+      "updated": "2026-10-26 14:49"
+    },
+    {
+      "id": "T14",
+      "title": "Parser data for the token join",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 6,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "scripts/transcripts.ts",
+        "scripts/transcripts.test.ts"
+      ],
+      "path": "tickets/T14.md",
+      "updated": "2026-10-26 14:49"
+    },
+    {
+      "id": "T15",
+      "title": "Token join in the observer",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 6,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "scripts/observer.ts",
+        "scripts/tokens.test.ts"
+      ],
+      "path": "tickets/T15.md",
+      "updated": "2026-10-26 14:50"
+    },
+    {
+      "id": "T16",
+      "title": "Index applies tok entries to rows",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 6,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "interface"
+      ],
+      "files": [
+        "scripts/wal-index.ts",
+        "shared/api.ts",
+        "scripts/query.test.ts"
+      ],
+      "path": "tickets/T16.md",
+      "updated": "2026-10-26 14:50"
+    },
+    {
+      "id": "T17",
+      "title": "Phase 6 review",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 6,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "scripts/transcripts.ts",
+        "scripts/transcripts.test.ts",
+        "scripts/observer.ts",
+        "scripts/tokens.test.ts",
+        "scripts/wal-index.ts",
+        "shared/api.ts",
+        "scripts/query.test.ts"
+      ],
+      "path": "tickets/T17.md",
+      "updated": "2026-10-26 14:50"
+    },
+    {
+      "id": "T18",
+      "title": "Token filter and Tokens order in the index",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 7,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "scripts/wal-index.ts",
+        "scripts/query.test.ts"
+      ],
+      "path": "tickets/T18.md",
+      "updated": "2026-10-26 14:50"
+    },
+    {
+      "id": "T19",
+      "title": "Stream tokens frames and held rows",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 7,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "scripts/wal-server.ts",
+        "scripts/live-tail.test.ts"
+      ],
+      "path": "tickets/T19.md",
+      "updated": "2026-10-26 14:50"
+    },
+    {
+      "id": "T20",
+      "title": "Bench: pipeline build and token queries",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 7,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "tests"
+      ],
+      "files": [
+        "scripts/bench.ts",
+        "scripts/bench-sessions.ts"
+      ],
+      "path": "tickets/T20.md",
+      "updated": "2026-10-26 14:50"
+    },
+    {
+      "id": "T21",
+      "title": "Phase 7 review",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 7,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "scripts/wal-index.ts",
+        "scripts/query.test.ts",
+        "scripts/wal-server.ts",
+        "scripts/live-tail.test.ts",
+        "scripts/bench.ts",
+        "scripts/bench-sessions.ts"
+      ],
+      "path": "tickets/T21.md",
+      "updated": "2026-10-26 14:51"
+    },
+    {
+      "id": "T22",
+      "title": "Web: Tokens filter params and panel",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 8,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "web/src/lib/params.ts",
+        "web/src/components/FilterPanel.tsx",
+        "web/src/lib/params.test.ts"
+      ],
+      "path": "tickets/T22.md",
+      "updated": "2026-10-26 14:51"
+    },
+    {
+      "id": "T23",
+      "title": "Web: Output, Result, Total columns and call row detail",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 8,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "web/src/components/EventTable.tsx",
+        "web/src/components/EventRow.tsx",
+        "web/src/components/RecordViewer.tsx",
+        "web/src/styles.css"
+      ],
+      "path": "tickets/T23.md",
+      "updated": "2026-10-26 14:51"
+    },
+    {
+      "id": "T24",
+      "title": "Web: Order Time/Tokens, tokens frames, late rows",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 8,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "web/src/components/EventsTab.tsx",
+        "web/src/useEvents.ts",
+        "web/src/App.tsx"
+      ],
+      "path": "tickets/T24.md",
+      "updated": "2026-10-26 14:51"
+    },
+    {
+      "id": "T25",
+      "title": "Web: pipeline chip, building note, stale badge and Rebuild",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 8,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "web/src/useObserver.ts",
+        "web/src/components/StatsHeader.tsx",
+        "web/src/components/Sidebar.tsx",
+        "web/src/components/SessionsTab.tsx",
+        "web/src/components/EventsTab.tsx",
+        "web/src/useEvents.ts",
+        "web/src/App.tsx",
+        "web/src/styles.css"
+      ],
+      "path": "tickets/T25.md",
+      "updated": "2026-10-26 14:51"
+    },
+    {
+      "id": "T26",
+      "title": "README: Pipeline section and token features",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 8,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "docs"
+      ],
+      "files": [
+        "README.md"
+      ],
+      "path": "tickets/T26.md",
+      "updated": "2026-10-26 14:51"
+    },
+    {
+      "id": "T27",
+      "title": "Phase 8 review",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 8,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "web/src/lib/params.ts",
+        "web/src/components/FilterPanel.tsx",
+        "web/src/lib/params.test.ts",
+        "web/src/components/EventTable.tsx",
+        "web/src/components/EventRow.tsx",
+        "web/src/components/RecordViewer.tsx",
+        "web/src/styles.css",
+        "web/src/components/EventsTab.tsx",
+        "web/src/useEvents.ts",
+        "web/src/App.tsx",
+        "web/src/useObserver.ts",
+        "web/src/components/StatsHeader.tsx",
+        "web/src/components/Sidebar.tsx",
+        "web/src/components/SessionsTab.tsx",
+        "README.md"
+      ],
+      "path": "tickets/T27.md",
+      "updated": "2026-10-26 14:51"
+    }
+  ],
+  "edges": [
+    {
+      "from": "T1",
+      "to": "T2",
+      "type": "depends_on"
+    },
+    {
+      "from": "T1",
+      "to": "T3",
+      "type": "depends_on"
+    },
+    {
+      "from": "T3",
+      "to": "T4",
+      "type": "depends_on"
+    },
+    {
+      "from": "T3",
+      "to": "T5",
+      "type": "depends_on"
+    },
+    {
+      "from": "T5",
+      "to": "T6",
+      "type": "depends_on"
+    },
+    {
+      "from": "T5",
+      "to": "T7",
+      "type": "depends_on"
+    },
+    {
+      "from": "T5",
+      "to": "T8",
+      "type": "depends_on"
+    },
+    {
+      "from": "T5",
+      "to": "T14",
+      "type": "depends_on"
+    },
+    {
+      "from": "T6",
+      "to": "T7",
+      "type": "depends_on"
+    },
+    {
+      "from": "T6",
+      "to": "T8",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8",
+      "to": "T8.1",
+      "type": "parent"
+    },
+    {
+      "from": "T8",
+      "to": "T8.2",
+      "type": "parent"
+    },
+    {
+      "from": "T8",
+      "to": "T8.3",
+      "type": "parent"
+    },
+    {
+      "from": "T8",
+      "to": "T8.4",
+      "type": "parent"
+    },
+    {
+      "from": "T8",
+      "to": "T8.5",
+      "type": "parent"
+    },
+    {
+      "from": "T8",
+      "to": "T8.6",
+      "type": "parent"
+    },
+    {
+      "from": "T8",
+      "to": "T8.7",
+      "type": "parent"
+    },
+    {
+      "from": "T8",
+      "to": "T8.8",
+      "type": "parent"
+    },
+    {
+      "from": "T8",
+      "to": "T8.9",
+      "type": "parent"
+    },
+    {
+      "from": "T8",
+      "to": "T8.10",
+      "type": "parent"
+    },
+    {
+      "from": "T8",
+      "to": "T9",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8",
+      "to": "T10",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8",
+      "to": "T23",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.1",
+      "to": "T8.2",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.1",
+      "to": "T8.3",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.1",
+      "to": "T8.9",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.2",
+      "to": "T8.4",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.2",
+      "to": "T8.9",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.2",
+      "to": "T8.10",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.3",
+      "to": "T8.4",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.3",
+      "to": "T8.9",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.3",
+      "to": "T8.10",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.4",
+      "to": "T8.5",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.4",
+      "to": "T8.6",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.4",
+      "to": "T8.7",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.4",
+      "to": "T8.8",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.4",
+      "to": "T8.9",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.5",
+      "to": "T8.9",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.6",
+      "to": "T8.9",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.7",
+      "to": "T8.9",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.8",
+      "to": "T8.9",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8.10",
+      "to": "T8.9",
+      "type": "depends_on"
+    },
+    {
+      "from": "T10",
+      "to": "T11",
+      "type": "depends_on"
+    },
+    {
+      "from": "T10",
+      "to": "T12",
+      "type": "depends_on"
+    },
+    {
+      "from": "T10",
+      "to": "T13",
+      "type": "depends_on"
+    },
+    {
+      "from": "T10",
+      "to": "T15",
+      "type": "depends_on"
+    },
+    {
+      "from": "T10",
+      "to": "T20",
+      "type": "depends_on"
+    },
+    {
+      "from": "T10",
+      "to": "T25",
+      "type": "depends_on"
+    },
+    {
+      "from": "T11",
+      "to": "T13",
+      "type": "depends_on"
+    },
+    {
+      "from": "T11",
+      "to": "T15",
+      "type": "depends_on"
+    },
+    {
+      "from": "T11",
+      "to": "T26",
+      "type": "depends_on"
+    },
+    {
+      "from": "T12",
+      "to": "T13",
+      "type": "depends_on"
+    },
+    {
+      "from": "T14",
+      "to": "T15",
+      "type": "depends_on"
+    },
+    {
+      "from": "T14",
+      "to": "T17",
+      "type": "depends_on"
+    },
+    {
+      "from": "T15",
+      "to": "T16",
+      "type": "depends_on"
+    },
+    {
+      "from": "T15",
+      "to": "T17",
+      "type": "depends_on"
+    },
+    {
+      "from": "T16",
+      "to": "T17",
+      "type": "depends_on"
+    },
+    {
+      "from": "T16",
+      "to": "T18",
+      "type": "depends_on"
+    },
+    {
+      "from": "T16",
+      "to": "T23",
+      "type": "depends_on"
+    },
+    {
+      "from": "T18",
+      "to": "T19",
+      "type": "depends_on"
+    },
+    {
+      "from": "T18",
+      "to": "T20",
+      "type": "depends_on"
+    },
+    {
+      "from": "T18",
+      "to": "T21",
+      "type": "depends_on"
+    },
+    {
+      "from": "T18",
+      "to": "T22",
+      "type": "depends_on"
+    },
+    {
+      "from": "T19",
+      "to": "T21",
+      "type": "depends_on"
+    },
+    {
+      "from": "T19",
+      "to": "T24",
+      "type": "depends_on"
+    },
+    {
+      "from": "T20",
+      "to": "T21",
+      "type": "depends_on"
+    },
+    {
+      "from": "T22",
+      "to": "T24",
+      "type": "depends_on"
+    },
+    {
+      "from": "T22",
+      "to": "T27",
+      "type": "depends_on"
+    },
+    {
+      "from": "T23",
+      "to": "T24",
+      "type": "depends_on"
+    },
+    {
+      "from": "T23",
+      "to": "T25",
+      "type": "depends_on"
+    },
+    {
+      "from": "T23",
+      "to": "T27",
+      "type": "depends_on"
+    },
+    {
+      "from": "T24",
+      "to": "T25",
+      "type": "depends_on"
+    },
+    {
+      "from": "T24",
+      "to": "T27",
+      "type": "depends_on"
+    },
+    {
+      "from": "T25",
+      "to": "T26",
+      "type": "depends_on"
+    },
+    {
+      "from": "T25",
+      "to": "T27",
+      "type": "depends_on"
+    },
+    {
+      "from": "T26",
+      "to": "T27",
+      "type": "depends_on"
+    }
+  ]
+}
