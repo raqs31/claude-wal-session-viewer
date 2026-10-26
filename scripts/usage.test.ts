@@ -5,7 +5,7 @@
 // unpriced model.
 
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { get, type IncomingMessage } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -154,6 +154,7 @@ try {
   const ZERO = '0'.repeat(36)
   const withUnknown = await json<UsageTotals>(`/usage?ids=${MAIN},${ZERO}`)
   check('an unknown id is skipped and reported', same(withUnknown.totals, m.stats.totals) && withUnknown.unknown.join() === ZERO, JSON.stringify(withUnknown))
+  check('pipe has one key per found id, none for an unknown one', Object.keys(withUnknown.pipe ?? {}).join() === MAIN, JSON.stringify(withUnknown.pipe))
   check('a repeated id is summed once', same((await json<UsageTotals>(`/usage?ids=${MAIN},${MAIN}`)).totals, m.stats.totals))
   const lone = await open(`ids=${ZERO}`)
   await wait(500)
@@ -204,6 +205,15 @@ try {
   check('the resumed stream gets it too', resumed.frames.length === 1 && same(must(resumed.frames[0]).totals, last.totals))
   await wait(500)
   check('no frame while nothing grows', s.frames.length === 2, String(s.frames.length))
+
+  writeFileSync(treeFile, readFileSync(treeFile).subarray(0, 100))
+  await wait(700)
+  const stale = must(s.frames.at(-1), 'usage frame')
+  check(
+    'a truncated transcript gives a frame with pipe[id].stale',
+    s.frames.length === 3 && stale.pipe?.[TREE]?.stale === 'transcript shrank',
+    JSON.stringify(stale.pipe),
+  )
 } catch (err) {
   console.log(`  FAIL harness error — ${(err as Error).message}`)
   fail = 1

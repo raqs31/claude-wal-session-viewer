@@ -5,14 +5,16 @@
 // Binds loopback only. The WAL carries prompts, file contents and command output, so this
 // must never be reachable off the machine.
 
-import { closeSync, createReadStream, existsSync, openSync, readSync, statSync } from 'node:fs'
+import { closeSync, createReadStream, existsSync, openSync, readSync, rmSync, statSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { dirname, extname, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { RecordResponse, Row, TrashRef, TrashResult, WalRecord } from '../shared/api.ts'
+import type { CallRecord, RecordResponse, Row, StaleFrame, TrashRef, TrashResult, WalRecord } from '../shared/api.ts'
 import { createDiscovery } from './discovery.ts'
+import { createObserver, pipeOf, syncAll, targetFile } from './observer.ts'
 import { createStore, parseScope, type Session, validId } from './sessions.ts'
+import { type TargetRecord, targetPath } from './target.ts'
 import { createTrash } from './trash.ts'
 import { cmp, createIndexes, type IndexEntry, type Matcher, matcher, parseVector, query, type Reader, summary, vector, type WalIndex } from './wal-index.ts'
 
@@ -43,6 +45,11 @@ const parse = (line: string): WalRecord => {
   }
 }
 
+type Ev = Extract<TargetRecord, { k: 'ev' }>
+
+// A `raw` line is a WAL line that was not JSON; it gets the `Unparseable` record it got before targets.
+const walOf = (ev: Ev): WalRecord => (ev.raw === undefined ? (ev.rec as WalRecord) : parse(ev.raw))
+
 // `pos` and `gens` per picked session: the next seq to send and the gen it was read under.
 interface Client {
   res: ServerResponse
@@ -50,6 +57,8 @@ interface Client {
   hit: Matcher
   pos: Map<string, number>
   gens: Map<string, number>
+  // Picked ids whose stale reason the page already has: from the first page, or an `event: stale` sent.
+  stale: Set<string>
 }
 
 const clients = new Set<Client>()
@@ -63,8 +72,10 @@ interface SessionClient {
 }
 
 const sessionClients = new Set<SessionClient>()
-const store = createStore(discovery, (id) => [...sessionClients].some((c) => c.ids.includes(id)))
-const indexes = createIndexes(discovery, (id) => [...clients].some((c) => c.ixs.some((ix) => ix.id === id)))
+const observer = createObserver({ discovery, write: true })
+const targets = { target: (id: string) => targetFile(discovery, id), observer }
+const store = createStore(targets, (id) => [...sessionClients].some((c) => c.ids.includes(id)))
+const indexes = createIndexes(targets, (id) => [...clients].some((c) => c.ixs.some((ix) => ix.id === id)))
 const idsOf = (p: URLSearchParams): string[] => [...new Set((p.get('ids') ?? '').split(',').filter(Boolean))]
 // Sent once a stream opens, before any data frame, when some picked ids were skipped.
 const writeUnknown = (res: ServerResponse, unknown: string[]): void => {
@@ -114,6 +125,7 @@ const sessionTick = (): void => {
  * alone skip a session that resolves null, and a tail of an empty WAL never sees it go.
  */
 const trash = createTrash(discovery, (id) => {
+  observer.drop(id)
   indexes.drop(id)
   store.drop(id)
   for (const client of clients) {
@@ -160,6 +172,13 @@ const walTick = (): void => {
       clients.delete(client)
       continue
     }
+    for (const ix of client.ixs) {
+      const { stale } = pipeOf(observer, ix.id)
+      if (stale === null || client.stale.has(ix.id)) continue
+      // Once per session and with no reset: a stale target keeps its gen, so the rows already sent stay valid.
+      client.res.write(`event: stale\ndata: ${JSON.stringify({ sess: ix.id, reason: stale } satisfies StaleFrame)}\n\n`)
+      client.stale.add(ix.id)
+    }
     // One reader per index per tick, so no fd or window outlives a truncation.
     const readers: Reader[] = []
     try {
@@ -188,6 +207,10 @@ const walTick = (): void => {
 }
 
 setInterval(() => {
+  // One set, so a session both kinds of stream pick is synced once per tick.
+  const streamed = new Set([...clients].flatMap((c) => c.ixs.map((ix) => ix.id)))
+  for (const c of sessionClients) for (const id of c.ids) streamed.add(id)
+  syncAll(observer, [...streamed])
   walTick()
   sessionTick()
 }, 250)
@@ -235,15 +258,32 @@ const isRef = (r: unknown): r is TrashRef => {
   return typeof o === 'object' && o !== null && ['source', 'date', 'slug', 'id'].every((k) => typeof o[k] === 'string') && validId(o.id as string)
 }
 
+/** Also deletes the targets of the purged sessions; the listing is taken first, since a purged entry leaves it. */
+const purge = (refs: TrashRef[] | 'all'): TrashResult[] => {
+  const listed = trash.list()
+  const results = trash.purge(refs)
+  for (const r of results) {
+    if (r.status !== 'ok') continue
+    for (const e of listed) {
+      if (e.id !== r.id) continue
+      for (const s of discovery.sources()) if (s.label === e.source) rmSync(targetPath(s, r.id), { force: true })
+    }
+    observer.drop(r.id)
+    indexes.drop(r.id)
+    store.drop(r.id)
+  }
+  return results
+}
+
 /** null: a bad shape or a bad id, which fails the whole request. */
 const writeOf = (path: string, body: unknown): (() => TrashResult[]) | null => {
   const b = body as Record<string, unknown> | null
   if (typeof b !== 'object' || b === null) return null
   const { ids, refs } = b
   if (path === '/trash') return Array.isArray(ids) && ids.every((id) => typeof id === 'string' && validId(id)) ? () => trash.trash(ids) : null
-  if (path === '/trash/purge' && b.all === true) return () => trash.purge('all')
+  if (path === '/trash/purge' && b.all === true) return () => purge('all')
   if (!Array.isArray(refs) || !refs.every(isRef)) return null
-  return path === '/trash/restore' ? () => trash.restore(refs) : () => trash.purge(refs)
+  return path === '/trash/restore' ? () => trash.restore(refs) : () => purge(refs)
 }
 
 /** The body arrives after handle() returns, so its errors never reach the server's catch. */
@@ -291,20 +331,22 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
     // Acquiring tails every index, so `head` is exact and a stream started at `after=head` has no gap.
     // An empty pick means every session that has a WAL.
     const picked = idsOf(p)
-    const got = indexes.acquire(
-      picked.length
-        ? picked
-        : discovery
-            .list()
-            .sessions.filter((s) => s.walSize > 0)
-            .map((s) => s.id),
-    )
+    const ids = picked.length
+      ? picked
+      : discovery
+          .list()
+          .sessions.filter((s) => s.walSize > 0)
+          .map((s) => s.id)
+    if (!ids.every(validId)) return void res.writeHead(400).end('bad id')
+    const synced = syncAll(observer, ids)
+    const got = indexes.acquire(ids)
     if (!got) return void res.writeHead(400).end('bad id')
     const { ixs, unknown } = got
+    const pipe = Object.fromEntries(Object.entries(synced).filter(([id]) => ixs.some((ix) => ix.id === id)))
 
     if (url.pathname === '/events') {
       res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify(query(ixs, p, unknown)))
+      res.end(JSON.stringify(query(ixs, p, unknown, pipe)))
       return
     }
 
@@ -320,7 +362,8 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
     const pos =
       parseVector(req.headers['last-event-id'] as string | undefined) ?? parseVector(p.get('after')) ?? new Map(ixs.map((ix) => [ix.id, ix.entries.length]))
     const gens = parseVector(p.get('gens')) ?? new Map(ixs.map((ix) => [ix.id, ix.gen]))
-    const client: Client = { res, ixs, hit: matcher(p), pos, gens }
+    const stale = new Set(ixs.filter((ix) => typeof pipe[ix.id]?.stale === 'string').map((ix) => ix.id))
+    const client: Client = { res, ixs, hit: matcher(p), pos, gens, stale }
     clients.add(client)
     req.on('close', () => clients.delete(client))
     return
@@ -330,6 +373,7 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
     const p = url.searchParams
     const id = p.get('id')
     if (!validId(id)) return void res.writeHead(400).end('bad id')
+    syncAll(observer, [id])
     // Acquiring tails first, catching a truncation since the last tick before `off` points at new bytes.
     const ix = indexes.acquire([id])?.ixs[0]
     if (!ix) return void res.writeHead(404).end('no such session')
@@ -338,15 +382,22 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
     const r = seq !== null && /^\d+$/.test(seq) ? ix.entries[Number(seq)] : undefined
     if (!r) return void res.writeHead(404).end('no such record')
     const fd = openSync(ix.path, 'r')
-    const read = (e: IndexEntry): WalRecord => {
+    // Index entries stand for `ev` and `call` lines only; a call row's `virtual` points at two `ev` entries.
+    const read = (e: IndexEntry): Ev | Extract<TargetRecord, { k: 'call' }> => {
       const buf = Buffer.alloc(e.len)
       readSync(fd, buf, 0, e.len, e.off)
-      return parse(buf.toString('utf8'))
+      return JSON.parse(buf.toString('utf8'))
     }
     let body: RecordResponse
     try {
-      const pre = r.virtual === null ? undefined : ix.entries[r.virtual.pre]
-      body = pre ? { virtual: true, pre: read(pre), post: read(r) } : read(r)
+      const line = read(r)
+      if (line.k === 'ev') body = walOf(line)
+      else {
+        const call: CallRecord = line
+        const pre = r.virtual && ix.entries[r.virtual.pre]
+        const post = r.virtual && ix.entries[r.virtual.post]
+        body = pre && post ? { virtual: true, pre: walOf(read(pre) as Ev), post: walOf(read(post) as Ev), call } : { call }
+      }
     } finally {
       closeSync(fd)
     }
@@ -366,6 +417,7 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
     const id = p.get('id')
     const scope = parseScope(p.get('scope') ?? 'all')
     if (!validId(id) || !scope) return void res.writeHead(400).end('bad id or scope')
+    syncAll(observer, [id])
     // Opening advances a cached session first, so a shrink since the last tick bumps gen here.
     const s = store.get(id)
     if (!s) return void res.writeHead(404).end('no such session')
@@ -379,6 +431,8 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
   if (url.pathname === '/usage' || url.pathname === '/usage-stream' || url.pathname === '/session-stream') {
     const p = url.searchParams
     const ids = idsOf(p)
+    if (!ids.every(validId)) return void res.writeHead(400).end('bad id')
+    syncAll(observer, ids)
     const got = store.acquire(ids)
     if (!got) return void res.writeHead(400).end('bad id')
 

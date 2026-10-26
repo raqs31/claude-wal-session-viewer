@@ -164,6 +164,11 @@ try {
     ['items', 'next', 'head'].every((k) => !(k in all)) && all.agents.every((a) => !('spawnUid' in a) && !('head' in a)),
     Object.keys(all).join(),
   )
+  check(
+    '/session carries pipe: no WAL, nothing done',
+    JSON.stringify(all.pipe) === JSON.stringify({ done: 0, total: 0, stale: null }),
+    JSON.stringify(all.pipe),
+  )
   check('scope all counts subagent usage', !!all.stats.agents[SUB] && !!all.stats.agents.main)
   const em = expect(mainFile)
   const es = expect(join(subDir, `agent-${SUB}.jsonl`))
@@ -326,6 +331,11 @@ try {
   await wait(700)
   const nested = (await json<SessionView>(`/session?id=${MAIN}&scope=all`)).agents
   check(
+    'a spawning agent is listed before the agent it spawned',
+    nested.findIndex((a) => a.id === 'bspawner') !== -1 && nested.findIndex((a) => a.id === 'bspawner') < nested.findIndex((a) => a.id === 'bkid'),
+    JSON.stringify(nested.map((a) => a.id)),
+  )
+  check(
     'a subagent spawned by another names it as parent',
     nested.find((a) => a.id === 'bkid')?.parent === 'bspawner' && nested.find((a) => a.id === 'bspawner')?.parent === null,
     JSON.stringify(nested.map((a) => [a.id, a.parent])),
@@ -340,15 +350,31 @@ try {
   check('LRU evicts the oldest session without a stream', (await json<SessionView>(`/session?id=${CLEAR}&scope=all`)).gen > clearGen)
   check('a streamed session survives eviction', (await json<SessionView>(`/session?id=${MAIN}&scope=all`)).gen === all.gen)
 
+  const framesBefore = of(quiet, MAIN).length
   writeFileSync(mainFile, readFileSync(mainFile).subarray(0, 100))
   await wait(700)
   const reopened = latest(quiet, MAIN)
   check(
-    'truncating the main file sends a frame with a higher gen, no reset',
-    reopened.gen > all.gen && !reopened.stats.agents.main && quiet.resets === 0,
-    JSON.stringify({ gen: reopened.gen, agents: Object.keys(reopened.stats.agents) }),
+    'truncating the main file sends a frame with pipe.stale',
+    of(quiet, MAIN).length > framesBefore && reopened.pipe?.stale === 'transcript shrank',
+    JSON.stringify(reopened.pipe),
   )
+  check('...and the same gen', reopened.gen === all.gen, `${reopened.gen} vs ${all.gen}`)
+  check('...and no reset', quiet.resets === 0, String(quiet.resets))
   check('re-opened session keeps that gen', (await json<SessionView>(`/session?id=${MAIN}&scope=all`)).gen === reopened.gen)
+
+  // A session with a WAL, made before the server first reads it.
+  const WALLED = randomUUID()
+  copyFileSync(join(root, '-tmp-proj', `${CLEAR}.jsonl`), join(root, '-tmp-proj', `${WALLED}.jsonl`))
+  const walFile = join(root, '-tmp-proj', `${WALLED}.wal.jsonl`)
+  const walLine = (): string => `${JSON.stringify({ ts: new Date().toISOString(), workspace: '/tmp/proj', event: 'SessionStart', session_id: WALLED })}\n`
+  writeFileSync(walFile, walLine())
+  const walled = await open(`ids=${WALLED}`)
+  await wait(500)
+  const walledFrames = walled.frames.length
+  appendFileSync(walFile, walLine())
+  await wait(700)
+  check('a view does not move on a WAL write', walledFrames === 1 && walled.frames.length === walledFrames, `${walledFrames} then ${walled.frames.length}`)
 } catch (err) {
   console.log(`  FAIL harness error — ${(err as Error).message}`)
   fail = 1

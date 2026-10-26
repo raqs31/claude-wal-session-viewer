@@ -3,7 +3,8 @@
 //
 // Exercises the paths a header check cannot reach: appended lines reaching a connected client,
 // two files growing at once arriving in time order, a record written in two parts arriving once
-// and intact, truncation of one file resetting the feed, and the per-client filter on live rows.
+// and intact, a truncated, replaced or deleted WAL freezing its target, and the per-client filter
+// on live rows.
 
 import { appendFileSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { get, type IncomingMessage } from 'node:http'
@@ -66,6 +67,7 @@ const gensOf = (p: FirstPage): string =>
     .join(',')
 // The stream query for "everything after this page", as the page builds it.
 const after = (p: FirstPage, qs = BOTH): string => `${qs}&after=${p.head}&gens=${gensOf(p)}`
+const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)
 const must = <T>(v: T | undefined | null, what = 'value'): T => {
   if (v == null) throw new Error(`missing ${what}`)
   return v
@@ -76,6 +78,10 @@ const must = <T>(v: T | undefined | null, what = 'value'): T => {
 interface Stream {
   rows: Row[]
   resets: number
+  // The data of each `stale` frame, as sent.
+  stale: string[]
+  // Every frame with an event or data: `retry` lines are not counted.
+  frames: number
   lastId: string | null
   unknown: string[] | null
   res?: IncomingMessage
@@ -83,7 +89,7 @@ interface Stream {
 const streams: Stream[] = []
 const open = (qs: string, headers: Record<string, string> = {}): Promise<Stream> =>
   new Promise((resolve) => {
-    const s: Stream = { rows: [], resets: 0, lastId: null, unknown: null }
+    const s: Stream = { rows: [], resets: 0, stale: [], frames: 0, lastId: null, unknown: null }
     get(`${BASE}/events-stream?${qs}`, { headers }, (res) => {
       s.res = res
       let pending = ''
@@ -96,7 +102,9 @@ const open = (qs: string, headers: Record<string, string> = {}): Promise<Stream>
           const f: Record<string, string> = Object.fromEntries(
             frame.split('\n').map((l) => [l.slice(0, l.indexOf(':')), l.slice(l.indexOf(':') + 1).trimStart()]),
           )
+          if (f.event !== undefined || f.data !== undefined) s.frames++
           if (f.event === 'reset') s.resets++
+          else if (f.event === 'stale') s.stale.push(must(f.data, 'stale event data'))
           else if (f.event === 'unknown') s.unknown = JSON.parse(must(f.data, 'unknown event data')) as string[]
           else if (f.data) {
             s.rows.push(...(JSON.parse(f.data) as Row[]))
@@ -226,8 +234,9 @@ try {
     rec({ event: 'PostToolUse', tool_name: FIND, tool_use_id: 'live1', duration_ms: 7, payload: { tool_response: [{ type: 'text', text: 'Buy milk' }] } }),
   )
   await wait(700)
-  const [pre, post, call] = mcpAll.rows
-  check('Post and its call row arrive once', mcpAll.rows.map((r) => r.event).join() === 'PreToolUse,PostToolUse,MCP call', JSON.stringify(mcpAll.rows))
+  const byEvent = (rows: Row[], event: string): Row | undefined => rows.find((r) => r.event === event)
+  const [pre, post, call] = ['PreToolUse', 'PostToolUse', 'MCP call'].map((e) => byEvent(mcpAll.rows, e))
+  check('Post and its call row arrive once', mcpAll.rows.length === 3 && [pre, post, call].every((r) => r !== undefined), JSON.stringify(mcpAll.rows))
   check(
     'streamed call row pairs the streamed seqs',
     call?.sess === L1 && call?.seq === (post?.seq ?? NaN) + 1 && call?.virtual?.pre === pre?.seq && call?.virtual?.post === post?.seq,
@@ -238,77 +247,92 @@ try {
     mcpOnly.rows.map((r) => r.event).join() === 'MCP call' && mcpOnly.rows[0]?.seq === call?.seq,
     JSON.stringify(mcpOnly.rows),
   )
-  // Indexed before the truncation below, so its Post arriving afterwards must not pair with it.
-  appendFileSync(wal1, rec({ event: 'PreToolUse', tool_name: FIND, tool_use_id: 'across' }))
-  await wait(700)
 
-  // Truncation of one file must reset streams over it, and only those.
-  const before = await events()
-  writeFileSync(wal1, rec({ event: 'SessionEnd', session_id: 'rotated' }))
-  await wait(700)
-  check('truncation sends reset', s.resets === 1, `resets ${s.resets}`)
-  check('truncation resets filtered streams too', reads.resets === 1 && needle.resets === 1)
-  check('a stream not over the truncated file is untouched', only2.resets === 0)
-  const after1 = await events()
-  check(
-    're-query has a higher gen for the truncated file only',
-    must(after1.gens[L1]) > must(before.gens[L1]) && after1.gens[L2] === before.gens[L2],
-    `${JSON.stringify(after1.gens)} vs ${JSON.stringify(before.gens)}`,
-  )
-  check(
-    're-query returns the new record beside the other file',
-    after1.head.startsWith(`${L1}:1,`) && after1.rows.filter((r) => r.sess === L1).length === 1,
-    JSON.stringify(after1.head),
-  )
+  // A session of its own per case: once a target is frozen, later WAL writes never reach Events.
+  let made = 4
+  const session = (...records: string[]): { id: string; wal: string } => {
+    const id = `bbbbbbbb-0000-4000-8000-${String(++made).padStart(12, '0')}`
+    const wal = join(proj, `${id}.wal.jsonl`)
+    writeFileSync(join(proj, `${id}.jsonl`), '')
+    writeFileSync(wal, records.join(''))
+    return { id, wal }
+  }
+  const trio = (): string[] => [
+    rec({ event: 'SessionStart' }),
+    rec({ event: 'PreToolUse', tool_name: 'Bash' }),
+    rec({ event: 'PostToolUse', tool_name: 'Bash', duration_ms: 2 }),
+  ]
+  const staleOf = (id: string, reason: string): string => JSON.stringify({ sess: id, reason })
 
-  // /events can detect the truncation before the tick does; the stream must still reset.
-  const late = await open(after(after1))
+  // Truncation freezes the target of that session only: no reset, and the rows stay.
+  const cut = session(...trio())
+  const cutBefore = await until(() => events(`ids=${cut.id}`))
+  const cutStream = await open(after(cutBefore, `ids=${cut.id}`))
   await wait(400)
-  // Shorter than the file it replaces: truncation is detected by the size shrinking.
-  writeFileSync(wal1, rec({ event: 'Stop' }))
-  const racer = await events()
-  check('/events reports the new gen', must(racer.gens[L1]) > must(after1.gens[L1]), `${racer.gens[L1]} vs ${after1.gens[L1]}`)
+  writeFileSync(cut.wal, rec({ event: 'SessionEnd' }))
+  await wait(700)
+  check(
+    'truncation sends one stale frame and no reset',
+    cutStream.stale.join() === staleOf(cut.id, 'wal shrank') && cutStream.resets === 0,
+    JSON.stringify([cutStream.stale, cutStream.resets]),
+  )
+  check('a stream not over the truncated file gets neither', only2.stale.length === 0 && only2.resets === 0, JSON.stringify([only2.stale, only2.resets]))
+  const cutAfter = await events(`ids=${cut.id}`)
+  check(
+    're-query keeps the gen, head and rows of the truncated file, and reports it stale',
+    cutAfter.gens[cut.id] === cutBefore.gens[cut.id] &&
+      cutAfter.head === cutBefore.head &&
+      same(cutAfter.rows, cutBefore.rows) &&
+      cutAfter.pipe[cut.id]?.stale === 'wal shrank',
+    JSON.stringify([cutAfter.gens, cutAfter.head, cutAfter.pipe]),
+  )
+
+  // /events can detect the truncation before the tick does; the stream must still hear of it.
+  const race = session(...trio())
+  const raceBefore = await until(() => events(`ids=${race.id}`))
+  const raceStream = await open(after(raceBefore, `ids=${race.id}`))
+  await wait(400)
+  writeFileSync(race.wal, rec({ event: 'Stop' }))
+  const raced = await events(`ids=${race.id}`)
   await wait(600)
-  check('truncation found by /events still resets', late.resets === 1 && late.rows.length === 0, `resets ${late.resets}, rows ${late.rows.length}`)
-
-  // A deleted WAL is a truncation to zero, and must not crash the server.
-  const gone = await open(after(await events()))
-  await wait(400)
-  rmSync(wal1)
-  await wait(700)
-  const empty = await events(`ids=${L1}`)
-  check('deleted WAL resets the stream', gone.resets === 1, `resets ${gone.resets}`)
-  check('deleted WAL gives head 0 and the server still answers', empty.head === `${L1}:0` && empty.rows.length === 0, JSON.stringify(empty))
-  check('/events?q= survives a deleted WAL', (await events(`ids=${L1}&q=x`)).head === `${L1}:0`)
-
-  appendFileSync(wal1, rec({ event: 'PostToolUse', tool_name: FIND, tool_use_id: 'across', duration_ms: 3 }))
-  await wait(700)
-  const across = await events(`ids=${L1}`)
   check(
-    'a Pre from before truncation never pairs',
-    across.head === `${L1}:1` && across.rows[0]?.mcp === 'response' && !across.counts.mcp,
-    JSON.stringify(across),
+    'truncation found by /events still sends one stale frame and no reset',
+    raced.pipe[race.id]?.stale === 'wal shrank' && raceStream.stale.join() === staleOf(race.id, 'wal shrank') && raceStream.resets === 0,
+    JSON.stringify([raced.pipe, raceStream.stale, raceStream.resets]),
   )
 
   // Replaced by rename with a longer file: the size never shrinks, only the inode tells.
-  const rotated = await open(after(across, `ids=${L1}`))
+  const swap = session(...trio())
+  const swapBefore = await until(() => events(`ids=${swap.id}`))
+  const swapStream = await open(after(swapBefore, `ids=${swap.id}`))
   await wait(400)
   const tmp = join(proj, 'rotate.tmp')
-  writeFileSync(tmp, rec({ event: 'SessionStart' }) + rec({ event: 'Stop' }) + rec({ event: 'Stop' }) + rec({ event: 'SessionEnd' }))
-  renameSync(tmp, wal1)
+  writeFileSync(tmp, [...trio(), rec({ event: 'Stop' }), rec({ event: 'SessionEnd' })].join(''))
+  renameSync(tmp, swap.wal)
   await wait(700)
-  const renamed = await events(`ids=${L1}`)
+  const swapped = await events(`ids=${swap.id}`)
   check(
-    'a WAL replaced by rename resets the stream',
-    rotated.resets === 1 && rotated.rows.length === 0,
-    `resets ${rotated.resets}, rows ${rotated.rows.length}`,
+    'a WAL replaced by rename sends one stale frame and no reset, and its rows stay',
+    swapStream.stale.join() === staleOf(swap.id, 'wal replaced') &&
+      swapStream.resets === 0 &&
+      same(swapped.rows, swapBefore.rows) &&
+      swapped.pipe[swap.id]?.stale === 'wal replaced',
+    JSON.stringify([swapStream.stale, swapStream.resets, swapped.rows.length, swapped.pipe]),
   )
+
+  // A deleted WAL leaves the rows and says nothing, and must not crash the server.
+  const gone = session(...trio())
+  const goneBefore = await until(() => events(`ids=${gone.id}`))
+  const goneStream = await open(after(goneBefore, `ids=${gone.id}`))
+  await wait(400)
+  rmSync(gone.wal)
+  await wait(700)
+  check('a deleted WAL sends no frame', goneStream.frames === 0, `frames ${goneStream.frames}`)
+  const goneAfter = await events(`ids=${gone.id}`)
   check(
-    '...and is re-indexed from its first byte',
-    must(renamed.gens[L1]) > must(across.gens[L1]) &&
-      renamed.head === `${L1}:4` &&
-      renamed.rows.map((r) => r.event).join() === 'SessionEnd,Stop,Stop,SessionStart',
-    JSON.stringify(renamed.rows),
+    'a deleted WAL keeps its rows and is not stale',
+    same(goneAfter.rows, goneBefore.rows) && goneAfter.head === goneBefore.head && goneAfter.pipe[gone.id]?.stale === null,
+    JSON.stringify([goneAfter.rows.length, goneAfter.head, goneAfter.pipe]),
   )
 
   // An empty pick is every session: the stream follows sessions nobody named.
