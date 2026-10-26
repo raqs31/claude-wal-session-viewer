@@ -1,16 +1,31 @@
 #!/usr/bin/env node
 
 // observer.test.ts — the observer's WAL → target records over temp WALs: the derived `ev` fields,
-// call rows, resume, stale, the torn tail, the budget, a missing WAL and read-only mode. No server.
+// call rows, resume, stale, the torn tail, the budget, a missing WAL and read-only mode. Then the call
+// and turn rows of a session without a WAL, over the fixture transcripts. No server.
 
 import assert from 'node:assert/strict'
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, truncateSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  truncateSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
+import { after, mock, test } from 'node:test'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { createObserver } from './observer.ts'
 import { appendRecords, createTargetReader, TARGET_VERSION, type TargetRecord, targetPath } from './target.ts'
+import { createParser } from './transcripts.ts'
 import { createWalIndex } from './wal-index.ts'
 
 const root = mkdtempSync(join(tmpdir(), 'walobserver.'))
@@ -18,14 +33,21 @@ after(() => rmSync(root, { recursive: true, force: true }))
 const projects = join(root, '.claude', 'projects')
 const proj = join(projects, '-tmp-obs')
 mkdirSync(proj, { recursive: true })
-const discovery = { locate: (_id: string): string | null => proj }
+cpSync(join(import.meta.dirname, 'fixtures', 'projects'), projects, { recursive: true })
+const discovery = {
+  locate: (id: string): string | null =>
+    readdirSync(projects)
+      .map((d) => join(projects, d))
+      .find((d) => existsSync(join(d, `${id}.jsonl`))) ?? null,
+}
 
 let n = 0
-/** A new session id with an empty transcript; its WAL path. */
-const session = (): { id: string; wal: string; target: string } => {
+/** A new session id with an empty transcript; its transcript, WAL and target paths. */
+const session = (): { id: string; tr: string; wal: string; target: string } => {
   const id = `bbbbbbbb-0000-4000-8000-${String(++n).padStart(12, '0')}`
-  writeFileSync(join(proj, `${id}.jsonl`), '')
-  return { id, wal: join(proj, `${id}.wal.jsonl`), target: targetPath({ label: 'default', projectsDir: projects }, id) }
+  const tr = join(proj, `${id}.jsonl`)
+  writeFileSync(tr, '')
+  return { id, tr, wal: join(proj, `${id}.wal.jsonl`), target: targetPath({ label: 'default', projectsDir: projects }, id) }
 }
 const sec = (s: number): string => `2026-10-01T10:00:${String(s).padStart(2, '0')}.000Z`
 const rec = (s: number, event: string, extra: Record<string, unknown> = {}): string => JSON.stringify({ ts: sec(s), workspace: 'w', event, ...extra })
@@ -374,4 +396,181 @@ test('resume: past the called cap, a torn checkpoint writes no call row twice', 
   const tuids = calls(target).map((c) => c.tuid)
   assert.equal(tuids.length, 10_008)
   assert.equal(new Set(tuids).size, 10_008)
+})
+
+// A session without a WAL: the fixture with a subagent that has its `.meta.json`.
+const FIX = 'd01c2dfc-0a01-4e1f-825a-5b0462780f18'
+const FIX_AGENT = 'a6c7ff04911c76bce'
+const fixMain = join(projects, '-tmp-proj', `${FIX}.jsonl`)
+const fixAgent = join(projects, '-tmp-proj', FIX, 'subagents', `agent-${FIX_AGENT}.jsonl`)
+// biome-ignore lint/suspicious/noExplicitAny: transcript lines are schemaless JSON.
+type Line = Record<string, any>
+const linesOf = (file: string): Line[] =>
+  readFileSync(file, 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l))
+const fixture = (): string => {
+  sync(FIX)
+  return targetPath({ label: 'default', projectsDir: projects }, FIX)
+}
+
+test('no WAL: call rows for a main and a subagent tool call', () => {
+  const target = fixture()
+  assert.deepEqual(records(target)[0], { k: 'head', v: TARGET_VERSION, id: FIX, wal: false })
+  const byTuid = new Map(calls(target).map((c) => [c.tuid, c]))
+
+  const main = linesOf(fixMain)
+  const mainUse = main[9]?.message.content[0]
+  assert.deepEqual(byTuid.get(mainUse.id), {
+    k: 'call',
+    tuid: mainUse.id,
+    t: Date.parse('2026-09-30T09:52:13.881Z'),
+    end: Date.parse('2026-09-30T09:52:14.032Z'),
+    dur: 151,
+    tool: 'Skill',
+    mcp: false,
+    err: false,
+    agent: null,
+    agentType: null,
+    input: mainUse.input,
+    response: main[10]?.message.content[0].content,
+  })
+
+  const sub = linesOf(fixAgent)
+  const subUse = sub[12]?.message.content[0]
+  assert.deepEqual(byTuid.get(subUse.id), {
+    k: 'call',
+    tuid: subUse.id,
+    t: Date.parse('2026-09-30T11:04:57.767Z'),
+    end: Date.parse('2026-09-30T11:04:57.841Z'),
+    dur: 74,
+    tool: 'Read',
+    mcp: false,
+    err: false,
+    agent: FIX_AGENT,
+    agentType: 'general-purpose',
+    input: subUse.input,
+    response: sub[13]?.message.content[0].content,
+  })
+
+  // One row per tool_use block whose tool_result is in the transcript.
+  const resulted = (ls: Line[]): string[] => {
+    const done = new Set(ls.flatMap((e) => (Array.isArray(e.message?.content) ? e.message.content : [])).map((b: Line) => b.tool_use_id))
+    return ls
+      .filter((e) => e.type === 'assistant')
+      .flatMap((e) => e.message.content)
+      .filter((b: Line) => b.type === 'tool_use' && done.has(b.id))
+      .map((b: Line) => b.id)
+  }
+  assert.deepEqual([...byTuid.keys()].sort(), [...resulted(main), ...resulted(sub)].sort())
+})
+
+test('no WAL: UserPromptSubmit per turn start, Stop and SubagentStop only on end_turn lines', () => {
+  const rows = evs(fixture())
+  assert.ok(rows.every((e) => e.woff === null))
+  const parser = createParser('main', 0, false)
+  parser.push(readFileSync(fixMain))
+  const prompts = rows.filter((e) => e.event === 'UserPromptSubmit')
+  assert.ok(parser.turnStarts.length > 1)
+  assert.deepEqual(
+    prompts.filter((e) => e.agent === null).map((e) => e.t),
+    parser.turnStarts,
+  )
+  const sub = linesOf(fixAgent)
+  assert.deepEqual(
+    prompts.filter((e) => e.agent === FIX_AGENT).map((e) => (e.rec as Line).uuid),
+    [sub[0]?.uuid],
+  )
+
+  const stops = (event: string) => rows.filter((e) => e.event === event).map((e) => ({ agent: e.agent, uuid: (e.rec as Line).uuid, out: e.out }))
+  const endTurn = (ls: Line[], agent: string | null) =>
+    ls.filter((e) => e.type === 'assistant' && e.message.stop_reason === 'end_turn').map((e) => ({ agent, uuid: e.uuid, out: e.message.usage.output_tokens }))
+  assert.deepEqual(stops('Stop'), endTurn(linesOf(fixMain), null))
+  assert.deepEqual(stops('SubagentStop'), endTurn(sub, FIX_AGENT))
+  assert.equal(stops('SubagentStop').length, 2)
+
+  // A streamed snapshot carries stop_reason null; a reply whose end_turn spans two lines gives one Stop.
+  const { id, tr, target } = session()
+  const reply = (uuid: string, s: number, stop: string | null, out: number, block: Line): string =>
+    JSON.stringify({
+      type: 'assistant',
+      uuid,
+      timestamp: sec(s),
+      message: { id: 'm1', model: 'x', stop_reason: stop, content: [block], usage: { output_tokens: out } },
+    })
+  appendFileSync(
+    tr,
+    `${[
+      JSON.stringify({ type: 'user', uuid: 'u1', timestamp: sec(1), message: { role: 'user', content: 'hi' } }),
+      reply('a1', 2, null, 3, { type: 'thinking', thinking: 'hm' }),
+      reply('a2', 3, 'end_turn', 9, { type: 'thinking', thinking: 'hm' }),
+      reply('a3', 3, 'end_turn', 9, { type: 'text', text: 'done' }),
+    ].join('\n')}\n`,
+  )
+  sync(id)
+  assert.deepEqual(
+    evs(target).map((e) => [e.event, (e.rec as Line).uuid, e.t, e.out]),
+    [
+      ['UserPromptSubmit', 'u1', Date.parse(sec(1)), undefined],
+      ['Stop', 'a2', Date.parse(sec(3)), 9],
+    ],
+  )
+})
+
+test('no WAL: a WAL that appears later makes the target stale with wal appeared', () => {
+  const { id, tr, wal, target } = session()
+  appendFileSync(tr, `${JSON.stringify({ type: 'user', uuid: 'u1', timestamp: sec(1), message: { role: 'user', content: 'hi' } })}\n`)
+  assert.deepEqual(sync(id), { done: 0, total: 0, stale: null })
+  assert.deepEqual(records(target)[0], { k: 'head', v: TARGET_VERSION, id, wal: false })
+
+  put(wal, [rec(2, 'SessionStart')])
+  assert.equal(sync(id).stale, 'wal appeared')
+  assert.deepEqual(records(target).at(-1), { k: 'stale', reason: 'wal appeared' })
+  const frozen = readFileSync(target, 'utf8')
+
+  put(wal, [rec(3, 'Stop')])
+  appendFileSync(tr, `${JSON.stringify({ type: 'user', uuid: 'u2', timestamp: sec(4), message: { role: 'user', content: 'more' } })}\n`)
+  assert.equal(sync(id).stale, 'wal appeared')
+  assert.equal(readFileSync(target, 'utf8'), frozen)
+})
+
+test('transcripts: no parser item stays in a set after a sync', () => {
+  // The parser's `touched` set is the only set that holds its items (they carry `uid` and `src`).
+  const holders: Set<unknown>[] = []
+  const add = Set.prototype.add
+  const spy = mock.method(Set.prototype, 'add', function (this: Set<unknown>, v: unknown) {
+    if (v !== null && typeof v === 'object' && 'uid' in v && 'src' in v && !holders.includes(this)) holders.push(this)
+    return add.call(this, v)
+  })
+  try {
+    sync(FIX)
+  } finally {
+    spy.mock.restore()
+  }
+  assert.ok(holders.length > 0)
+  assert.deepEqual(
+    holders.map((h) => h.size),
+    holders.map(() => 0),
+  )
+})
+
+test('transcripts: a later cost-state with no totalCostUSD appends a cost record with usd null', () => {
+  const { id, tr, target } = session()
+  const costs = () => records(target).filter((r) => r.k === 'cost')
+  const state = (extra: Record<string, unknown>): string => `${JSON.stringify({ type: 'cost-state', ...extra })}\n`
+  appendFileSync(tr, `${JSON.stringify({ type: 'user', uuid: 'u1', timestamp: sec(1), message: { role: 'user', content: 'hi' } })}\n${state({})}`)
+  sync(id)
+  // Before the first cost record, a null cost writes nothing.
+  assert.deepEqual(costs(), [])
+
+  appendFileSync(tr, state({ totalCostUSD: 1.5, modelUsage: { 'claude-x': { costUSD: 1.5 } } }))
+  sync(id)
+  appendFileSync(tr, state({}))
+  sync(id)
+  sync(id)
+  assert.deepEqual(costs(), [
+    { k: 'cost', usd: 1.5, byModel: { 'claude-x': 1.5 } },
+    { k: 'cost', usd: null, byModel: {} },
+  ])
 })
