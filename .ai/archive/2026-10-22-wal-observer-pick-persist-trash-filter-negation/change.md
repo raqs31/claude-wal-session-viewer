@@ -1,10 +1,10 @@
 ---
 change_id: wal-observer-pick-persist-trash-filter-negation
 title: Persist session pick, trash sessions from the sidebar, All/None/Not filters
-status: plan_reviewed
+status: archived
 created: 2026-10-22
-updated: 2026-10-22
-archived_at: null
+updated: 2026-10-26
+archived_at: 2026-10-26T09:32:57Z
 ---
 
 ## Notes
