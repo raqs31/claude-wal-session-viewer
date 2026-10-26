@@ -70,6 +70,10 @@ export interface Row {
   err?: true
   // Seqs of the paired Pre and Post, in the same session.
   virtual?: { pre: number; post: number }
+  // On a call or Stop row: the output tokens of the reply behind it. On a call row, `res` is also the context its
+  // result added to the next request. Each is absent until the observer has joined it.
+  out?: number
+  res?: number
 }
 
 // `head` is a position vector `<sess>:<n>,…` (rows indexed per picked session), passed back to

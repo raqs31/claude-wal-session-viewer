@@ -1,8 +1,9 @@
 // observer.ts — the only writer of targets. Per session, a pass reads the transcripts (main, then its
 // subagents, spawner first) and then the WAL from where the target left off. It appends the transcript
-// records that changed, one `ev` per WAL line, a `call` per tool call and then a `ck`. A session without
-// a WAL gets its call and turn rows from the transcripts instead. After a restart a pass replays each
-// source up to the last `ck` without writing, to rebuild its parser state, then continues.
+// records that changed, one `ev` per WAL line, a `call` per tool call, the `tok` records of the token
+// join and then a `ck`. A session without a WAL gets its call and turn rows from the transcripts instead.
+// After a restart a pass replays each source up to the last `ck` without writing, to rebuild its parser
+// state, then continues.
 
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, rmSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -21,7 +22,7 @@ import {
   targetDir,
   targetPath,
 } from './target.ts'
-import { createParser, type Parser } from './transcripts.ts'
+import { createParser, type Parser, type UsageRecord } from './transcripts.ts'
 
 const MCP_ROLE = new Map<string, McpRole>([
   ['PreToolUse', 'request'],
@@ -35,6 +36,8 @@ const PENDING_MAX = 10_000
 const CHUNK = 64 * 1024
 const MAIN = 'main'
 const AGENT_RE = /^[A-Za-z0-9_-]+$/
+// The hook clamps a long string to its first 2000 chars plus this suffix.
+const CLAMP_RE = /…\[\+\d+ chars\]$/
 
 // The fields the derivation reads, typed as the hook writes them; a line is not validated against it.
 interface WalLine {
@@ -45,7 +48,7 @@ interface WalLine {
   agent_id?: unknown
   agent_type?: unknown
   duration_ms?: unknown
-  payload?: { tool_input?: unknown; tool_response?: unknown; error?: unknown } | null
+  payload?: { tool_input?: unknown; tool_response?: unknown; error?: unknown; last_assistant_message?: unknown } | null
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: deliberate, transcripts are schemaless JSON.
@@ -86,6 +89,8 @@ interface Transcript {
   open: Map<string, { t: number; tool: string | null; input: unknown }>
   stopped: Set<string>
   command: Line | null
+  // The token join's index into `parser.usage`, by reply id: usage order is the replies' file order.
+  at: Map<string, number>
 }
 
 interface Session {
@@ -126,6 +131,11 @@ interface Session {
   ckTr: Record<string, Pos>
   // Turn rows an interrupted pass wrote after the last `ck`, by transcript line uuid; not written again.
   trRedo: Set<string>
+  // The token join: call rows (by tuid) and WAL Stop / SubagentStop rows (by WAL offset) with no `tok` yet,
+  // retried on every pass in which a source moved. `ended`: a SessionEnd came after the call.
+  waiting: Map<string, { agent: string | null; ended: boolean }>
+  stops: Map<number, { agent: string | null; t: number; text: string }>
+  rejoin: boolean
   // What the target holds: the keyed records as their JSON, and the length of the listed ones.
   written: {
     use: Map<string, string>
@@ -138,13 +148,23 @@ interface Session {
 }
 
 /** Drops the oldest key once the set or map holds more than PENDING_MAX. */
-const capped = (keys: Set<string> | Map<string, unknown>): void => {
+const capped = (keys: Set<unknown> | Map<unknown, unknown>): void => {
   if (keys.size <= PENDING_MAX) return
   const oldest = keys.keys().next().value
   if (oldest !== undefined) keys.delete(oldest)
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null)
+
+const prompt = (u: UsageRecord): number => u.input + u.cacheRead + u.cacheWrite5m + u.cacheWrite1h
+
+/** Part `i` of `total` split by `weights` (evenly when all are 0). Each part rounds the running sum, so the parts add up to `total`. */
+const share = (total: number, weights: number[], i: number): number => {
+  const w = weights.some((x) => x > 0) ? weights : weights.map(() => 1)
+  const sum = w.reduce((a, b) => a + b, 0)
+  const before = w.slice(0, i).reduce((a, b) => a + b, 0)
+  return Math.round((total * (before + (w[i] ?? 0))) / sum) - Math.round((total * before) / sum)
+}
 
 const readAt = (fd: number, off: number, len: number): Buffer => {
   const buf = Buffer.allocUnsafe(len)
@@ -246,8 +266,33 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     tr: new Map(),
     ckTr: {},
     trRedo: new Set(),
+    waiting: new Map(),
+    stops: new Map(),
+    rejoin: true,
     written: { use: new Map(), agent: new Map(), tools: new Map(), compacts: new Map(), turns: 0, cost: null },
   })
+
+  /** A call row now waits for its `tok`. */
+  const wait = (s: Session, tuid: string, agent: string | null): void => {
+    s.waiting.set(tuid, { agent, ended: false })
+    capped(s.waiting)
+    s.rejoin = true
+  }
+
+  /** What a WAL `ev` changes in the join: a SessionEnd ends the waiting calls, a Stop with its message waits. */
+  const watch = (s: Session, e: Ev): void => {
+    if (e.woff === null) return
+    if (e.event === 'SessionEnd') {
+      for (const c of s.waiting.values()) c.ended = true
+      s.rejoin = true
+    } else if (e.event === 'Stop' || e.event === 'SubagentStop') {
+      const text = (e.rec as WalLine | undefined)?.payload?.last_assistant_message
+      if (typeof text !== 'string') return
+      s.stops.set(e.woff, { agent: e.agent, t: e.t, text: text.replace(CLAMP_RE, '') })
+      capped(s.stops)
+      s.rejoin = true
+    }
+  }
 
   const absorb = (s: Session, items: TargetItem[]): void => {
     const w = s.written
@@ -260,6 +305,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
         if (rec.woff !== null) {
           s.evT = rec.t
           s.redo.set(rec.woff, rec.t)
+          watch(s, rec)
         } else {
           const uuid = str((rec.rec as Line | undefined)?.uuid)
           if (uuid !== null) s.trRedo.add(uuid)
@@ -267,6 +313,10 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
       } else if (rec.k === 'call') {
         s.called.add(rec.tuid)
         capped(s.called)
+        wait(s, rec.tuid, rec.agent)
+      } else if (rec.k === 'tok') {
+        if ('tuid' in rec) s.waiting.delete(rec.tuid)
+        else s.stops.delete(rec.woff)
       } else if (rec.k === 'use') w.use.set(`${rec.agent}\n${rec.id}`, JSON.stringify(rec))
       else if (rec.k === 'agent') w.agent.set(rec.id, JSON.stringify(rec))
       else if (rec.k === 'tools') w.tools.set(rec.agent, rec.n)
@@ -362,7 +412,9 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
         err: mcp !== null && event === 'PostToolUseFailure',
         woff,
       } as const
-      out.push(ok ? ({ ...base, rec: parsed } satisfies Ev) : ({ ...base, raw: text } satisfies Ev))
+      const ev: Ev = ok ? { ...base, rec: parsed } : { ...base, raw: text }
+      out.push(ev)
+      watch(s, ev)
     }
     if (tuid === null) return
     const payload = rec.payload
@@ -393,6 +445,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
         input: pre ? pre.input : (payload?.tool_input ?? null),
         response: payload?.tool_response ?? payload?.error ?? null,
       })
+      wait(s, tuid, agent)
     }
   }
 
@@ -440,6 +493,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
       input: use.input,
       response: b.content ?? null,
     })
+    wait(s, tuid, tr.agent)
   }
 
   const trLine = (s: Session, tr: Transcript, buf: Buffer, off: number, rows: boolean, now: number, out: TargetRecord[]): void => {
@@ -505,6 +559,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
       open: new Map(),
       stopped: new Set(),
       command: null,
+      at: new Map(),
     }
     s.tr.set(name, tr)
     return tr
@@ -524,6 +579,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     tr.off = end
     tr.ino = st.ino
     tr.grew = true
+    s.rejoin = true
     return null
   }
 
@@ -639,6 +695,76 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     return null
   }
 
+  /** The transcript a row joins against: its agent's file; for the main agent, the first file read that holds the call. */
+  const joinFile = (s: Session, agent: string | null, tuid: string | null): Transcript | undefined => {
+    if (agent !== null) {
+      const tr = s.tr.get(agent)
+      return tr?.agent === agent ? tr : undefined
+    }
+    if (tuid === null) return s.tr.get(MAIN)
+    for (const tr of s.tr.values()) if (tr.parser.toolInfo.has(tuid)) return tr
+    return undefined
+  }
+
+  /** The `tok` of a waiting call by "Token rules"; null while it stays open. */
+  const callTok = (s: Session, tuid: string, ended: boolean, agent: string | null): TargetRecord | null => {
+    const tr = joinFile(s, agent, tuid)
+    if (tr === undefined) return null
+    const p = tr.parser
+    for (let i = tr.at.size; i < p.usage.length; i++) tr.at.set(p.usage[i]?.id ?? '', i)
+    const info = p.toolInfo.get(tuid)
+    const reply = info && p.replyInfo.get(info.reply)
+    const i = info && tr.at.get(info.reply)
+    const r = i === undefined ? undefined : p.usage[i]
+    if (reply === undefined || i === undefined || r === undefined) return null
+    const at = reply.calls.findIndex((c) => c.id === tuid)
+    const out = share(
+      r.output,
+      reply.calls.map((c) => c.size),
+      at,
+    )
+    const n = p.usage[i + 1]
+    if (n === undefined) return ended ? { k: 'tok', tuid, out } : null
+    const growth = prompt(n) - prompt(r) - r.output
+    if (growth < 0 || reply.prompted) return { k: 'tok', tuid, out }
+    const res = share(
+      growth,
+      reply.calls.map((c) => p.toolInfo.get(c.id)?.resultSize ?? 0),
+      at,
+    )
+    return { k: 'tok', tuid, out, res }
+  }
+
+  /** The `out` of a WAL Stop: the agent's last reply at or before it, when its last text starts with the Stop's message. */
+  const stopOut = (s: Session, stop: { agent: string | null; t: number; text: string }): number | null => {
+    const tr = joinFile(s, stop.agent, null)
+    if (tr === undefined) return null
+    const p = tr.parser
+    for (let i = p.usage.length - 1; i >= 0; i--) {
+      const r = p.usage[i]
+      if (r === undefined || !(r.t <= stop.t)) continue
+      return p.replyInfo.get(r.id)?.lastText.startsWith(stop.text) ? r.output : null
+    }
+    return null
+  }
+
+  /** Appends a `tok` for each waiting call and Stop that the transcripts now answer. */
+  const joinTokens = (s: Session, out: TargetRecord[]): void => {
+    s.rejoin = false
+    for (const [tuid, c] of s.waiting) {
+      const tok = callTok(s, tuid, c.ended, c.agent)
+      if (tok === null) continue
+      s.waiting.delete(tuid)
+      out.push(tok)
+    }
+    for (const [woff, stop] of s.stops) {
+      const n = stopOut(s, stop)
+      if (n === null) continue
+      s.stops.delete(woff)
+      out.push({ k: 'tok', woff, out: n })
+    }
+  }
+
   /** The WAL part of a pass, until the WAL end or the deadline. False when the WAL went away after its stat. */
   const walPass = (s: Session, path: string, size: number, deadline: number, now: number, out: TargetRecord[]): boolean => {
     const end = lines(path, s.off, size, deadline, (buf, woff) => line(s, buf.subarray(0, -1), woff, now, out))
@@ -722,6 +848,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
       }
       s.ino = st.ino
     }
+    if (s.rejoin) joinTokens(s, out)
     // Short of the WAL end before the deadline is a torn tail: the pass is caught up to the last whole line.
     s.behind = st !== undefined && s.off < st.size && Date.now() >= now + budgetMs
     if (out.length) {
@@ -731,8 +858,10 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
       try {
         appendRecords(s.file, out)
       } catch (e) {
-        // The next sync re-opens from what reached the disk.
-        sessions.delete(id)
+        // The next sync re-opens from what reached the disk. Until it does, the session is not built.
+        const again = fresh(s.file)
+        again.absorbing = true
+        sessions.set(id, again)
         throw e
       }
       s.head = true

@@ -364,3 +364,111 @@ test('aggregate: scopes partition requests; series are ascending and sum to the 
     )
   }
 })
+
+const feed = (lines: E[]) => {
+  const p = createParser('main')
+  p.push(Buffer.from(lines.map((l) => `${JSON.stringify(l)}\n`).join('')))
+  return p
+}
+const reply = (uuid: string, id: string, content: E[]): E => ({
+  type: 'assistant',
+  uuid,
+  timestamp: '2026-10-01T10:00:00.000Z',
+  message: { id, model: 'claude-opus-5-5', content, usage: { input_tokens: 1, output_tokens: 1 } },
+})
+const toolResult = (uuid: string, results: E[]): E => ({ type: 'user', uuid, timestamp: '2026-10-01T10:00:01.000Z', message: { content: results } })
+const prompt = (uuid: string, content: unknown): E => ({
+  type: 'user',
+  uuid,
+  timestamp: '2026-10-01T10:00:02.000Z',
+  origin: { kind: 'human' },
+  message: { content },
+})
+
+test('replyInfo: tool ids and input sizes in block order across split lines, and the last text prefix', () => {
+  const long = 'x'.repeat(2500)
+  const p = feed([
+    reply('a1', 'm1', [
+      { type: 'text', text: 'first' },
+      { type: 'tool_use', id: 'tu1', name: 'Read', input: { path: '/a' } },
+    ]),
+    prompt('u0', 'between'),
+    reply('a2', 'm1', [
+      { type: 'server_tool_use', id: 'st1', name: 'web_search', input: { q: 'hello' } },
+      { type: 'text', text: long },
+    ]),
+  ])
+  const info = must(p.replyInfo.get('m1'))
+  assert.deepEqual(info.calls, [
+    { id: 'tu1', size: JSON.stringify({ path: '/a' }).length },
+    { id: 'st1', size: JSON.stringify({ q: 'hello' }).length },
+  ])
+  assert.equal(info.lastText, long.slice(0, 2000))
+})
+
+test('toolInfo: reply id at the call, result size when the tool_result arrives (string or blocks)', () => {
+  const blocks = [{ type: 'text', text: 'abc' }]
+  const p = feed([
+    reply('a1', 'm1', [
+      { type: 'tool_use', id: 'tu1', name: 'Read', input: {} },
+      { type: 'tool_use', id: 'tu2', name: 'Read', input: {} },
+    ]),
+  ])
+  assert.deepEqual(p.toolInfo.get('tu1'), { reply: 'm1', resultSize: null })
+  p.push(
+    Buffer.from(
+      `${JSON.stringify(
+        toolResult('u1', [
+          { type: 'tool_result', tool_use_id: 'tu1', content: 'hello' },
+          { type: 'tool_result', tool_use_id: 'tu2', content: blocks },
+        ]),
+      )}\n`,
+    ),
+  )
+  assert.deepEqual(p.toolInfo.get('tu1'), { reply: 'm1', resultSize: 5 })
+  assert.deepEqual(p.toolInfo.get('tu2'), { reply: 'm1', resultSize: JSON.stringify(blocks).length })
+})
+
+test('replyInfo: prompted is set by a non-tool_result user line after the reply, not by a tool_result', () => {
+  const p = feed([
+    reply('a1', 'm1', [{ type: 'tool_use', id: 'tu1', name: 'Read', input: {} }]),
+    toolResult('u1', [{ type: 'tool_result', tool_use_id: 'tu1', content: 'ok' }]),
+    reply('a2', 'm2', [{ type: 'text', text: 'done' }]),
+  ])
+  assert.equal(must(p.replyInfo.get('m1')).prompted, false)
+  assert.equal(must(p.replyInfo.get('m2')).prompted, false)
+  p.push(Buffer.from(`${JSON.stringify(prompt('u2', 'next'))}\n`))
+  assert.equal(must(p.replyInfo.get('m1')).prompted, false)
+  assert.equal(must(p.replyInfo.get('m2')).prompted, true)
+})
+
+test('the new data leaves the usage records and items of the fixture unchanged', () => {
+  const { main, sub, records } = open()
+  assert.equal(records.length, main.usage.length + sub.usage.length)
+  assert.deepEqual(Object.keys(must(records[0])).sort(), [
+    'agent',
+    'cacheRead',
+    'cacheWrite1h',
+    'cacheWrite5m',
+    'id',
+    'input',
+    'model',
+    'output',
+    't',
+    'thinking',
+    'turn',
+  ])
+  assert.ok(main.replyInfo.size > 0 && main.toolInfo.size > 0)
+})
+
+test('replyInfo: a Skill call keeps prompted false despite its isMeta body line', () => {
+  const { main } = open()
+  assert.equal(must(main.toolInfo.get('toolu_01L5zS6gQ12kYsoUN4tco61R')).reply, 'msg_011CfZREHEy2gJbHhUNkx7oE')
+  assert.equal(must(main.replyInfo.get('msg_011CfZREHEy2gJbHhUNkx7oE')).prompted, false)
+})
+test('replyInfo: isMeta and isCompactSummary lines do not set prompted', () => {
+  for (const flag of ['isMeta', 'isCompactSummary']) {
+    const p = feed([reply('a1', 'm1', [{ type: 'text', text: 'x' }]), { ...prompt('u1', 'body'), [flag]: true }])
+    assert.equal(must(p.replyInfo.get('m1')).prompted, false, flag)
+  }
+})

@@ -310,7 +310,8 @@ const build = async (): Promise<void> => {
     }
   }
 }
-void build()
+// WAL_NO_BUILD exists for tests only, so a request is the first sync of a session however long the test takes.
+if (process.env.WAL_NO_BUILD !== '1') void build()
 
 const observerStatus = (): ObserverStatus => {
   const status: ObserverStatus = { owner: owner(), total: 0, built: 0, building: [], stale: [], elsewhere: 0 }
@@ -380,7 +381,8 @@ const purge = (refs: TrashRef[] | 'all'): TrashResult[] => {
     if (r.status !== 'ok') continue
     for (const e of listed) {
       if (e.id !== r.id) continue
-      for (const s of discovery.sources()) if (s.label === e.source) rmSync(targetPath(s, r.id), { force: true })
+      // A target in a dir another server holds stays: that server may be writing it.
+      for (const s of discovery.sources()) if (s.label === e.source && hold(targetDir(s))) rmSync(targetPath(s, r.id), { force: true })
     }
     observer.drop(r.id)
     indexes.drop(r.id)

@@ -5,7 +5,7 @@
 //
 // The server runs with TZ=UTC so the local day and minute of each fixture record are fixed.
 
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { request } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -102,6 +102,26 @@ session(P2, [JSON.stringify({ ts: '2026-09-29T11:30:00.000Z', event: 'constructo
 const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'projects', '-tmp-proj')
 const TR = 'd01c2dfc-0a01-4e1f-825a-5b0462780f18'
 copyFileSync(join(FIXTURE, `${TR}.jsonl`), join(proj, `${TR}.jsonl`))
+
+// The same transcript with a WAL of one call and one Stop, so the observer joins tokens onto both rows. From the
+// transcript's usage: the reply behind call gsNTiK has output 903 and the next request's prompt is 401 larger than
+// that reply's prompt plus its output; the last reply, aMrgGL, has output 41.
+const TK = sid(17)
+const trLines = readFileSync(join(FIXTURE, `${TR}.jsonl`), 'utf8').split(/(?<=\n)/)
+const gsNTiK = /"id":"(toolu_[A-Za-z0-9]*gsNTiK)"/.exec(trLines.join(''))?.[1]
+const lastText = (JSON.parse(trLines[18] ?? '{}') as { message?: { content?: { text?: string }[] } }).message?.content?.[0]?.text
+if (!gsNTiK || !lastText) throw new Error('fixture lacks the call or the last reply')
+writeFileSync(join(proj, `${TK}.jsonl`), trLines.join(''))
+writeFileSync(
+  walOf(TK),
+  `${[
+    { ts: '2026-09-30T09:55:55.300Z', event: 'PreToolUse', tool_name: 'Read', tool_use_id: gsNTiK, payload: { tool_input: {} } },
+    { ts: '2026-09-30T09:55:55.400Z', event: 'PostToolUse', tool_name: 'Read', tool_use_id: gsNTiK, payload: { tool_response: 'ok' } },
+    { ts: '2026-09-30T09:55:58.000Z', event: 'Stop', payload: { last_assistant_message: lastText } },
+  ]
+    .map((r) => JSON.stringify({ workspace: 'w', ...r }))
+    .join('\n')}\n`,
+)
 
 // Interleaved in time, with a tie across sessions (I1 seq 2 and I2 seq 2 share 00:04).
 const I1 = sid(4)
@@ -438,7 +458,7 @@ try {
   }
 
   const status = async (path: string) => (await fetch(`${BASE}${path}`)).status
-  const withWal = [S1, S2, NE, M1, P1, P2, I1, I2, G1, G2, G3, T1, T2]
+  const withWal = [S1, S2, NE, M1, P1, P2, I1, I2, G1, G2, G3, T1, T2, TK]
   for (const qs of ['ids=', '']) {
     const every = await events(`${qs}${qs ? '&' : ''}limit=500`)
     const rowSess = [...new Set(every.rows.map((r) => r.sess))].sort()
@@ -647,6 +667,26 @@ try {
   )
   check('no WAL: /record of a call row is { call } with no virtual', same(Object.keys(noWalCall), ['call']), JSON.stringify(noWalCall))
 
+  const joined = await until(async () => {
+    const page = await events(`ids=${TK}&limit=500`)
+    if (!page.rows.some((r) => r.out !== undefined && r.event === 'Stop')) throw new Error('no tokens yet')
+    return page
+  })
+  const tokCall = joined.rows.find((r) => r.event === 'Tool call')
+  const tokStop = joined.rows.find((r) => r.event === 'Stop')
+  check('tokens: a call row returns out and res', tokCall?.out === 903 && tokCall.res === 401, JSON.stringify(tokCall))
+  check('tokens: a Stop row returns out and no res', tokStop?.out === 41 && !('res' in tokStop), JSON.stringify(tokStop))
+  check(
+    'tokens: the two tok entries take seqs but are in no row, total, count, event or cat',
+    joined.head === `${TK}:6` &&
+      joined.rows.length === 4 &&
+      joined.total === 4 &&
+      same(joined.counts, { turn: 1, tool: 3 }) &&
+      same(joined.events, ['PreToolUse', 'PostToolUse', 'Tool call', 'Stop']) &&
+      same(joined.cats, ['tool', 'turn']),
+    JSON.stringify([joined.head, joined.total, joined.counts, joined.events, joined.cats]),
+  )
+
   const proto = await events(`ids=${P2}`)
   check(
     'prototype key: an event named constructor is a session row with no mcp marker',
@@ -699,7 +739,8 @@ try {
       JSON.stringify([page.pipe, page.total]),
     )
   }
-  const env2 = { HOME: dir2, WAL_SYNC_BUDGET_MS: '0' }
+  // No background build: its first tick would race the first request and could finish the WAL before it.
+  const env2 = { HOME: dir2, WAL_SYNC_BUDGET_MS: '0', WAL_NO_BUILD: '1' }
   const second = await startServer([], env2)
   try {
     await budgeted('budget 0', second.base)
