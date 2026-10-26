@@ -1,0 +1,190 @@
+%%{init: {
+  'theme': 'dark',
+  'flowchart': {'htmlLabels': false},
+  'themeVariables': {
+    'textColor': '#f3f4f6',
+    'primaryTextColor': '#f3f4f6',
+    'secondaryTextColor': '#e5e7eb',
+    'tertiaryTextColor': '#d1d5db',
+    'mainBkg': '#111827',
+    'nodeBorder': '#4b5563',
+    'clusterBkg': '#1f2937',
+    'clusterBorder': '#374151',
+    'lineColor': '#9ca3af'
+  }
+}}%%
+flowchart LR
+  classDef todo fill:#e2e8f0,stroke:#94a3b8,stroke-width:2px,color:#0f172a
+  classDef in_progress fill:#bfdbfe,stroke:#3b82f6,stroke-width:2px,color:#0f172a
+  classDef review fill:#ddd6fe,stroke:#8b5cf6,stroke-width:2px,color:#0f172a
+  classDef blocked fill:#fecaca,stroke:#ef4444,stroke-width:2px,color:#0f172a
+  classDef user_review fill:#fde68a,stroke:#f59e0b,stroke-width:2px,color:#0f172a
+  classDef done fill:#bbf7d0,stroke:#22c55e,stroke-width:2px,color:#0f172a
+  classDef declined fill:#4b5563,stroke:#9ca3af,stroke-width:2px,color:#f9fafb
+  subgraph phase_1["Phase 1"]
+    T1["T1 · Target module: format, append, reader, lock #interface"]
+    T2{{"T2 · Phase 1 review"}}
+  end
+  subgraph phase_2["Phase 2"]
+    T3["T3 · Observer: WAL to target #risk-high"]
+    T4{{"T4 · Phase 2 review"}}
+  end
+  subgraph phase_3["Phase 3"]
+    T5["T5 · Observer: transcript pass and no-WAL rows #risk-high"]
+    T6["T6 · Target-based session views and golden test #risk-high"]
+    T7{{"T7 · Phase 3 review"}}
+  end
+  subgraph phase_4["Phase 4"]
+    T8["T8 · Readers switch to targets #coupled #risk-high"]
+    subgraph T8_sub["T8 sub-tickets"]
+      T8_1["T8.1 · Contract: Pipe types, target and budget helpers, budgeted first sync #interface #risk-high"]
+      T8_2["T8.2 · Events index tails targets #risk-high"]
+      T8_3["T8.3 · Sessions store reads targets through session-view #risk-high"]
+      T8_4["T8.4 · Server syncs before reads, stale frames, call records, purge deletes the target #risk-high"]
+      T8_5["T8.5 · Events tests: call rows, stale frames, budget, prototype keys #tests"]
+      T8_6["T8.6 · Sessions and usage tests: pipe, stale frame, spawner-first agents #tests"]
+      T8_7["T8.7 · Trash and discovery tests: target kept, resumed, purged #tests"]
+      T8_8["T8.8 · bench-sessions builds the store over an observer"]
+      T8_9["T8.9 · Manual check 4.4: main vs branch on copied real sessions, and the final verify"]
+      T8_10["T8.10 · Observer and session-view tests: frozen expectations instead of the old index and store #tests"]
+    end
+    T9{{"T9 · Phase 4 review"}}
+  end
+  subgraph phase_5["Phase 5"]
+    T10["T10 · Server lock, background loop, /observer and /rebuild #interface #security #risk-high"]
+    T11["T11 · CLI wal rebuild"]
+    T12{{"T12 · Security review: T10 /rebuild and lock"}}
+    T13{{"T13 · Phase 5 review"}}
+  end
+  subgraph phase_6["Phase 6"]
+    T14["T14 · Parser data for the token join"]
+    T15["T15 · Token join in the observer #risk-high"]
+    T16["T16 · Index applies tok entries to rows #interface"]
+    T17{{"T17 · Phase 6 review"}}
+  end
+  subgraph phase_7["Phase 7"]
+    T18["T18 · Token filter and Tokens order in the index #risk-high"]
+    T19["T19 · Stream tokens frames and held rows #risk-high"]
+    T20["T20 · Bench: pipeline build and token queries #tests"]
+    T21{{"T21 · Phase 7 review"}}
+  end
+  subgraph phase_8["Phase 8"]
+    T22["T22 · Web: Tokens filter params and panel"]
+    T23["T23 · Web: Output, Result, Total columns and call row detail"]
+    T24["T24 · Web: Order Time/Tokens, tokens frames, late rows #risk-high"]
+    T25["T25 · Web: pipeline chip, building note, stale badge and Rebuild"]
+    T26["T26 · README: Pipeline section and token features #docs"]
+    T27{{"T27 · Phase 8 review"}}
+  end
+  T8 -.- T8_sub
+  T1 --> T2
+  T1 --> T3
+  T3 --> T4
+  T3 --> T5
+  T5 --> T6
+  T5 --> T7
+  T5 --> T8
+  T5 --> T14
+  T6 --> T7
+  T6 --> T8
+  T8 --> T9
+  T8 --> T10
+  T8 --> T23
+  T8_1 --> T8_2
+  T8_1 --> T8_3
+  T8_1 --> T8_9
+  T8_2 --> T8_4
+  T8_2 --> T8_9
+  T8_2 --> T8_10
+  T8_3 --> T8_4
+  T8_3 --> T8_9
+  T8_3 --> T8_10
+  T8_4 --> T8_5
+  T8_4 --> T8_6
+  T8_4 --> T8_7
+  T8_4 --> T8_8
+  T8_4 --> T8_9
+  T8_5 --> T8_9
+  T8_6 --> T8_9
+  T8_7 --> T8_9
+  T8_8 --> T8_9
+  T8_10 --> T8_9
+  T10 --> T11
+  T10 --> T12
+  T10 --> T13
+  T10 --> T15
+  T10 --> T20
+  T10 --> T25
+  T11 --> T13
+  T11 --> T15
+  T11 --> T26
+  T12 --> T13
+  T14 --> T15
+  T14 --> T17
+  T15 --> T16
+  T15 --> T17
+  T16 --> T17
+  T16 --> T18
+  T16 --> T23
+  T18 --> T19
+  T18 --> T20
+  T18 --> T21
+  T18 --> T22
+  T19 --> T21
+  T19 --> T24
+  T20 --> T21
+  T22 --> T24
+  T22 --> T27
+  T23 --> T24
+  T23 --> T25
+  T23 --> T27
+  T24 --> T25
+  T24 --> T27
+  T25 --> T26
+  T25 --> T27
+  T26 --> T27
+  class T1 done
+  class T2 done
+  class T3 done
+  class T4 done
+  class T5 done
+  class T6 done
+  class T7 done
+  class T8 done
+  class T8_1 done
+  class T8_2 done
+  class T8_3 done
+  class T8_4 done
+  class T8_5 done
+  class T8_6 done
+  class T8_7 done
+  class T8_8 done
+  class T8_9 done
+  class T8_10 done
+  class T9 blocked
+  class T10 todo
+  class T11 todo
+  class T12 todo
+  class T13 todo
+  class T14 todo
+  class T15 todo
+  class T16 todo
+  class T17 todo
+  class T18 todo
+  class T19 todo
+  class T20 todo
+  class T21 todo
+  class T22 todo
+  class T23 todo
+  class T24 todo
+  class T25 todo
+  class T26 todo
+  class T27 todo
+  style phase_1 color:#ffffff,fill:#1f2937,stroke:#4b5563
+  style phase_2 color:#ffffff,fill:#1f2937,stroke:#4b5563
+  style phase_3 color:#ffffff,fill:#1f2937,stroke:#4b5563
+  style phase_4 color:#ffffff,fill:#1f2937,stroke:#4b5563
+  style phase_5 color:#ffffff,fill:#1f2937,stroke:#4b5563
+  style phase_6 color:#ffffff,fill:#1f2937,stroke:#4b5563
+  style phase_7 color:#ffffff,fill:#1f2937,stroke:#4b5563
+  style phase_8 color:#ffffff,fill:#1f2937,stroke:#4b5563
