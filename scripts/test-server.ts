@@ -15,6 +15,8 @@ export const startServer = (args: string[], env: Record<string, string> = {}): P
     stdio: ['ignore', 'pipe', 'inherit'],
     env: { ...process.env, TZ: 'UTC', ...env },
   })
+  // A test that throws skips its own cleanup; an orphan would hold the inherited stderr and hang `node --test`.
+  process.once('exit', () => server.kill())
   return new Promise((resolve, reject) => {
     createInterface({ input: server.stdout }).on('line', (l) => {
       const base = /^wal viewer:\s+(http:\/\/\S+)/.exec(l)?.[1]

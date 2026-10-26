@@ -88,9 +88,9 @@ interface Stream {
 }
 const streams: Stream[] = []
 const open = (qs: string, headers: Record<string, string> = {}): Promise<Stream> =>
-  new Promise((resolve) => {
+  new Promise((resolve, reject) => {
     const s: Stream = { rows: [], resets: 0, stale: [], frames: 0, lastId: null, unknown: null }
-    get(`${BASE}/events-stream?${qs}`, { headers }, (res) => {
+    const req = get(`${BASE}/events-stream?${qs}`, { headers }, (res) => {
       s.res = res
       let pending = ''
       res.setEncoding('utf8')
@@ -115,6 +115,7 @@ const open = (qs: string, headers: Record<string, string> = {}): Promise<Stream>
       streams.push(s)
       resolve(s)
     })
+    req.on('error', reject)
   })
 
 try {

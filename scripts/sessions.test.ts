@@ -164,9 +164,10 @@ try {
     ['items', 'next', 'head'].every((k) => !(k in all)) && all.agents.every((a) => !('spawnUid' in a) && !('head' in a)),
     Object.keys(all).join(),
   )
+  const transcripts = readFileSync(mainFile).length + readFileSync(join(subDir, `agent-${SUB}.jsonl`)).length
   check(
-    '/session carries pipe: no WAL, nothing done',
-    JSON.stringify(all.pipe) === JSON.stringify({ done: 0, total: 0, stale: null }),
+    '/session carries pipe: no WAL, every transcript byte done',
+    JSON.stringify(all.pipe) === JSON.stringify({ done: transcripts, total: transcripts, stale: null }),
     JSON.stringify(all.pipe),
   )
   check('scope all counts subagent usage', !!all.stats.agents[SUB] && !!all.stats.agents.main)

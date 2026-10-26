@@ -57,6 +57,7 @@ flowchart LR
     T11["T11 · CLI wal rebuild"]
     T12{{"T12 · Security review: T10 /rebuild and lock"}}
     T13{{"T13 · Phase 5 review"}}
+    T28["T28 · Test robustness: load-proof lineage bound, no orphaned test servers #tests"]
   end
   subgraph phase_6["Phase 6"]
     T14["T14 · Parser data for the token join"]
@@ -92,6 +93,7 @@ flowchart LR
   T8 --> T9
   T8 --> T10
   T8 --> T23
+  T8 --> T28
   T8_1 --> T8_2
   T8_1 --> T8_3
   T8_1 --> T8_9
@@ -145,6 +147,7 @@ flowchart LR
   T25 --> T26
   T25 --> T27
   T26 --> T27
+  T28 --> T13
   class T1 done
   class T2 done
   class T3 done
@@ -167,10 +170,10 @@ flowchart LR
   class T8_12 done
   class T8_13 done
   class T9 done
-  class T10 todo
-  class T11 todo
-  class T12 todo
-  class T13 todo
+  class T10 done
+  class T11 done
+  class T12 done
+  class T13 done
   class T14 todo
   class T15 todo
   class T16 todo
@@ -185,6 +188,7 @@ flowchart LR
   class T25 todo
   class T26 todo
   class T27 todo
+  class T28 done
   style phase_1 color:#ffffff,fill:#1f2937,stroke:#4b5563
   style phase_2 color:#ffffff,fill:#1f2937,stroke:#4b5563
   style phase_3 color:#ffffff,fill:#1f2937,stroke:#4b5563

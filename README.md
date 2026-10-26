@@ -38,12 +38,13 @@ starts it in the background, reports its URL and mentions a newer viewer if ther
 ```
 wal [--port=N] [--source=<config-dir>]...
 wal legacy [--source=<config-dir>]...
+wal rebuild [ids…] [--source=<config-dir>]...
 ```
 
 `wal` starts the server and opens the printed URL. From a checkout, `scripts/wal` does the same
 after installing dependencies when needed and building the page. The server binds `127.0.0.1` only:
 the data contains prompts, file contents and command output and must not be reachable off the
-machine. It also has write endpoints (`/trash`, `/trash/restore`, `/trash/purge`); apart from `GET
+machine. It also has write endpoints (`/trash`, `/trash/restore`, `/trash/purge`, `/rebuild`); apart from `GET
 /trash`, which lists the trash, a request that is not a POST gets 405, and a POST is refused with
 403 unless it has `application/json`, a loopback `Host` (`127.0.0.1` or `localhost` on the server's
 port), an `Origin` equal to that host and, when the browser sends it, `Sec-Fetch-Site: same-origin`.

@@ -484,11 +484,11 @@
       "id": "T10",
       "title": "Server lock, background loop, /observer and /rebuild",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 5,
       "parent": null,
-      "holder": null,
+      "holder": "a5c457a683a6e61ed",
       "tags": [
         "interface",
         "security",
@@ -498,20 +498,23 @@
         "scripts/wal-server.ts",
         "scripts/observer.ts",
         "shared/api.ts",
-        "scripts/observer-server.test.ts"
+        "scripts/observer-server.test.ts",
+        "scripts/observer.test.ts",
+        "scripts/sessions.test.ts",
+        "scripts/query.test.ts"
       ],
       "path": "tickets/T10.md",
-      "updated": "2026-10-26 17:01"
+      "updated": "2026-10-26 17:57"
     },
     {
       "id": "T11",
       "title": "CLI wal rebuild",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 5,
       "parent": null,
-      "holder": null,
+      "holder": "acbad9dd4f1713232",
       "tags": [],
       "files": [
         "scripts/cli.ts",
@@ -520,17 +523,17 @@
         "scripts/observer-server.test.ts"
       ],
       "path": "tickets/T11.md",
-      "updated": "2026-10-26 14:51"
+      "updated": "2026-10-26 17:57"
     },
     {
       "id": "T12",
       "title": "Security review: T10 /rebuild and lock",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 5,
       "parent": null,
-      "holder": null,
+      "holder": "ab2a3a3a3c2bce1c4",
       "tags": [],
       "files": [
         "scripts/wal-server.ts",
@@ -539,17 +542,17 @@
         "scripts/observer-server.test.ts"
       ],
       "path": "tickets/T12.md",
-      "updated": "2026-10-26 14:49"
+      "updated": "2026-10-26 17:49"
     },
     {
       "id": "T13",
       "title": "Phase 5 review",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 5,
       "parent": null,
-      "holder": null,
+      "holder": "ae3823d3457fb591b",
       "tags": [],
       "files": [
         "scripts/wal-server.ts",
@@ -557,10 +560,15 @@
         "shared/api.ts",
         "scripts/observer-server.test.ts",
         "scripts/cli.ts",
-        "README.md"
+        "README.md",
+        "scripts/query.test.ts",
+        "scripts/test-server.ts",
+        "scripts/live-tail.test.ts",
+        "scripts/observer.test.ts",
+        "scripts/sessions.test.ts"
       ],
       "path": "tickets/T13.md",
-      "updated": "2026-10-26 14:49"
+      "updated": "2026-10-26 17:59"
     },
     {
       "id": "T14",
@@ -695,7 +703,7 @@
         "scripts/bench-sessions.ts"
       ],
       "path": "tickets/T20.md",
-      "updated": "2026-10-26 14:50"
+      "updated": "2026-10-26 17:53"
     },
     {
       "id": "T21",
@@ -845,6 +853,26 @@
       ],
       "path": "tickets/T27.md",
       "updated": "2026-10-26 14:51"
+    },
+    {
+      "id": "T28",
+      "title": "Test robustness: load-proof lineage bound, no orphaned test servers",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 5,
+      "parent": null,
+      "holder": "a52cbd96d8ba74ce7",
+      "tags": [
+        "tests"
+      ],
+      "files": [
+        "scripts/query.test.ts",
+        "scripts/test-server.ts",
+        "scripts/live-tail.test.ts"
+      ],
+      "path": "tickets/T28.md",
+      "updated": "2026-10-26 17:30"
     }
   ],
   "edges": [
@@ -976,6 +1004,11 @@
     {
       "from": "T8",
       "to": "T23",
+      "type": "depends_on"
+    },
+    {
+      "from": "T8",
+      "to": "T28",
       "type": "depends_on"
     },
     {
@@ -1241,6 +1274,11 @@
     {
       "from": "T26",
       "to": "T27",
+      "type": "depends_on"
+    },
+    {
+      "from": "T28",
+      "to": "T13",
       "type": "depends_on"
     }
   ]

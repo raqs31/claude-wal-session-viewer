@@ -27,9 +27,29 @@ const OF: Record<string, Category> = {
 }
 export const catOf = (ev: string | undefined): Category => (ev !== undefined && Object.hasOwn(OF, ev) && OF[ev]) || 'session'
 
-// How far a session's target is built: `done` is the WAL bytes it covers, `total` the WAL size, `stale` the
-// reason the target stopped following its sources, or null.
+// How far a session's target is built: `done` is the WAL and transcript bytes it covers, `total` their size,
+// `stale` the reason the target stopped following its sources, or null.
 export type Pipe = { done: number; total: number; stale: string | null }
+
+// GET /observer. `owner`: this server holds the lock of at least one target dir and builds its targets; false when
+// it holds none and only reads. `total` counts the discovered sessions; each is `built` (caught up to its sources'
+// last whole lines), in `building`, in `stale`, or counted in `elsewhere`: its dir's lock is held by another server
+// (or could not be taken), so this one only reads it.
+export interface ObserverStatus {
+  owner: boolean
+  total: number
+  built: number
+  building: string[]
+  stale: { id: string; reason: string }[]
+  elsewhere: number
+}
+
+// One per id of a POST /rebuild, in the response's `results`.
+export interface RebuildResult {
+  id: string
+  ok: boolean
+  error?: string
+}
 
 // The data of an `event: stale` frame on /events-stream.
 export interface StaleFrame {

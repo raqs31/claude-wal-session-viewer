@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// cli.ts — the package's `wal` command: `wal legacy` folds old logs, otherwise the viewer runs in
+// cli.ts — the package's `wal` command: `wal legacy` folds old logs, `wal rebuild` builds the targets again, otherwise the viewer runs in
 // the foreground and the URL it prints is opened in the browser.
 
 import { spawn } from 'node:child_process'
@@ -8,7 +8,8 @@ import { extname, join } from 'node:path'
 import { createInterface } from 'node:readline'
 
 const usage = `usage: wal [--port=N] [--source=<config-dir>]...
-       wal legacy [--source=<config-dir>]...`
+       wal legacy [--source=<config-dir>]...
+       wal rebuild [ids…] [--source=<config-dir>]...`
 
 // Same extension as this file, so it runs both from the .ts sources and from the compiled dist/.
 const script = (name: string) => join(import.meta.dirname, name + extname(import.meta.filename))
@@ -18,6 +19,8 @@ if (args[0] === '-h' || args[0] === '--help') {
   console.log(usage)
 } else if (args[0] === 'legacy') {
   spawn(process.execPath, [script('legacy'), ...args.slice(1)], { stdio: 'inherit' }).on('exit', (code) => process.exit(code ?? 1))
+} else if (args[0] === 'rebuild') {
+  spawn(process.execPath, [script('observer'), ...args.slice(1)], { stdio: 'inherit' }).on('exit', (code) => process.exit(code ?? 1))
 } else {
   const server = spawn(process.execPath, [script('wal-server'), ...args], { stdio: ['ignore', 'pipe', 'inherit'] })
   let opened = false
