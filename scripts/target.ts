@@ -67,7 +67,8 @@ export type TargetRecord =
   | { k: 'compact'; agent: string; t: number; trigger: string; pre: number; post: number }
   | { k: 'agent'; id: string; type: string; description: string; model: string; toolUseId: string; parent: string | null; prompt: string | null }
   | { k: 'tools'; agent: string; n: number }
-  | { k: 'cost'; usd: number; byModel: Record<string, number> }
+  // `usd` is null when a later `cost-state` has no total: the session then shows no recorded cost.
+  | { k: 'cost'; usd: number | null; byModel: Record<string, number> }
   | { k: 'ck'; wal: Pos | null; tr: Record<string, Pos> }
   | { k: 'stale'; reason: string }
 
