@@ -3,32 +3,32 @@
   "statuses": {
     "todo": {
       "class": "open",
-      "color": "#e2e8f0",
-      "stroke": "#94a3b8"
+      "color": "#374151",
+      "stroke": "#6b7280"
     },
     "in_progress": {
       "class": "active",
-      "color": "#bfdbfe",
+      "color": "#1e3a8a",
       "stroke": "#3b82f6"
     },
     "review": {
       "class": "active",
-      "color": "#ddd6fe",
+      "color": "#5b21b6",
       "stroke": "#8b5cf6"
     },
     "blocked": {
       "class": "waiting",
-      "color": "#fecaca",
+      "color": "#991b1b",
       "stroke": "#ef4444"
     },
     "user_review": {
       "class": "waiting",
-      "color": "#fde68a",
+      "color": "#854d0e",
       "stroke": "#f59e0b"
     },
     "done": {
       "class": "closed",
-      "color": "#bbf7d0",
+      "color": "#166534",
       "stroke": "#22c55e"
     },
     "declined": {
@@ -189,7 +189,7 @@
       "class": "closed",
       "phase": 4,
       "parent": null,
-      "holder": "a2837158b40d9eb61",
+      "holder": "a97cf66da7abc868c",
       "tags": [
         "coupled",
         "risk-high"
@@ -208,10 +208,13 @@
         "scripts/discovery.test.ts",
         "scripts/bench-sessions.ts",
         "scripts/observer.test.ts",
-        "scripts/session-view.test.ts"
+        "scripts/session-view.test.ts",
+        "scripts/session-view.ts",
+        "web/src/components/EventRow.tsx",
+        "web/src/lib/usage.test.ts"
       ],
       "path": "tickets/T8.md",
-      "updated": "2026-10-26 16:32"
+      "updated": "2026-10-26 17:24"
     },
     {
       "id": "T8.1",
@@ -394,14 +397,71 @@
       "updated": "2026-10-26 16:10"
     },
     {
+      "id": "T8.11",
+      "title": "Rework: OF Tool call and required pipe types",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 4,
+      "parent": "T8",
+      "holder": "a3751662dbbe43779",
+      "tags": [
+        "interface"
+      ],
+      "files": [
+        "shared/api.ts",
+        "scripts/session-view.ts",
+        "scripts/sessions.ts",
+        "scripts/session-view.test.ts",
+        "web/src/lib/usage.test.ts"
+      ],
+      "path": "tickets/T8/T8.11.md",
+      "updated": "2026-10-26 17:24"
+    },
+    {
+      "id": "T8.12",
+      "title": "Rework: stale frame on stream reopen, stale comments",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 4,
+      "parent": "T8",
+      "holder": "adb5bf937a4d585be",
+      "tags": [
+        "tests"
+      ],
+      "files": [
+        "scripts/wal-server.ts",
+        "scripts/live-tail.test.ts"
+      ],
+      "path": "tickets/T8/T8.12.md",
+      "updated": "2026-10-26 17:23"
+    },
+    {
+      "id": "T8.13",
+      "title": "Rework: label for non-MCP Tool call row",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 4,
+      "parent": "T8",
+      "holder": "a0b673b31fd86f714",
+      "tags": [],
+      "files": [
+        "web/src/components/EventRow.tsx"
+      ],
+      "path": "tickets/T8/T8.13.md",
+      "updated": "2026-10-26 17:24"
+    },
+    {
       "id": "T9",
       "title": "Phase 4 review",
       "kind": "review",
-      "status": "blocked",
-      "class": "waiting",
+      "status": "done",
+      "class": "closed",
       "phase": 4,
       "parent": null,
-      "holder": "a8a427540a7f682ac",
+      "holder": "a8fdf9a4bbf551726",
       "tags": [],
       "files": [
         "scripts/wal-index.ts",
@@ -418,7 +478,7 @@
         "scripts/bench-sessions.ts"
       ],
       "path": "tickets/T9.md",
-      "updated": "2026-10-26 16:38"
+      "updated": "2026-10-26 17:27"
     },
     {
       "id": "T10",
@@ -441,7 +501,7 @@
         "scripts/observer-server.test.ts"
       ],
       "path": "tickets/T10.md",
-      "updated": "2026-10-26 15:37"
+      "updated": "2026-10-26 17:01"
     },
     {
       "id": "T11",
@@ -886,6 +946,21 @@
     {
       "from": "T8",
       "to": "T8.10",
+      "type": "parent"
+    },
+    {
+      "from": "T8",
+      "to": "T8.11",
+      "type": "parent"
+    },
+    {
+      "from": "T8",
+      "to": "T8.12",
+      "type": "parent"
+    },
+    {
+      "from": "T8",
+      "to": "T8.13",
       "type": "parent"
     },
     {

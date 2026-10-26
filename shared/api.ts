@@ -19,6 +19,7 @@ const OF: Record<string, Category> = {
   SubagentStop: 'subagent',
   PermissionRequest: 'attn',
   'MCP call': 'mcp',
+  'Tool call': 'tool',
   PermissionDenied: 'fail',
   PostToolUseFailure: 'fail',
   StopFailure: 'fail',
@@ -263,8 +264,7 @@ export interface SessionView {
   // Keyed like `stats.agents`, plus agents in scope that made no request yet.
   agentStats: Record<string, AgentStat>
   recordedCostUsd: RecordedCost
-  // Optional only because scripts/session-view.ts builds this type without it; the store always sets it.
-  pipe?: Pipe
+  pipe: Pipe
 }
 
 // /usage and each /usage-stream frame, summed over the pick. `totals.cost` is null when any
@@ -276,8 +276,7 @@ export interface UsageTotals {
   recorded: number | null
   missing: number
   unknown: string[]
-  // Optional only because scripts/session-view.ts builds this type without it; the store always sets it.
-  pipe?: Record<string, Pipe>
+  pipe: Record<string, Pipe>
 }
 
 // ---- Trash ----

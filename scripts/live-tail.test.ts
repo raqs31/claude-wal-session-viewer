@@ -301,6 +301,19 @@ try {
     JSON.stringify([raced.pipe, raceStream.stale, raceStream.resets]),
   )
 
+  // A reconnect opens after the truncation was seen, with the first page's vector: it still hears of it.
+  const late = session(...trio())
+  const latePage = await until(() => events(`ids=${late.id}`))
+  writeFileSync(late.wal, rec({ event: 'Stop' }))
+  await events(`ids=${late.id}`)
+  const lateStream = await open(after(latePage, `ids=${late.id}`))
+  await wait(600)
+  check(
+    'a stream opened after the truncation was seen sends one stale frame and no reset',
+    lateStream.stale.join() === staleOf(late.id, 'wal shrank') && lateStream.resets === 0,
+    JSON.stringify([lateStream.stale, lateStream.resets]),
+  )
+
   // Replaced by rename with a longer file: the size never shrinks, only the inode tells.
   const swap = session(...trio())
   const swapBefore = await until(() => events(`ids=${swap.id}`))
