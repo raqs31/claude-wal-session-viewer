@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom'
 import type { SessionMeta, TrashResult } from '../../../shared/api.ts'
 import { fmtAgo, short } from '../lib/format.ts'
-import { chipValues, filterRows, groupByProject, pinPicked, sidebarSummary } from '../lib/sidebar.ts'
+import { chipValues, defaultFilter, groupByProject, type Range, type SidebarFilter, sidebarSummary, toLocalInput } from '../lib/sidebar.ts'
 import { fmtDuration } from '../lib/tokens.ts'
 import { splitBusy, summarizeResults } from '../lib/trash.ts'
 import { useStored } from '../useStored.ts'
@@ -13,9 +13,18 @@ import { SidePanel } from './SidePanel.tsx'
 
 export type Tab = 'events' | 'sessions' | 'trash'
 const FOLDS = ['open', 'closed'] as const
+const DENSITIES = ['compact', 'comfortable'] as const
+const DATES = [
+  ['created', 'Created'],
+  ['last', 'Last message'],
+] as const
 
 interface Props {
   sessions: SessionMeta[]
+  // `sessions` through `filter`; App filters them, as an empty pick shows these on Events.
+  rows: SessionMeta[]
+  filter: SidebarFilter
+  setFilter: (f: (f: SidebarFilter) => SidebarFilter) => void
   ready: boolean
   error: string | null
   root: string
@@ -36,11 +45,27 @@ const HIDE_MS = 120
 
 const base = (p: string) => p.replace(/\/+$/, '').split('/').pop() || p
 
-export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, drop, refresh, unseen, pinned, onPin, tab, onTab }: Props) {
-  const [chips, setChips] = useState<ReadonlySet<string>>(new Set())
-  const [not, setNot] = useState(false)
-  const [project, setProject] = useState('')
-  const [text, setText] = useState('')
+export function Sidebar({
+  sessions,
+  rows,
+  filter,
+  setFilter,
+  ready,
+  error,
+  root,
+  pick,
+  toggle,
+  clear,
+  drop,
+  refresh,
+  unseen,
+  pinned,
+  onPin,
+  tab,
+  onTab,
+}: Props) {
+  const { chips, not, project, text } = filter
+  const [density, setDensity] = useStored('wal.density', DENSITIES, 'compact')
   const [fold, setFold] = useStored('wal.sbfilters', FOLDS, 'open')
   const folded = fold === 'closed'
   // Unpinned, it is off-canvas and only the left-edge hot zone brings it in.
@@ -49,18 +74,14 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, dro
   const all = useMemo(() => groupByProject(sessions), [sessions])
   // A 5 s poll re-sorts live sessions by `last`, which would move rows under the pointer between aim and click.
   const [frozen, setFrozen] = useState<ReadonlyMap<string, number> | null>(null)
-  const rows = useMemo(() => filterRows(sessions, { chips, not, project, text }), [sessions, chips, not, project, text])
-  const top = useMemo(() => pinPicked(sessions, pick).picked, [sessions, pick])
-  const rest = useMemo(() => pinPicked(rows, pick).rest, [rows, pick])
-  const groups = useMemo(() => groupByProject(rest, frozen ? (r) => frozen.get(r.id) ?? 0 : undefined), [rest, frozen])
+  const groups = useMemo(() => groupByProject(rows, frozen ? (r) => frozen.get(r.id) ?? 0 : undefined), [rows, frozen])
   const picked = new Set(pick)
-  const shown = top.length + groups.reduce((n, g) => n + g.rows.length, 0)
   const now = Date.now()
   // Emptying the chips also drops Not, so the next tick starts as an include again.
-  const put = (n: ReadonlySet<string>) => {
-    setChips(n)
-    if (!n.size) setNot(false)
-  }
+  const put = (n: ReadonlySet<string>) => setFilter((f) => ({ ...f, chips: n, not: n.size ? f.not : false }))
+  // A `to` covers its whole minute, the input's precision.
+  const setBound = (key: 'created' | 'last', end: keyof Range, value: string) =>
+    setFilter((f) => ({ ...f, [key]: { ...f[key], [end]: value ? new Date(value).getTime() + (end === 'to' ? 59_999 : 0) : null } }))
   const flip = (c: string) => {
     const n = new Set(chips)
     if (!n.delete(c)) n.add(c)
@@ -68,8 +89,23 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, dro
   }
   const label = (g: { slug: string; cwd: string | null }) => (g.cwd ? base(g.cwd) : g.slug)
   const chosen = all.find((g) => g.slug === project)
-  const projectOf = new Map(all.flatMap((g) => g.rows.map((r) => [r.id, label(g)] as const)))
-  const summary = sidebarSummary({ chips, not, project, text }, chosen ? label(chosen) : project)
+  const date = (key: 'created' | 'last', name: string, end: keyof Range) => {
+    const t = filter[key][end]
+    return (
+      <label className="sb-d">
+        <input
+          type="datetime-local"
+          aria-label={`${name} ${end}`}
+          value={t === null ? '' : toLocalInput(t)}
+          onChange={(e) => setBound(key, end, e.target.value)}
+        />
+        <button className="ghost" type="button" aria-label={`Clear ${name} ${end}`} title="Clear" hidden={t === null} onClick={() => setBound(key, end, '')}>
+          ×
+        </button>
+      </label>
+    )
+  }
+  const summary = sidebarSummary(filter, chosen ? label(chosen) : project)
 
   const [ask, setAsk] = useState<{ title: string; rows: readonly SessionMeta[] } | null>(null)
   const [note, setNote] = useState<string | null>(null)
@@ -159,7 +195,7 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, dro
   })
   const inTip = (t: EventTarget | null) => t instanceof Node && !!tipRef.current?.contains(t)
 
-  const row = (r: SessionMeta, proj?: string) => {
+  const row = (r: SessionMeta) => {
     const k = unseen(r)
     const on = picked.has(r.id)
     return (
@@ -215,7 +251,6 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, dro
             )}
           </span>
           <span className="m">
-            {proj !== undefined && <span className="badge">{proj}</span>}
             {r.workspaces.map((w) => (
               <span key={w} className="badge ws">
                 {w}
@@ -253,13 +288,32 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, dro
               Trash
             </button>
           </fieldset>
+          <button
+            className="ghost"
+            type="button"
+            aria-pressed={density === 'compact'}
+            title="One line per session"
+            onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')}
+          >
+            Compact
+          </button>
         </div>
         <div className="sb-n">
           <span>
             {error !== null
               ? `could not load sessions (${error})`
-              : `${shown}/${sessions.length} sessions · ${pick.length ? `${pick.length} picked` : 'all sessions'}`}
+              : `${rows.length}/${sessions.length} sessions · ${pick.length ? `${pick.length} picked` : 'all listed'}`}
           </span>
+          {pick.length > 0 && (
+            <>
+              <button className="ghost" type="button" onClick={clear}>
+                Clear all
+              </button>
+              <button className="ghost danger sb-del" type="button" disabled={!pickedRows.length} onClick={() => confirmMove('Delete picked', pickedRows)}>
+                Delete picked
+              </button>
+            </>
+          )}
           <button className="ghost danger sb-del" type="button" disabled={!rows.length} onClick={() => confirmMove(`Delete ${rows.length} filtered`, rows)}>
             Delete {rows.length} filtered
           </button>
@@ -269,51 +323,46 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, dro
             {note}
           </div>
         )}
-        {pick.length > 0 && (
-          <div className="sb-chips sb-pk">
-            {pick.map((id) => {
-              const meta = sessions.find((s) => s.id === id)
-              const name = meta?.title || short(id)
-              return (
-                <button key={id} className="chip pk" type="button" title={meta?.title || id} aria-label={`Deselect ${name}`} onClick={() => toggle(id)}>
-                  <span className="n">{name}</span>
-                  <span aria-hidden="true">×</span>
-                </button>
-              )
-            })}
-            <button className="chip" type="button" onClick={clear}>
-              Clear all
+        <div className="sb-f">
+          <div className="sb-fh">
+            <button
+              className="ghost fold"
+              id="sbfold"
+              type="button"
+              aria-expanded={!folded}
+              aria-controls="sbfilters"
+              onClick={() => setFold(folded ? 'open' : 'closed')}
+            >
+              {folded ? ['▸ Filters', ...(summary.length ? summary : ['none'])].join(' · ') : '▾ Filters'}
             </button>
-            <button className="ghost danger sb-del" type="button" disabled={!pickedRows.length} onClick={() => confirmMove('Delete picked', pickedRows)}>
-              Delete picked
+            <button className="ghost" type="button" onClick={() => setFilter(() => defaultFilter())}>
+              Clear filters
             </button>
           </div>
-        )}
-        <div className="sb-f">
-          <button
-            className="ghost fold"
-            id="sbfold"
-            type="button"
-            aria-expanded={!folded}
-            aria-controls="sbfilters"
-            onClick={() => setFold(folded ? 'open' : 'closed')}
-          >
-            {folded ? ['▸ Filters', ...(summary.length ? summary : ['none'])].join(' · ') : '▾ Filters'}
-          </button>
           <div className="sb-fs" id="sbfilters" hidden={folded}>
             <FilterActs
               ticked={chips.size > 0}
               not={not}
-              onAll={() => setChips(new Set(chipValues(sessions)))}
+              onAll={() => put(new Set(chipValues(sessions)))}
               onNone={() => put(new Set())}
-              onNot={() => setNot((v) => !v)}
+              onNot={() => setFilter((f) => ({ ...f, not: !f.not }))}
             />
             <div className="sb-chips" data-not={not ? '' : undefined}>
               {chipValues(sessions).map((c) => (
                 <Chip key={c} label={c} color="var(--cat-mcp)" on={chips.has(c)} onClick={() => flip(c)} />
               ))}
             </div>
-            <select aria-label="Project" value={project} onChange={(e) => setProject(e.target.value)}>
+            {DATES.map(([key, name]) => (
+              <fieldset key={key} className="sb-dates" aria-label={name}>
+                <span>{name}:</span>
+                <div>
+                  {date(key, name, 'from')}
+                  <span aria-hidden="true">–</span>
+                  {date(key, name, 'to')}
+                </div>
+              </fieldset>
+            ))}
+            <select aria-label="Project" value={project} onChange={(e) => setFilter((f) => ({ ...f, project: e.target.value }))}>
               <option value="">All projects</option>
               {all.map((g) => (
                 <option key={g.slug} value={g.slug} title={g.cwd ?? g.slug}>
@@ -321,12 +370,19 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, dro
                 </option>
               ))}
             </select>
-            <input type="search" placeholder="Search sessions" aria-label="Search sessions" value={text} onChange={(e) => setText(e.target.value)} />
+            <input
+              type="search"
+              placeholder="Search sessions"
+              aria-label="Search sessions"
+              value={text}
+              onChange={(e) => setFilter((f) => ({ ...f, text: e.target.value }))}
+            />
           </div>
         </div>
       </div>
       <div
         className="sb-list"
+        data-density={density}
         onScroll={(e) => {
           const r = tip?.el.getBoundingClientRect()
           const l = e.currentTarget.getBoundingClientRect()
@@ -336,12 +392,6 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, dro
         onPointerEnter={() => setFrozen(new Map(sessions.map((s) => [s.id, s.last])))}
         onPointerLeave={() => setFrozen(null)}
       >
-        {top.length > 0 && (
-          <section className="sb-g">
-            <h2>Selected</h2>
-            {top.map((r) => row(r, projectOf.get(r.id)))}
-          </section>
-        )}
         {groups.map((g) => (
           <section key={g.slug} className="sb-g">
             <h2 title={g.cwd ?? g.slug}>{label(g)}</h2>
@@ -351,7 +401,7 @@ export function Sidebar({ sessions, ready, error, root, pick, toggle, clear, dro
         <div className="empty" hidden={!ready || sessions.length > 0 || error !== null}>
           No sessions found (looked in <code>{root}</code>).
         </div>
-        <div className="empty" hidden={sessions.length === 0 || shown > 0}>
+        <div className="empty" hidden={sessions.length === 0 || rows.length > 0}>
           No session matches the filter.
         </div>
         {/* Portal children still bubble pointer events through the React tree: the bubble counts as inside .sb-list and the aside. */}

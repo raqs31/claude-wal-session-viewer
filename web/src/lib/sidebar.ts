@@ -9,6 +9,41 @@ export interface SidebarFilter {
   not: boolean
   project: string
   text: string
+  created: Range
+  last: Range
+}
+
+// Inclusive bounds in ms; null is unbounded.
+export interface Range {
+  from: number | null
+  to: number | null
+}
+
+export const ANY: Range = { from: null, to: null }
+
+export const startOfToday = (now = Date.now()): number => new Date(now).setHours(0, 0, 0, 0)
+
+// A fresh load and Clear filters: the sessions last touched today.
+export const defaultFilter = (now = Date.now()): SidebarFilter => ({
+  chips: new Set(),
+  not: false,
+  project: '',
+  text: '',
+  created: ANY,
+  last: { from: startOfToday(now), to: null },
+})
+
+const inRange = (t: number, r: Range) => (r.from === null || t >= r.from) && (r.to === null || t <= r.to)
+
+// A session whose start is unknown counts as created at its last write.
+export const inDates = (r: SessionMeta, f: Pick<SidebarFilter, 'created' | 'last'>): boolean =>
+  inRange(r.started ?? r.last, f.created) && inRange(r.last, f.last)
+
+const pad = (n: number) => String(n).padStart(2, '0')
+// The local `YYYY-MM-DDTHH:mm` a datetime-local input holds.
+export const toLocalInput = (ms: number): string => {
+  const d = new Date(ms)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 export interface ProjectGroup {
@@ -26,6 +61,7 @@ export const filterRows = (rows: readonly SessionMeta[], f: SidebarFilter): Sess
   return rows.filter((r) => {
     if (f.chips.size && (f.chips.has(r.source) || r.workspaces.some((w) => f.chips.has(w))) === f.not) return false
     if (f.project && r.project.slug !== f.project) return false
+    if (!inDates(r, f)) return false
     if (!words.length) return true
     const hay = [r.title, r.id, r.project.slug, r.project.cwd ?? '', r.worktree ?? ''].join('\n').toLowerCase()
     return words.every((w) => hay.includes(w))
@@ -53,19 +89,20 @@ export const groupByProject = (rows: readonly SessionMeta[], lastOf: (r: Session
   return [...groups.values()].sort((a, b) => b.last - a.last)
 }
 
-// Picked rows come first in pick order (ids not in `rows` are skipped); the rest keep input order.
-export const pinPicked = (rows: readonly SessionMeta[], pick: readonly string[]): { picked: SessionMeta[]; rest: SessionMeta[] } => {
-  const byId = new Map(rows.map((r) => [r.id, r]))
-  const picked = pick.flatMap((id) => byId.get(id) ?? [])
-  const pickedIds = new Set(pick)
-  return { picked, rest: rows.filter((r) => !pickedIds.has(r.id)) }
-}
-
 // The collapsed sidebar filters' one-line digest; `projectLabel` names the chosen project.
 export const sidebarSummary = (f: SidebarFilter, projectLabel: string): string[] => {
   const out: string[] = []
   if (f.chips.size) out.push(`${f.not ? '≠ ' : ''}${f.chips.size <= 2 ? [...f.chips].join(', ') : `chips: ${f.chips.size}`}`)
   if (f.project) out.push(`project: ${projectLabel}`)
   if (f.text.trim()) out.push(`q: ${f.text.trim()}`)
+  for (const [name, r] of [
+    ['created', f.created],
+    ['last', f.last],
+  ] as const) {
+    const [a, b] = [r.from, r.to].map((t) => (t === null ? '' : toLocalInput(t).replace('T', ' ')))
+    if (a && b) out.push(`${name}: ${a} – ${b}`)
+    else if (a) out.push(`${name} ≥ ${a}`)
+    else if (b) out.push(`${name} ≤ ${b}`)
+  }
   return out
 }
