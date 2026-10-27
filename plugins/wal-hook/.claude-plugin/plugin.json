@@ -1,7 +1,7 @@
 {
   "name": "wal-hook",
   "description": "Records every Claude Code lifecycle event to a per-session JSONL write-ahead log beside its transcript, and adds /wal-hook:wal to install, update and run the viewer.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "Mario"
   },
