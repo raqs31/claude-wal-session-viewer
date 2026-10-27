@@ -1,10 +1,10 @@
 ---
 change_id: wal-observer-pipeline
 title: WAL observer pipeline with token columns in the Events view
-status: plan_reviewed
+status: archived
 created: 2026-10-26
-updated: 2026-10-26
-archived_at: null
+updated: 2026-10-27
+archived_at: 2026-10-27T12:46:17Z
 ---
 
 ## Notes
