@@ -762,6 +762,11 @@ try {
       same(joined.cats, ['tool', 'turn']),
     JSON.stringify([joined.head, joined.total, joined.counts, joined.events, joined.cats]),
   )
+  check(
+    'tokens: recorded counts the 4 rows while head stays TK:6',
+    same(joined.recorded, { [TK]: 4 }) && joined.head === `${TK}:6`,
+    JSON.stringify([joined.recorded, joined.head]),
+  )
   const rowSeqs = new Set(joined.rows.map((r) => r.seq))
   const tokSeq = [0, 1, 2, 3, 4, 5].find((n) => !rowSeqs.has(n))
   const tokRecord = await record(TK, must(tokSeq, 'a seq in no row'), joined.gens[TK])
@@ -871,6 +876,7 @@ try {
     empty.total === 0 && empty.head === `${LATE}:0` && empty.rows.length === 0 && same(empty.sessions, []),
     JSON.stringify(empty),
   )
+  check('missing WAL: recorded is 0 for it', same(empty.recorded, { [LATE]: 0 }), JSON.stringify(empty.recorded))
   writeFileSync(walOf(LATE), `${JSON.stringify({ ts: '2026-09-30T10:00:00.000Z', event: 'SessionStart', session_id: LATE })}\n`)
   const first = await events(`ids=${LATE}`)
   check('missing WAL: a file created later is picked up', first.total === 1 && first.rows[0]?.event === 'SessionStart', JSON.stringify(first))

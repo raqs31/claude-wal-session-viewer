@@ -104,6 +104,30 @@ moves and stripped after, so the transcript, which `--resume` reads, appears in 
 If the server dies in between, a session can be left with a suffixed file; strip the suffix by hand
 (`mv <id>.jsonl.wal-trash <id>.jsonl`). The viewer ignores suffixed files in the trash.
 
+## Pipeline
+
+The observer builds one target per session in `<config-dir>/wal-viewer/<session>.jsonl`, beside the
+`projects/` dir of each source. A target holds the session's WAL events, a call row for each tool
+call, the token figures joined from the transcripts, and a checkpoint of how far it reads. The page
+reads the targets, not the WAL. A session without a WAL gets its call and turn rows from its
+transcripts, and its stats show as usual.
+
+The first start after an upgrade builds every target from the sources in the background. The header
+chip reads "Indexing built/total" while any target builds. A picked session that is not built yet
+shows "building N%" in the Events head; its rows fill in as the build goes on.
+
+A target goes stale when its WAL is replaced, shrinks, or appears after its target was built. The
+target then stops following the WAL, and the page shows the badge "source changed — rebuild". Rebuild
+it from the page, which asks first, or with `wal rebuild [ids…]`, which needs no running server. A
+rebuild starts the target again from the sources.
+
+Only the server that holds the observer lock writes the targets. A second server on the same
+sources is read-only: the chip reads "read-only — another viewer owns the cache", Rebuild is
+hidden, and `wal rebuild` exits 1 while the other server runs.
+
+Deleting `<config-dir>/wal-viewer/` is a safe full reset. No source file changes, and the next start
+builds every target again.
+
 ## The page
 
 -  **Header**: the page title, the sessions root (Sessions only) and Toggle theme; it stays at the
@@ -146,7 +170,9 @@ If the server dies in between, a session can be left with a suffixed file; strip
   filters sit in a right panel, unpinned by default: the Filters handle at the right edge just below
   the header, which shows how many filters are active, slides it in on hover or click, and the arrow
   in the panel's corner pins it, narrowing the list. It filters by text, category, tool, event name,
-  agent (shown when the pick has more than one agent), date, time of day and duration. Filter chips
+  agent (shown when the pick has more than one agent), date, time of day, duration and tokens. The
+  Tokens section, below Duration, takes a minimum and a maximum; its "no tokens" switch includes or
+  excludes rows without tokens, and it stays disabled until a bound is set. Filter chips
   offer only values present in the picked sessions, and a chosen value that no longer occurs is
   dropped when the pick changes. Each of the category, tool, event and agent sections has All, None
   and Not: All ticks every value offered now (tool includes `(no tool)` and the MCP tools), so a
@@ -156,6 +182,13 @@ If the server dies in between, a session can be left with a suffixed file; strip
   with Not therefore excludes every offered value. Rows load as you scroll and follow the logs live;
   a row expands to its full record. MCP Pre/Post pairs get a synthetic "MCP call" row showing
   request beside response. Records render as a tree in JSON, YAML or Raw.
+  A call row is one tool call. It lands at its start time, and its tokens fill in after the agent's
+  next API call, so a call row can land after newer rows. Its three columns, Output, Result and
+  Total, follow Duration: Output and Result are the call's share of the reply's output and of the
+  prompt growth from its tool result, split over the calls of a parallel reply by their size, and
+  Total is their sum. A cell shows — when the value is unknown and on every other row.
+  Order sits beside View: Time (the default) or Tokens. Tokens lists the largest Total first, as a
+  table, with no live stream, so it turns Live off; turning Live on sets Order back to Time.
 -  **Sessions**: one block per picked session with totals, By-agent and By-model tables, charts and
   agent rows that expand to type, model (main shows its model, or "mixed (see By model)"), turns or
   requests, token kinds, cost, duration, tool calls and context at end. The totals end with the main
@@ -181,6 +214,9 @@ If the server dies in between, a session can be left with a suffixed file; strip
 -  Usage is taken from the last transcript entry of each API message (`message.id`): every entry of
   a reply repeats it, and in subagent files the early ones are streaming snapshots.
 -  Thinking is part of output. Its tile is shown on its own and never added to a total.
+-  On a call row, Output is the call's share of its reply's output tokens, Result is its share of the
+  prompt growth from its tool result before the next call, and Total is Output plus Result. A cell
+  shows — until its tokens land.
 -  Context at end is the prompt of an agent's last request: input + cache read + cache write, so
   after a compaction it is the compacted size. It is tokens only: no transcript records the model's
   window size.

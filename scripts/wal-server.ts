@@ -10,7 +10,20 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import type { AddressInfo } from 'node:net'
 import { dirname, extname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { CallRecord, ObserverStatus, Pipe, RebuildResult, RecordResponse, Row, StaleFrame, TrashRef, TrashResult, WalRecord } from '../shared/api.ts'
+import type {
+  CallRecord,
+  ObserverStatus,
+  Pipe,
+  RebuildResult,
+  RecordedFrame,
+  RecordResponse,
+  Row,
+  StaleFrame,
+  TokensFrame,
+  TrashRef,
+  TrashResult,
+  WalRecord,
+} from '../shared/api.ts'
 import { createDiscovery } from './discovery.ts'
 import { createObserver, pipeOf, rebuild, syncAll, syncBudget, targetFile } from './observer.ts'
 import { createStore, parseScope, type Session, validId } from './sessions.ts'
@@ -61,14 +74,9 @@ interface Client {
   stale: Set<string>
   // The stream has a min_tok or max_tok bound: only then can a row match with its numbers and not without.
   tokf: boolean
-  // `<sess>:<seq>` of a row sent with numbers under that bound, so a later `tok` for it does not send it again.
-  late: Set<string>
 }
 
 const clients = new Set<Client>()
-
-// The numbers a `tok` entry gave its row, for a row the page may already hold.
-type TokensPatch = Pick<Row, 'sess' | 'seq' | 'out' | 'res'>
 
 // One per /session-stream or /usage-stream: the picked ids and the version of each it has sent.
 interface SessionClient {
@@ -249,7 +257,8 @@ const walTick = (): void => {
     const readers: Reader[] = []
     try {
       const rows: Row[] = []
-      const patches: TokensPatch[] = []
+      const patches: TokensFrame[] = []
+      let advanced = false
       for (const ix of client.ixs) {
         const reader = ix.reader(true)
         readers.push(reader)
@@ -262,7 +271,6 @@ const walTick = (): void => {
           if (!e.hidden) {
             if (client.hit(e, ix, reader.text)) {
               rows.push(summary(ix, seq))
-              if (client.tokf && e.out !== null) client.late.add(`${ix.id}:${seq}`)
             }
             continue
           }
@@ -273,27 +281,24 @@ const walTick = (): void => {
           const { out, res } = summary(ix, at)
           patches.push({ sess: ix.id, seq: at, out, res })
           // A row at or after `from` was judged above with its numbers. An earlier one a token filter held back is
-          // sent now, once: `late` holds the rows already sent with numbers. The bare check runs first: a token filter
-          // rejects the bare row before the `q` disk read.
-          const key = `${ix.id}:${at}`
-          if (
-            client.tokf &&
-            at < from &&
-            !client.late.has(key) &&
-            !client.hit({ ...row, out: null, res: null }, ix, reader.text) &&
-            client.hit(row, ix, reader.text)
-          ) {
+          // sent now, once: it is sent when it misses with the numbers it had before this `tok` and hits with its own.
+          // The check with the old numbers runs first: a token filter rejects a row with none before the `q` disk read.
+          if (client.tokf && at < from && !client.hit({ ...row, out: e.out, res: e.res }, ix, reader.text) && client.hit(row, ix, reader.text)) {
             rows.push(summary(ix, at))
-            client.late.add(key)
           }
         }
         // Advanced past misses too, or a `q` stream re-reads them from disk every tick.
+        if (ix.entries.length > from) advanced = true
         client.pos.set(ix.id, ix.entries.length)
       }
       if (rows.length) {
         rows.sort((a, b) => cmp(a.t, a.sess, a.seq, b.t, b.sess, b.seq))
         // Every picked index was just given a position above.
         client.res.write(`id: ${vector(client.ixs, (ix) => client.pos.get(ix.id) ?? 0)}\ndata: ${JSON.stringify(rows)}\n\n`)
+      }
+      if (advanced) {
+        const recorded: RecordedFrame = Object.fromEntries(client.ixs.map((ix) => [ix.id, ix.order.length]))
+        client.res.write(`event: recorded\ndata: ${JSON.stringify(recorded)}\n\n`)
       }
       // After the rows, so a row sent in this frame is held before its patch lands. No `id:`: the next row
       // frame's vector covers the `tok` entries, and a reconnect from before them replays these patches.
@@ -330,6 +335,7 @@ const complete = (projectsDir: string): boolean => {
   }
   const slugs = ls(projectsDir, false)
   if (slugs === null || slugs.some((slug) => ls(join(projectsDir, slug), true) === null)) return false
+  // The name must match `TRASH` in trash.ts, which does not export it.
   const root = join(dirname(projectsDir), 'wal-trash')
   const dates = ls(root, true)
   if (dates === null) return false
@@ -614,7 +620,6 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
       gens,
       stale: new Set(),
       tokf: p.get('min_tok') !== null || p.get('max_tok') !== null,
-      late: new Set(),
     }
     clients.add(client)
     req.on('close', () => clients.delete(client))

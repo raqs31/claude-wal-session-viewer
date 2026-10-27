@@ -465,6 +465,12 @@ tbody tr.row:hover {
   border: 1px solid currentColor;
   white-space: nowrap;
 }
+.span {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
 .split {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -891,7 +897,8 @@ table.trash-t td.name {
   flex: 1;
   min-width: 0;
 }
-.fp-s #nodur {
+.fp-s #nodur,
+.fp-s #notok {
   margin-top: 6px;
 }
 .fpanel input[type="search"] {
@@ -1413,4 +1420,16 @@ button.ghost.danger:not(:disabled) {
 .trash-note {
   margin-bottom: 10px;
   font-size: 12.5px;
+}
+
+.badge.pipe,
+.badge.building {
+  color: var(--cat-tool);
+}
+.badge.stale {
+  color: var(--cat-fail);
+}
+.evl-err {
+  font-size: 12px;
+  color: var(--cat-fail);
 }

@@ -1,5 +1,7 @@
 import { memo, useMemo, useState } from 'react'
-import type { McpCallRecord, RecordResponse } from '../../../shared/api.ts'
+import type { CallOnlyRecord, McpCallRecord, RecordResponse } from '../../../shared/api.ts'
+import { fmtDate, fmtTime } from '../lib/format.ts'
+import { fmtDuration } from '../lib/tokens.ts'
 import { copyText, type Format, pretty, viewNodes } from '../lib/tree.ts'
 import { Tree } from './Tree.tsx'
 
@@ -38,21 +40,29 @@ function Pane({ title, v, format, bad }: { title: string; v: unknown; format: Fo
   )
 }
 
-function Split({ rec: { pre, post }, format }: { rec: McpCallRecord; format: Format }) {
-  const failed = post.event === 'PostToolUseFailure'
+function Split({ rec, format }: { rec: McpCallRecord | CallOnlyRecord; format: Format }) {
+  const { call } = rec
+  const pre = 'pre' in rec ? rec.pre : undefined
+  const post = 'post' in rec ? rec.post : undefined
+  const failed = post ? post.event === 'PostToolUseFailure' : call.err
+  const interrupted = post?.payload?.is_interrupt
+  const request = pre ? (pre.payload?.tool_input ?? post?.payload?.tool_input) : call.input
+  const response = post ? (failed ? post.payload?.error : post.payload?.tool_response) : call.response
   return (
-    <div className="split">
-      <Pane title="Request" v={pre.payload?.tool_input ?? post.payload?.tool_input} format={format} />
-      {failed ? (
-        <Pane title={post.payload?.is_interrupt ? 'Error (interrupted)' : 'Error'} v={post.payload?.error} format={format} bad />
-      ) : (
-        <Pane title="Response" v={post.payload?.tool_response} format={format} />
-      )}
-    </div>
+    <>
+      <div className="span">
+        {`${fmtDate(call.t)} ${fmtTime(call.t)} → ${fmtTime(call.end)}`}
+        {call.dur != null && ` (${fmtDuration(call.dur)})`}
+      </div>
+      <div className="split">
+        <Pane title="Request" v={request} format={format} />
+        <Pane title={failed ? (interrupted ? 'Error (interrupted)' : 'Error') : 'Response'} v={response} format={format} bad={failed} />
+      </div>
+    </>
   )
 }
 
-const isCall = (r: RecordResponse): r is McpCallRecord => !!r.virtual
+const isCall = (r: RecordResponse): r is McpCallRecord | CallOnlyRecord => 'call' in r && typeof r.call === 'object' && r.call !== null
 
 // Keyed by format so a switch rebuilds the tree fully open, as a fresh render would. Memoised because
 // EventRow re-renders on every format switch and toggle, and a big record's tree is ~10^5 nodes.

@@ -12,12 +12,15 @@ export interface Filters {
   time_to: string
   min_ms: string
   max_ms: string
+  min_tok: string
+  max_tok: string
   cat: ReadonlySet<Category>
   tool: ReadonlySet<string>
   event: ReadonlySet<string>
   // Session-scoped agent tokens built by the picker's tree (see lib/agents.ts).
   agent: ReadonlySet<string>
   nodur: boolean
+  notok: boolean
   // Sections whose set excludes instead of includes; sent as `<field>_not`.
   not: ReadonlySet<NotField>
 }
@@ -30,16 +33,19 @@ export const EMPTY_FILTERS: Filters = {
   time_to: '',
   min_ms: '',
   max_ms: '',
+  min_tok: '',
+  max_tok: '',
   cat: new Set(),
   tool: new Set(),
   event: new Set(),
   agent: new Set(),
   nodur: false,
+  notok: false,
   not: new Set(),
 }
 
 // Field names double as the query parameter names.
-const FIELDS = ['q', 'date_from', 'date_to', 'time_from', 'time_to', 'min_ms', 'max_ms'] as const
+const FIELDS = ['q', 'date_from', 'date_to', 'time_from', 'time_to', 'min_ms', 'max_ms', 'min_tok', 'max_tok'] as const
 
 const SETS = ['cat', 'tool', 'event', 'agent'] as const
 
@@ -53,6 +59,7 @@ export const buildParams = (f: Filters, ids: readonly string[]): URLSearchParams
   }
   for (const k of SETS) if (f[k].size) p.set(f.not.has(k) ? `${k}_not` : k, [...f[k]].join(','))
   if (f.nodur) p.set('nodur', 'include')
+  if (f.notok) p.set('notok', 'include')
   return p
 }
 
@@ -70,6 +77,7 @@ export const filterSummary = (f: Filters, agents: readonly PickNode[]): string[]
   if (f.date_from.trim() || f.date_to.trim()) out.push(`date: ${range(f.date_from, f.date_to)}`)
   if (f.time_from.trim() || f.time_to.trim()) out.push(`time: ${range(f.time_from, f.time_to)}`)
   if (f.min_ms.trim() || f.max_ms.trim()) out.push(`ms: ${range(f.min_ms, f.max_ms)}${f.nodur ? ' +none' : ''}`)
+  if (f.min_tok.trim() || f.max_tok.trim()) out.push(`tok: ${range(f.min_tok, f.max_tok)}${f.notok ? ' +none' : ''}`)
   return out
 }
 

@@ -26,6 +26,12 @@ test('selected chips become include lists; text fields are trimmed; nodur only w
   assert.equal(p.has('session'), false)
 })
 
+test('token bounds are trimmed and sent; notok only when on', () => {
+  const p = buildParams({ ...EMPTY_FILTERS, min_tok: ' 5000 ', max_tok: '9000', notok: true }, ['s1'])
+  assert.equal(p.toString(), 'ids=s1&min_tok=5000&max_tok=9000&notok=include')
+  assert.equal(buildParams({ ...EMPTY_FILTERS, min_tok: '5' }, ['s1']).has('notok'), false)
+})
+
 test('a Not section is sent as <field>_not instead of <field>', () => {
   for (const k of ['cat', 'tool', 'event', 'agent'] as const) {
     const p = buildParams({ ...EMPTY_FILTERS, [k]: new Set(['x']), not: new Set([k]) }, ['s1'])
@@ -50,6 +56,11 @@ test('summary lists only active filters, in bar order', () => {
     ),
     ['cat: 2', 'agent: main', 'q: foo', 'date: 2026-10-01–', 'ms: 10– +none'],
   )
+})
+
+test('summary shows the token range in the style of ms', () => {
+  assert.deepEqual(filterSummary({ ...EMPTY_FILTERS, min_tok: '5000' }, []), ['tok: 5000–'])
+  assert.deepEqual(filterSummary({ ...EMPTY_FILTERS, max_tok: '9', notok: true }, []), ['tok: –9 +none'])
 })
 
 test('summary marks a Not section with ≠', () => {

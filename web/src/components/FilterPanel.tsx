@@ -8,7 +8,7 @@ import { AgentPicker, FilterActs } from './AgentPicker.tsx'
 import { Chip } from './Chip.tsx'
 import { McpPanel } from './McpPanel.tsx'
 
-type TextField = 'q' | 'date_from' | 'date_to' | 'time_from' | 'time_to' | 'min_ms' | 'max_ms'
+type TextField = 'q' | 'date_from' | 'date_to' | 'time_from' | 'time_to' | 'min_ms' | 'max_ms' | 'min_tok' | 'max_tok'
 
 const flip = <T,>(set: ReadonlySet<T>, key: T): Set<T> => {
   const s = new Set(set)
@@ -158,6 +158,21 @@ export function FilterPanel({ filters, setFilters, tools, events, cats, agents, 
             disabled={!filters.min_ms && !filters.max_ms}
             onClick={() => setFilters((f) => ({ ...f, nodur: !f.nodur }))}
           >{`no duration: ${filters.nodur ? 'include' : 'exclude'}`}</button>
+        </section>
+        <section className="fp-s">
+          <h3>Tokens</h3>
+          <div className="fp-range">
+            ≥ <input type="number" min="0" placeholder="tokens" aria-label="Minimum tokens" key={`min_tok${resets}`} {...text('min_tok')} /> ≤{' '}
+            <input type="number" min="0" placeholder="tokens" aria-label="Maximum tokens" key={`max_tok${resets}`} {...text('max_tok')} />
+          </div>
+          <button
+            className="chip"
+            id="notok"
+            type="button"
+            aria-pressed={filters.notok}
+            disabled={!filters.min_tok && !filters.max_tok}
+            onClick={() => setFilters((f) => ({ ...f, notok: !f.notok }))}
+          >{`no tokens: ${filters.notok ? 'include' : 'exclude'}`}</button>
         </section>
         <button className="ghost" id="reset" type="button" onClick={onReset}>
           Reset

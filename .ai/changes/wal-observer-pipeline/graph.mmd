@@ -81,6 +81,8 @@ flowchart LR
     T25["T25 · Web: pipeline chip, building note, stale badge and Rebuild"]
     T26["T26 · README: Pipeline section and token features #docs"]
     T27{{"T27 · Phase 8 review"}}
+    T32["T32 · Phase 7 follow-ups: held-row dedupe, TokensFrame type, sweep checks #tests #interface"]
+    T33["T33 · Events head: recorded counts visible rows, not tok entries"]
   end
   T8 -.- T8_sub
   T1 --> T2
@@ -145,6 +147,7 @@ flowchart LR
   T19 --> T21
   T19 --> T24
   T19 --> T31
+  T19 --> T32
   T20 --> T21
   T22 --> T24
   T22 --> T27
@@ -155,6 +158,7 @@ flowchart LR
   T24 --> T27
   T25 --> T26
   T25 --> T27
+  T25 --> T33
   T26 --> T27
   T28 --> T13
   T29 --> T15
@@ -164,6 +168,11 @@ flowchart LR
   T30 --> T21
   T31 --> T20
   T31 --> T21
+  T31 --> T32
+  T32 --> T24
+  T32 --> T27
+  T32 --> T33
+  T33 --> T27
   class T1 done
   class T2 done
   class T3 done
@@ -198,16 +207,18 @@ flowchart LR
   class T19 done
   class T20 done
   class T21 done
-  class T22 todo
-  class T23 todo
-  class T24 todo
-  class T25 todo
-  class T26 todo
-  class T27 todo
+  class T22 done
+  class T23 done
+  class T24 done
+  class T25 done
+  class T26 done
+  class T27 done
   class T28 done
   class T29 done
   class T30 done
   class T31 done
+  class T32 done
+  class T33 done
   style phase_1 color:#ffffff,fill:#1f2937,stroke:#4b5563
   style phase_2 color:#ffffff,fill:#1f2937,stroke:#4b5563
   style phase_3 color:#ffffff,fill:#1f2937,stroke:#4b5563

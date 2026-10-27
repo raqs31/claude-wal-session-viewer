@@ -741,11 +741,11 @@
       "id": "T22",
       "title": "Web: Tokens filter params and panel",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 8,
       "parent": null,
-      "holder": null,
+      "holder": "aeb4b63405891eb8f",
       "tags": [],
       "files": [
         "web/src/lib/params.ts",
@@ -753,17 +753,17 @@
         "web/src/lib/params.test.ts"
       ],
       "path": "tickets/T22.md",
-      "updated": "2026-10-26 14:51"
+      "updated": "2026-10-27 12:25"
     },
     {
       "id": "T23",
       "title": "Web: Output, Result, Total columns and call row detail",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 8,
       "parent": null,
-      "holder": null,
+      "holder": "afff2704f1d98db87",
       "tags": [],
       "files": [
         "web/src/components/EventTable.tsx",
@@ -772,17 +772,17 @@
         "web/src/styles.css"
       ],
       "path": "tickets/T23.md",
-      "updated": "2026-10-26 14:51"
+      "updated": "2026-10-27 12:27"
     },
     {
       "id": "T24",
       "title": "Web: Order Time/Tokens, tokens frames, late rows",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 8,
       "parent": null,
-      "holder": null,
+      "holder": "a02d21a741d09c103",
       "tags": [
         "risk-high"
       ],
@@ -792,17 +792,17 @@
         "web/src/App.tsx"
       ],
       "path": "tickets/T24.md",
-      "updated": "2026-10-26 14:51"
+      "updated": "2026-10-27 12:34"
     },
     {
       "id": "T25",
       "title": "Web: pipeline chip, building note, stale badge and Rebuild",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 8,
       "parent": null,
-      "holder": null,
+      "holder": "ad53d7d13488593c6",
       "tags": [],
       "files": [
         "web/src/useObserver.ts",
@@ -812,20 +812,21 @@
         "web/src/components/EventsTab.tsx",
         "web/src/useEvents.ts",
         "web/src/App.tsx",
-        "web/src/styles.css"
+        "web/src/styles.css",
+        "web/src/components/ConfirmDialog.tsx"
       ],
       "path": "tickets/T25.md",
-      "updated": "2026-10-26 14:51"
+      "updated": "2026-10-27 12:58"
     },
     {
       "id": "T26",
       "title": "README: Pipeline section and token features",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 8,
       "parent": null,
-      "holder": null,
+      "holder": "aa11a4fdd0384e437",
       "tags": [
         "docs"
       ],
@@ -833,17 +834,17 @@
         "README.md"
       ],
       "path": "tickets/T26.md",
-      "updated": "2026-10-26 14:51"
+      "updated": "2026-10-27 12:39"
     },
     {
       "id": "T27",
       "title": "Phase 8 review",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 8,
       "parent": null,
-      "holder": null,
+      "holder": "a7c9d041d8c9398a6",
       "tags": [],
       "files": [
         "web/src/lib/params.ts",
@@ -860,10 +861,17 @@
         "web/src/components/StatsHeader.tsx",
         "web/src/components/Sidebar.tsx",
         "web/src/components/SessionsTab.tsx",
-        "README.md"
+        "web/src/components/ConfirmDialog.tsx",
+        "README.md",
+        "shared/api.ts",
+        "scripts/wal-index.ts",
+        "scripts/wal-server.ts",
+        "scripts/live-tail.test.ts",
+        "scripts/observer-server.test.ts",
+        "scripts/query.test.ts"
       ],
       "path": "tickets/T27.md",
-      "updated": "2026-10-26 14:51"
+      "updated": "2026-10-27 13:08"
     },
     {
       "id": "T28",
@@ -945,6 +953,50 @@
       ],
       "path": "tickets/T31.md",
       "updated": "2026-10-27 12:19"
+    },
+    {
+      "id": "T32",
+      "title": "Phase 7 follow-ups: held-row dedupe, TokensFrame type, sweep checks",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 8,
+      "parent": null,
+      "holder": "a0d87b1e197a200db",
+      "tags": [
+        "tests",
+        "interface"
+      ],
+      "files": [
+        "shared/api.ts",
+        "scripts/wal-index.ts",
+        "scripts/wal-server.ts",
+        "scripts/live-tail.test.ts",
+        "scripts/observer-server.test.ts"
+      ],
+      "path": "tickets/T32.md",
+      "updated": "2026-10-27 12:31"
+    },
+    {
+      "id": "T33",
+      "title": "Events head: recorded counts visible rows, not tok entries",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 8,
+      "parent": null,
+      "holder": "a2071482dd88c5b50",
+      "tags": [],
+      "files": [
+        "shared/api.ts",
+        "scripts/wal-index.ts",
+        "scripts/wal-server.ts",
+        "web/src/useEvents.ts",
+        "scripts/query.test.ts",
+        "scripts/live-tail.test.ts"
+      ],
+      "path": "tickets/T33.md",
+      "updated": "2026-10-27 13:03"
     }
   ],
   "edges": [
@@ -1324,6 +1376,11 @@
       "type": "depends_on"
     },
     {
+      "from": "T19",
+      "to": "T32",
+      "type": "depends_on"
+    },
+    {
       "from": "T20",
       "to": "T21",
       "type": "depends_on"
@@ -1374,6 +1431,11 @@
       "type": "depends_on"
     },
     {
+      "from": "T25",
+      "to": "T33",
+      "type": "depends_on"
+    },
+    {
       "from": "T26",
       "to": "T27",
       "type": "depends_on"
@@ -1416,6 +1478,31 @@
     {
       "from": "T31",
       "to": "T21",
+      "type": "depends_on"
+    },
+    {
+      "from": "T31",
+      "to": "T32",
+      "type": "depends_on"
+    },
+    {
+      "from": "T32",
+      "to": "T24",
+      "type": "depends_on"
+    },
+    {
+      "from": "T32",
+      "to": "T27",
+      "type": "depends_on"
+    },
+    {
+      "from": "T32",
+      "to": "T33",
+      "type": "depends_on"
+    },
+    {
+      "from": "T33",
+      "to": "T27",
       "type": "depends_on"
     }
   ]
