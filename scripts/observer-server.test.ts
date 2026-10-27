@@ -5,7 +5,8 @@
 // that finds the lock held and only reads. `wal rebuild` refuses while a server holds the lock and rebuilds when none does.
 // Then the lock per target dir: a rebuild that would lose a WAL's events, a source added after the start, and a server
 // started before any projects dir exists. Then torn last lines still count as built, and a dir whose lock cannot be
-// taken is logged once. Last, a purge leaves a target in a dir another server holds, and a failed append is not built.
+// taken is logged once. Last, a purge leaves a target in a dir another server holds and the owner removes it later, a
+// trashed session keeps its target, an unreadable projects dir keeps every target, and a failed append is not built.
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
@@ -320,7 +321,7 @@ test('torn last lines count as built, and a dir whose lock cannot be taken is lo
   }
 })
 
-test('purge keeps the target in a dir another server holds, and still purges the trash', async () => {
+test('purge keeps the target in a dir another server holds, and the owner removes it later', async () => {
   const home = mkdtempSync(join(tmpdir(), 'walobspurge.'))
   const p = join(home, '.claude', 'projects', '-tmp-purge')
   mkdirSync(p, { recursive: true })
@@ -331,6 +332,7 @@ test('purge keeps the target in a dir another server holds, and still purges the
   const owner = await startServer([], { HOME: home })
   const owned = new Promise((r) => owner.server.once('exit', r))
   let reader: Awaited<ReturnType<typeof startServer>> | null = null
+  let owner2: Awaited<ReturnType<typeof startServer>> | null = null
   try {
     await until('the target built', async () => ((await status(owner.base)).built === 1 ? true : null))
     owner.server.kill()
@@ -347,14 +349,66 @@ test('purge keeps the target in a dir another server holds, and still purges the
     assert.deepEqual(JSON.parse((await post(reader.base, '/trash/purge', { refs: [ref] })).text), { results: [{ id: P1, status: 'ok' }] })
     assert.equal(((await (await fetch(`${reader.base}/trash`)).json()) as { entries: unknown[] }).entries.length, 0, 'the trash is purged')
     assert.ok(existsSync(target), 'the target stays')
+
+    // The stand-in releases the lock and a new owner starts: it removes the target of the purged session.
+    reader.server.kill()
+    rmSync(join(home, '.claude', 'wal-viewer', 'observer.lock'))
+    owner2 = await startServer([], { HOME: home })
+    assert.equal((await status(owner2.base)).owner, true)
+    await until('the owner to remove the target', async () => (existsSync(target) ? null : true))
   } finally {
     owner.server.kill()
     reader?.server.kill()
+    owner2?.server.kill()
     rmSync(home, { recursive: true, force: true })
   }
 })
 
-test('a sync whose append fails does not count the session as built', async () => {
+test('a trashed session keeps its target while the owner removes orphans', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'walobstrash.'))
+  const p = join(home, '.claude', 'projects', '-tmp-trash')
+  mkdirSync(p, { recursive: true })
+  const R1 = sid(71)
+  writeFileSync(join(p, `${R1}.jsonl`), userLine('r1-u1'))
+  writeFileSync(join(p, `${R1}.wal.jsonl`), wal('SessionStart') + wal('SessionEnd'))
+  const target = join(home, '.claude', 'wal-viewer', `${R1}.jsonl`)
+  const owner = await startServer([], { HOME: home })
+  try {
+    await until('the target built', async () => ((await status(owner.base)).built === 1 ? true : null))
+    assert.deepEqual(JSON.parse((await post(owner.base, '/trash', { ids: [R1] })).text), { results: [{ id: R1, status: 'ok' }] })
+    await sleep(2500)
+    assert.ok(existsSync(target), 'the target of a trashed session stays')
+  } finally {
+    owner.server.kill()
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('an unreadable projects dir does not make the owner remove a live target', {
+  skip: process.getuid?.() === 0 ? 'root ignores chmod 000' : false,
+}, async () => {
+  const home = mkdtempSync(join(tmpdir(), 'walobsshort.'))
+  const projects = join(home, '.claude', 'projects')
+  const p = join(projects, '-tmp-short')
+  mkdirSync(p, { recursive: true })
+  const U1 = sid(81)
+  writeFileSync(join(p, `${U1}.jsonl`), userLine('u1-u1'))
+  writeFileSync(join(p, `${U1}.wal.jsonl`), wal('SessionStart'))
+  const target = join(home, '.claude', 'wal-viewer', `${U1}.jsonl`)
+  const owner = await startServer([], { HOME: home })
+  try {
+    await until('the target built', async () => ((await status(owner.base)).built === 1 ? true : null))
+    chmodSync(projects, 0o000)
+    await sleep(2500)
+    assert.ok(existsSync(target), 'the target stays while discovery cannot read the projects dir')
+  } finally {
+    chmodSync(projects, 0o755)
+    owner.server.kill()
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('a sync whose append fails does not count the session as built', { skip: process.getuid?.() === 0 ? 'root ignores chmod 0444' : false }, async () => {
   const home = mkdtempSync(join(tmpdir(), 'walobsfail.'))
   const p = join(home, '.claude', 'projects', '-tmp-fail')
   mkdirSync(p, { recursive: true })

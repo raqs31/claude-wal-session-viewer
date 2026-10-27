@@ -4,7 +4,7 @@
 // Exercises the paths a header check cannot reach: appended lines reaching a connected client,
 // two files growing at once arriving in time order, a record written in two parts arriving once
 // and intact, a truncated, replaced or deleted WAL freezing its target, and the per-client filter
-// on live rows.
+// on live rows, and the token patches and held rows a `tok` record makes.
 
 import { appendFileSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { get, type IncomingMessage } from 'node:http'
@@ -84,12 +84,15 @@ interface Stream {
   frames: number
   lastId: string | null
   unknown: string[] | null
+  // The patches of every `tokens` frame, in order, and how many of those frames carried an `id:` line.
+  tokens: Pick<Row, 'sess' | 'seq' | 'out' | 'res'>[]
+  tokenIds: number
   res?: IncomingMessage
 }
 const streams: Stream[] = []
 const open = (qs: string, headers: Record<string, string> = {}): Promise<Stream> =>
   new Promise((resolve, reject) => {
-    const s: Stream = { rows: [], resets: 0, stale: [], frames: 0, lastId: null, unknown: null }
+    const s: Stream = { rows: [], resets: 0, stale: [], frames: 0, lastId: null, unknown: null, tokens: [], tokenIds: 0 }
     const req = get(`${BASE}/events-stream?${qs}`, { headers }, (res) => {
       s.res = res
       let pending = ''
@@ -106,7 +109,10 @@ const open = (qs: string, headers: Record<string, string> = {}): Promise<Stream>
           if (f.event === 'reset') s.resets++
           else if (f.event === 'stale') s.stale.push(must(f.data, 'stale event data'))
           else if (f.event === 'unknown') s.unknown = JSON.parse(must(f.data, 'unknown event data')) as string[]
-          else if (f.data) {
+          else if (f.event === 'tokens') {
+            s.tokens.push(...(JSON.parse(must(f.data, 'tokens event data')) as Stream['tokens']))
+            if (f.id !== undefined) s.tokenIds++
+          } else if (f.data) {
             s.rows.push(...(JSON.parse(f.data) as Row[]))
             s.lastId = f.id ?? null
           }
@@ -348,6 +354,94 @@ try {
     same(goneAfter.rows, goneBefore.rows) && goneAfter.head === goneBefore.head && goneAfter.pipe[gone.id]?.stale === null,
     JSON.stringify([goneAfter.rows.length, goneAfter.head, goneAfter.pipe]),
   )
+
+  // Token patches: a transcript whose replies hold the calls, so the observer joins numbers onto the call rows. A
+  // reply's prompt is its input plus cache read; a call's numbers are its reply's output and the prompt growth to the
+  // next reply. Call t1: out 100, res 1300 - 1000 - 100 = 200 (Total 300). Call t2: out 10, res 1330 - 1300 - 10 = 20.
+  const stamp = (): string => new Date(++clock).toISOString()
+  const line = (o: Record<string, unknown>): string => `${JSON.stringify({ timestamp: stamp(), ...o })}\n`
+  const reply = (n: number, prompt: number, out: number, content: unknown[]): string =>
+    line({
+      type: 'assistant',
+      uuid: `ta${n}`,
+      message: { id: `tr${n}`, model: 'm', stop_reason: null, content, usage: { input_tokens: 1, cache_read_input_tokens: prompt - 1, output_tokens: out } },
+    })
+  const use = (tuid: string, name: string): unknown[] => [{ type: 'tool_use', id: tuid, name, input: {} }]
+  const result = (n: number, tuid: string): string =>
+    line({ type: 'user', uuid: `tu${n}`, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: tuid, content: 'ok' }] } })
+  const tpre = (tuid: string, tool: string): string => rec({ event: 'PreToolUse', tool_name: tool, tool_use_id: tuid, payload: { tool_input: {} } })
+  const tpost = (tuid: string, tool: string): string => rec({ event: 'PostToolUse', tool_name: tool, tool_use_id: tuid, payload: { tool_response: 'ok' } })
+  const tk = session(rec({ event: 'SessionStart' }), tpre('toolu_t1', 'Read'))
+  const tr = join(proj, `${tk.id}.jsonl`)
+  writeFileSync(tr, line({ type: 'user', uuid: 'tu0', message: { role: 'user', content: 'go' } }) + reply(1, 1000, 100, use('toolu_t1', 'Read')))
+  const tkq = `ids=${tk.id}`
+  const BIG = `${tkq}&min_tok=250`
+  const tkPage = await until(() => events(tkq))
+  const plain = await open(after(tkPage, tkq))
+  const big = await open(after(tkPage, BIG))
+  await wait(400)
+  // Sent before the Post lands, so the call row's `t` (its Pre's) is older than this row's.
+  appendFileSync(tk.wal, rec({ event: 'Notification', payload: { message: 'wait' } }))
+  await wait(700)
+  appendFileSync(tk.wal, tpost('toolu_t1', 'Read'))
+  appendFileSync(tr, result(1, 'toolu_t1'))
+  await wait(700)
+  const note = plain.rows.find((r) => r.event === 'Notification')
+  const call1 = plain.rows.find((r) => r.event === 'Tool call')
+  check(
+    'a late call row arrives after a row it is older than',
+    note !== undefined && call1 !== undefined && plain.rows.indexOf(call1) > plain.rows.indexOf(note) && call1.t < note.t,
+    JSON.stringify(plain.rows),
+  )
+  check(
+    'a call row arrives without numbers',
+    call1 !== undefined && call1.out === undefined && plain.tokens.length === 0,
+    JSON.stringify([call1, plain.tokens]),
+  )
+  check('with min_tok, a row with no numbers yet is held back', big.rows.length === 0, JSON.stringify(big.rows))
+  const beforeTok = must(plain.lastId, 'last event id')
+  appendFileSync(tr, reply(2, 1300, 10, use('toolu_t2', 'Bash')))
+  await wait(700)
+  const patch1 = { sess: tk.id, seq: call1?.seq, out: 100, res: 200 }
+  check('a tokens frame follows once the next request lands', same(plain.tokens, [patch1]), JSON.stringify(plain.tokens))
+  check(
+    'tokens frames carry no id and send no row',
+    plain.tokenIds === 0 && plain.lastId === beforeTok && plain.rows.length === 3,
+    JSON.stringify([plain.tokenIds, plain.lastId, plain.rows]),
+  )
+  const held = (s: Stream): string => s.rows.map((r) => `${r.seq}:${r.event}:${r.out}:${r.res}`).join()
+  check('with min_tok, the row arrives once its tok makes it match', held(big) === `${call1?.seq}:Tool call:100:200`, held(big))
+
+  // The browser reconnects with the original URL and the id of the last row frame, which is before the tok.
+  const replay = await open(after(tkPage, tkq), { 'last-event-id': beforeTok })
+  const replayBig = await open(after(tkPage, BIG), { 'last-event-id': beforeTok })
+  await wait(700)
+  check(
+    'a reconnect with Last-Event-ID before a tok still gets its patch',
+    same(replay.tokens, [patch1]) && replay.rows.length === 0,
+    JSON.stringify([replay.tokens, replay.rows]),
+  )
+  check('a min_tok reconnect before a tok gets the row it now matches', held(replayBig) === held(big), held(replayBig))
+
+  appendFileSync(tk.wal, tpre('toolu_t2', 'Bash') + tpost('toolu_t2', 'Bash'))
+  appendFileSync(tr, result(2, 'toolu_t2'))
+  await wait(700)
+  const call2 = plain.rows.findLast((r) => r.event === 'Tool call')
+  appendFileSync(tr, reply(3, 1330, 5, [{ type: 'text', text: 'done' }]))
+  await wait(700)
+  check(
+    'a second call is patched in its turn',
+    call2 !== undefined &&
+      call2.seq !== call1?.seq &&
+      call2.out === undefined &&
+      same(plain.tokens, [patch1, { sess: tk.id, seq: call2.seq, out: 10, res: 20 }]),
+    JSON.stringify([call2, plain.tokens]),
+  )
+  check('with min_tok, a row whose numbers do not match never arrives', held(big) === `${call1?.seq}:Tool call:100:200`, held(big))
+
+  const sorted = await fetch(`${BASE}/events-stream?${tkq}&sort=tokens`)
+  check('a sort=tokens stream gets 400', sorted.status === 400, `status ${sorted.status}`)
+  await sorted.body?.cancel()
 
   // An empty pick is every session: the stream follows sessions nobody named.
   const everyone = await open('ids=')

@@ -71,6 +71,8 @@ flowchart LR
     T19["T19 · Stream tokens frames and held rows #risk-high"]
     T20["T20 · Bench: pipeline build and token queries #tests"]
     T21{{"T21 · Phase 7 review"}}
+    T30["T30 · Phase 6 follow-ups: token join at session end #tests"]
+    T31["T31 · Phase 6 follow-ups: /record hidden entries, orphan targets, root test guard #tests"]
   end
   subgraph phase_8["Phase 8"]
     T22["T22 · Web: Tokens filter params and panel"]
@@ -127,8 +129,10 @@ flowchart LR
   T13 --> T29
   T14 --> T15
   T14 --> T17
+  T14 --> T30
   T15 --> T16
   T15 --> T17
+  T15 --> T30
   T16 --> T17
   T16 --> T18
   T16 --> T23
@@ -136,9 +140,11 @@ flowchart LR
   T18 --> T20
   T18 --> T21
   T18 --> T22
+  T18 --> T31
   T19 --> T20
   T19 --> T21
   T19 --> T24
+  T19 --> T31
   T20 --> T21
   T22 --> T24
   T22 --> T27
@@ -153,6 +159,11 @@ flowchart LR
   T28 --> T13
   T29 --> T15
   T29 --> T17
+  T29 --> T31
+  T30 --> T20
+  T30 --> T21
+  T31 --> T20
+  T31 --> T21
   class T1 done
   class T2 done
   class T3 done
@@ -183,10 +194,10 @@ flowchart LR
   class T15 done
   class T16 done
   class T17 done
-  class T18 todo
-  class T19 todo
-  class T20 todo
-  class T21 todo
+  class T18 done
+  class T19 done
+  class T20 done
+  class T21 done
   class T22 todo
   class T23 todo
   class T24 todo
@@ -195,6 +206,8 @@ flowchart LR
   class T27 todo
   class T28 done
   class T29 done
+  class T30 done
+  class T31 done
   style phase_1 color:#ffffff,fill:#1f2937,stroke:#4b5563
   style phase_2 color:#ffffff,fill:#1f2937,stroke:#4b5563
   style phase_3 color:#ffffff,fill:#1f2937,stroke:#4b5563

@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type CallRecord, catOf, type FirstPage, type Row, type WalRecord } from '../shared/api.ts'
 import { startServer } from './test-server.ts'
-import { agentTree, type IndexEntry, lineageOf, matcher } from './wal-index.ts'
+import { agentTree, createWalIndex, type IndexEntry, lineageOf, matcher } from './wal-index.ts'
 
 const dir = mkdtempSync(join(tmpdir(), 'walquery.'))
 const dir2 = mkdtempSync(join(tmpdir(), 'walbudget.'))
@@ -118,6 +118,82 @@ writeFileSync(
     { ts: '2026-09-30T09:55:55.300Z', event: 'PreToolUse', tool_name: 'Read', tool_use_id: gsNTiK, payload: { tool_input: {} } },
     { ts: '2026-09-30T09:55:55.400Z', event: 'PostToolUse', tool_name: 'Read', tool_use_id: gsNTiK, payload: { tool_response: 'ok' } },
     { ts: '2026-09-30T09:55:58.000Z', event: 'Stop', payload: { last_assistant_message: lastText } },
+  ]
+    .map((r) => JSON.stringify({ workspace: 'w', ...r }))
+    .join('\n')}\n`,
+)
+
+// Token filter and order: a hand-made transcript of one call per reply, so each call's Total is its reply's output
+// plus the prompt growth to the next reply. Totals: Glob 900, Grep 150 and Read 150 (a tie, both at :02), Bash 50,
+// the Stop 5 (output only). Edit's call is in no transcript, and Pre / Post rows never get numbers.
+const TO = sid(18)
+const osec = (s: number): string => `2026-10-02T10:00:${String(s).padStart(2, '0')}.000Z`
+const oreply = (n: number, s: number, prompt: number, out: number, blocks: unknown[], stop: string | null = null): string =>
+  JSON.stringify({
+    type: 'assistant',
+    uuid: `a${n}`,
+    timestamp: osec(s),
+    message: {
+      id: `r${n}`,
+      model: 'm',
+      stop_reason: stop,
+      content: blocks,
+      usage: { input_tokens: 1, cache_read_input_tokens: prompt - 1, output_tokens: out },
+    },
+  })
+const ouse = (tuid: string, name: string) => [{ type: 'tool_use', id: tuid, name, input: {} }]
+const oresult = (n: number, s: number, tuid: string): string =>
+  JSON.stringify({
+    type: 'user',
+    uuid: `u${n}`,
+    timestamp: osec(s),
+    message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: tuid, content: 'ok' }] },
+  })
+writeFileSync(
+  join(proj, `${TO}.jsonl`),
+  `${[
+    JSON.stringify({ type: 'user', uuid: 'u0', timestamp: osec(1), message: { role: 'user', content: 'go' } }),
+    oreply(1, 2, 1000, 100, ouse('toolu_o1', 'Read')),
+    oresult(1, 3, 'toolu_o1'),
+    oreply(2, 4, 1150, 100, ouse('toolu_o2', 'Grep')),
+    oresult(2, 5, 'toolu_o2'),
+    oreply(3, 6, 1300, 120, ouse('toolu_o3', 'Glob')),
+    oresult(3, 7, 'toolu_o3'),
+    oreply(4, 8, 2200, 30, ouse('toolu_o4', 'Bash')),
+    oresult(4, 9, 'toolu_o4'),
+    oreply(5, 10, 2250, 5, [{ type: 'text', text: 'done' }], 'end_turn'),
+  ].join('\n')}\n`,
+)
+// `zebra` sits in the inputs of Read, Glob and Edit, so `q` matches their Pre and call rows.
+const opre = (s: number, tool: string, n: number, input = {}) => ({
+  ts: osec(s),
+  event: 'PreToolUse',
+  tool_name: tool,
+  tool_use_id: `toolu_o${n}`,
+  payload: { tool_input: input },
+})
+const opost = (s: number, tool: string, n: number) => ({
+  ts: osec(s),
+  event: 'PostToolUse',
+  tool_name: tool,
+  tool_use_id: `toolu_o${n}`,
+  payload: { tool_response: 'ok' },
+})
+const ZEBRA = { marker: 'zebra' }
+writeFileSync(
+  walOf(TO),
+  `${[
+    opre(2, 'Read', 1, ZEBRA),
+    opre(2, 'Grep', 2),
+    opost(3, 'Read', 1),
+    opost(3, 'Grep', 2),
+    opre(6, 'Glob', 3, ZEBRA),
+    opost(7, 'Glob', 3),
+    opre(8, 'Bash', 4),
+    opost(9, 'Bash', 4),
+    opre(9, 'Edit', 5, ZEBRA),
+    opost(9, 'Edit', 5),
+    { ts: osec(11), event: 'Stop', payload: { last_assistant_message: 'done' } },
   ]
     .map((r) => JSON.stringify({ workspace: 'w', ...r }))
     .join('\n')}\n`,
@@ -458,7 +534,7 @@ try {
   }
 
   const status = async (path: string) => (await fetch(`${BASE}${path}`)).status
-  const withWal = [S1, S2, NE, M1, P1, P2, I1, I2, G1, G2, G3, T1, T2, TK]
+  const withWal = [S1, S2, NE, M1, P1, P2, I1, I2, G1, G2, G3, T1, T2, TK, TO]
   for (const qs of ['ids=', '']) {
     const every = await events(`${qs}${qs ? '&' : ''}limit=500`)
     const rowSess = [...new Set(every.rows.map((r) => r.sess))].sort()
@@ -686,6 +762,101 @@ try {
       same(joined.cats, ['tool', 'turn']),
     JSON.stringify([joined.head, joined.total, joined.counts, joined.events, joined.cats]),
   )
+  const rowSeqs = new Set(joined.rows.map((r) => r.seq))
+  const tokSeq = [0, 1, 2, 3, 4, 5].find((n) => !rowSeqs.has(n))
+  const tokRecord = await record(TK, must(tokSeq, 'a seq in no row'), joined.gens[TK])
+  check(
+    'tokens: /record of a tok entry is 404 no such record',
+    tokRecord.status === 404 && (await tokRecord.text()) === 'no such record',
+    String(tokRecord.status),
+  )
+
+  const hand = join(dir, 'hand-target.jsonl')
+  const handCall = {
+    k: 'call',
+    tuid: 'th',
+    t: 1,
+    end: 2,
+    dur: 1,
+    tool: 'Read',
+    mcp: false,
+    err: false,
+    agent: null,
+    agentType: null,
+    input: {},
+    response: 'ok',
+  }
+  writeFileSync(hand, [handCall, { k: 'tok', tuid: 'th', out: 10, res: 7 }, { k: 'tok', tuid: 'th', out: 12 }].map((r) => `${JSON.stringify(r)}\n`).join(''))
+  const twoToks = createWalIndex(sid(19), hand).entries[0]
+  check('tokens: the last tok sets out and res, a res it lacks to null', twoToks?.out === 12 && twoToks.res === null, JSON.stringify(twoToks))
+
+  // `<event> <tool>:<Total>`, `-` for no numbers.
+  const lab = (r: Row): string => `${r.event}${r.tool ? ` ${r.tool}` : ''}:${r.out === undefined ? '-' : r.out + (r.res ?? 0)}`
+  const OB = `ids=${TO}`
+  const timed = await until(async () => {
+    const page = await events(`${OB}&limit=500`)
+    if (page.rows.filter((r) => r.out !== undefined).length < 5) throw new Error('no tokens yet')
+    return page
+  })
+  const labOf = new Map(timed.rows.map((r) => [key(r), lab(r)]))
+  const labels = (keys: string[]): string[] => keys.map((k) => labOf.get(k) ?? k)
+  const TIME = [
+    'Stop:5',
+    'Tool call Edit:-',
+    'PostToolUse Edit:-',
+    'PreToolUse Edit:-',
+    'PostToolUse Bash:-',
+    'Tool call Bash:50',
+    'PreToolUse Bash:-',
+    'PostToolUse Glob:-',
+    'Tool call Glob:900',
+    'PreToolUse Glob:-',
+    'PostToolUse Grep:-',
+    'PostToolUse Read:-',
+    'Tool call Grep:150',
+    'Tool call Read:150',
+    'PreToolUse Grep:-',
+    'PreToolUse Read:-',
+  ]
+  const TOKS = ['Tool call Glob:900', 'Tool call Grep:150', 'Tool call Read:150', 'Tool call Bash:50', 'Stop:5', ...TIME.filter((l) => l.endsWith(':-'))]
+  const expectLabels = async (label: string, qs: string, want: string[]): Promise<void> => {
+    const got = labels(await keysOf(`${OB}&${qs}`))
+    check(`${label} (${qs})`, same(got, want), `got [${got}], want [${want}]`)
+  }
+  check('tokens order: the fixture rows in time order', same(timed.rows.map(lab), TIME), JSON.stringify(timed.rows.map(lab)))
+  await expectLabels('min_tok excludes rows with no numbers by default', 'min_tok=150', ['Tool call Glob:900', 'Tool call Grep:150', 'Tool call Read:150'])
+  await expectLabels('max_tok is inclusive', 'max_tok=150', ['Stop:5', 'Tool call Bash:50', 'Tool call Grep:150', 'Tool call Read:150'])
+  await expectLabels('max_tok on an output-only Total', 'max_tok=5', ['Stop:5'])
+  await expectLabels('min_tok and max_tok', 'min_tok=50&max_tok=150', ['Tool call Bash:50', 'Tool call Grep:150', 'Tool call Read:150'])
+  await expectLabels(
+    'min_tok notok=include keeps rows with no numbers',
+    'min_tok=150&notok=include',
+    TIME.filter((l) => l.endsWith(':-') || Number(l.split(':').pop()) >= 150),
+  )
+  await expectLabels('notok alone does not filter', 'notok=include', TIME)
+
+  for (const n of [1, 2, 5]) {
+    const sorted = await pageAll(`${OB}&sort=tokens`, n)
+    check(
+      `sort=tokens: limit=${n} pages give one sorted list, ties by time then seq, no data last`,
+      same(labels(sorted.seen), TOKS),
+      JSON.stringify(labels(sorted.seen)),
+    )
+  }
+  const ZQ = ['Tool call Glob:900', 'Tool call Read:150', 'Tool call Edit:-', 'PreToolUse Edit:-', 'PreToolUse Glob:-', 'PreToolUse Read:-']
+  for (const [qs, want] of [
+    ['tool=Read,Grep,Edit', TOKS.filter((l) => /(Read|Grep|Edit):/.test(l))],
+    ['q=zebra', ZQ],
+    ['tool=Read,Edit&q=zebra', ZQ.filter((l) => /(Read|Edit):/.test(l))],
+  ] as const) {
+    for (const n of [1, 2]) {
+      const got = labels((await pageAll(`${OB}&sort=tokens&${qs}`, n)).seen)
+      check(`sort=tokens with ${qs}, limit=${n}`, same(got, want), JSON.stringify(got))
+    }
+  }
+  const qFirst = await events(`${OB}&sort=tokens&q=zebra&limit=2`)
+  check('sort=tokens with q: the first page counts every match', qFirst.total === ZQ.length, String(qFirst.total))
+  check('no sort: time order paged', same(labels((await pageAll(OB, 3)).seen), TIME), JSON.stringify(labels((await pageAll(OB, 3)).seen)))
 
   const proto = await events(`ids=${P2}`)
   check(

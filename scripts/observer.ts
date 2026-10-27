@@ -22,7 +22,7 @@ import {
   targetDir,
   targetPath,
 } from './target.ts'
-import { createParser, type Parser, type UsageRecord } from './transcripts.ts'
+import { createParser, LAST_TEXT, type Parser, type UsageRecord } from './transcripts.ts'
 
 const MCP_ROLE = new Map<string, McpRole>([
   ['PreToolUse', 'request'],
@@ -102,6 +102,8 @@ interface Session {
   absorbing: boolean
   // The last pass stopped short of its sources' last whole lines (at its deadline), or none ran yet.
   behind: boolean
+  // The last pass left a subagent unread: its spawn is in a part of a transcript not read yet.
+  deferred: boolean
   head: boolean
   // `head.wal`; null until the head is known.
   wal: boolean | null
@@ -132,9 +134,12 @@ interface Session {
   // Turn rows an interrupted pass wrote after the last `ck`, by transcript line uuid; not written again.
   trRedo: Set<string>
   // The token join: call rows (by tuid) and WAL Stop / SubagentStop rows (by WAL offset) with no `tok` yet,
-  // retried on every pass in which a source moved. `ended`: a SessionEnd came after the call.
+  // retried on every pass in which a source moved. `ended`: a SessionEnd came after the entry; an entry that
+  // is still unjoinable then goes, with no `tok`.
   waiting: Map<string, { agent: string | null; ended: boolean }>
-  stops: Map<number, { agent: string | null; t: number; text: string }>
+  stops: Map<number, { agent: string | null; t: number; text: string; ended: boolean }>
+  // SessionEnds read from the WAL: a pass that sees it grow reads the transcripts once more.
+  ends: number
   rejoin: boolean
   // What the target holds: the keyed records as their JSON, and the length of the listed ones.
   written: {
@@ -249,6 +254,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     absorbed: 0,
     absorbing: false,
     behind: true,
+    deferred: false,
     head: false,
     wal: null,
     version: null,
@@ -268,6 +274,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     trRedo: new Set(),
     waiting: new Map(),
     stops: new Map(),
+    ends: 0,
     rejoin: true,
     written: { use: new Map(), agent: new Map(), tools: new Map(), compacts: new Map(), turns: 0, cost: null },
   })
@@ -284,11 +291,13 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     if (e.woff === null) return
     if (e.event === 'SessionEnd') {
       for (const c of s.waiting.values()) c.ended = true
+      for (const c of s.stops.values()) c.ended = true
+      s.ends++
       s.rejoin = true
     } else if (e.event === 'Stop' || e.event === 'SubagentStop') {
       const text = (e.rec as WalLine | undefined)?.payload?.last_assistant_message
       if (typeof text !== 'string') return
-      s.stops.set(e.woff, { agent: e.agent, t: e.t, text: text.replace(CLAMP_RE, '') })
+      s.stops.set(e.woff, { agent: e.agent, t: e.t, text: text.replace(CLAMP_RE, '').slice(0, LAST_TEXT), ended: false })
       capped(s.stops)
       s.rejoin = true
     }
@@ -565,14 +574,20 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     return tr
   }
 
-  /** Reads a transcript's new whole lines; the stale reason when it shrank or is a new inode. */
-  const grow = (s: Session, tr: Transcript, rows: boolean, now: number, out: TargetRecord[]): string | null => {
+  /** The deadline passed with a transcript still short of its stat size: a torn tail cannot be told from it. */
+  const short = (s: Session, deadline: number): boolean => Date.now() >= deadline && [...s.tr.values()].some((tr) => tr.off < tr.size)
+
+  /**
+   * Reads a transcript's new whole lines until its end or the deadline, one chunk at least; the stale reason when it
+   * shrank or is a new inode.
+   */
+  const grow = (s: Session, tr: Transcript, rows: boolean, now: number, deadline: number, out: TargetRecord[]): string | null => {
     const st = statSync(tr.path, { throwIfNoEntry: false })
     if (st === undefined) return null
     if (tr.ino !== 0 && st.ino !== tr.ino) return 'transcript replaced'
     if (st.size < Math.max(tr.off, tr.replayTo)) return 'transcript shrank'
     tr.size = st.size
-    const end = lines(tr.path, tr.off, st.size, Number.POSITIVE_INFINITY, (buf, off) => trLine(s, tr, buf, off, rows, now, out))
+    const end = lines(tr.path, tr.off, st.size, deadline, (buf, off) => trLine(s, tr, buf, off, rows, now, out))
     // Nothing reads timeline updates; cleared so the set does not grow with the file, as the store does.
     tr.parser.touched.clear()
     if (end === null || end === tr.off) return null
@@ -591,8 +606,11 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     return undefined
   }
 
-  /** Adds and reads the subagents that got a `.meta.json` since the last pass. */
-  const discover = (s: Session, dir: string, id: string, rows: boolean, now: number, out: TargetRecord[]): string | null => {
+  /**
+   * Adds and reads the subagents that got a `.meta.json` since the last pass. Once the deadline has passed with a
+   * transcript unread, an agent whose spawn is not parsed yet waits: it would take the turn in progress, not its own.
+   */
+  const discover = (s: Session, dir: string, id: string, rows: boolean, now: number, deadline: number, out: TargetRecord[]): string | null => {
     const sub = join(dir, id, 'subagents')
     if (!existsSync(sub)) return null
     const left: { name: string; path: string; meta: AgentMeta }[] = []
@@ -607,16 +625,15 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     const main = s.tr.get(MAIN)
     while (left.length) {
       // A spawner is read before the agents it spawned. A spawn not flushed yet belongs to the turn in progress.
-      const [a] = left.splice(
-        Math.max(
-          0,
-          left.findIndex((x) => spawnOf(s, x.meta.toolUseId) !== undefined),
-        ),
-        1,
-      )
+      const known = left.findIndex((x) => spawnOf(s, x.meta.toolUseId) !== undefined)
+      if (known === -1 && short(s, deadline)) {
+        s.deferred = true
+        break
+      }
+      const [a] = left.splice(Math.max(0, known), 1)
       if (!a) break
       const turn = spawnOf(s, a.meta.toolUseId)?.turn ?? main?.parser.turnStarts.length ?? 0
-      const stale = grow(s, transcript(s, a.name, a.path, createParser(a.name, turn, false), a.meta), rows, now, out)
+      const stale = grow(s, transcript(s, a.name, a.path, createParser(a.name, turn, false), a.meta), rows, now, deadline, out)
       if (stale !== null) return stale
     }
     return null
@@ -682,14 +699,15 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     }
   }
 
-  /** The transcript part of a pass; `rows` also writes the call and turn rows. The stale reason, if any. */
-  const transcripts = (s: Session, dir: string, id: string, rows: boolean, now: number, out: TargetRecord[]): string | null => {
+  /** The transcript part of a pass, until the deadline; `rows` also writes the call and turn rows. The stale reason, if any. */
+  const transcripts = (s: Session, dir: string, id: string, rows: boolean, now: number, deadline: number, out: TargetRecord[]): string | null => {
+    s.deferred = false
     if (!s.tr.has(MAIN)) transcript(s, MAIN, join(dir, `${id}.jsonl`), createParser(MAIN, 0, false), null)
     for (const tr of s.tr.values()) {
-      const stale = grow(s, tr, rows, now, out)
+      const stale = grow(s, tr, rows, now, deadline, out)
       if (stale !== null) return stale
     }
-    const stale = discover(s, dir, id, rows, now, out)
+    const stale = discover(s, dir, id, rows, now, deadline, out)
     if (stale !== null) return stale
     changes(s, out)
     return null
@@ -748,18 +766,28 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
     return null
   }
 
-  /** Appends a `tok` for each waiting call and Stop that the transcripts now answer. */
-  const joinTokens = (s: Session, out: TargetRecord[]): void => {
-    s.rejoin = false
+  /**
+   * Appends a `tok` for each waiting call and Stop that the transcripts now answer. While `cut`, a transcript is read
+   * only in part, so a reply is missing or an earlier one could answer: nothing joins, and the next pass tries again.
+   */
+  const joinTokens = (s: Session, out: TargetRecord[], cut: boolean): void => {
+    s.rejoin = cut
+    if (cut) return
     for (const [tuid, c] of s.waiting) {
       const tok = callTok(s, tuid, c.ended, c.agent)
-      if (tok === null) continue
+      if (tok === null) {
+        if (c.ended) s.waiting.delete(tuid)
+        continue
+      }
       s.waiting.delete(tuid)
       out.push(tok)
     }
     for (const [woff, stop] of s.stops) {
       const n = stopOut(s, stop)
-      if (n === null) continue
+      if (n === null) {
+        if (stop.ended) s.stops.delete(woff)
+        continue
+      }
       s.stops.delete(woff)
       out.push({ k: 'tok', woff, out: n })
     }
@@ -774,12 +802,15 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
   }
 
   /**
-   * Brings the session's target up to its sources within about `budgetMs` of WAL reading. A missing session is
+   * Brings the session's target up to its sources within about `budgetMs` of reading, the transcripts first and then the
+   * WAL; each source gets one chunk at least. A missing session is
    * skipped, and so is a missing WAL of a target built from one (it may be in trash). Read-only, a session without a
    * WAL still reads its target, so a frozen one reports its stale reason.
    */
   const sync = (id: string, budgetMs: number): SyncResult => {
     const now = Date.now()
+    // One deadline for the whole pass: the transcripts are read first, so a large one leaves the WAL one chunk.
+    const deadline = now + budgetMs
     let s = sessions.get(id)
     const skip = (): SyncResult => (s ? result(s) : { done: 0, total: 0, stale: null })
     const dir = discovery.locate(id)
@@ -808,7 +839,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
       return result(s)
     }
     if (s.absorbing) {
-      absorbSome(s, now + budgetMs)
+      absorbSome(s, deadline)
       if (s.absorbing) return result(s)
       if (s.stale === null && s.version !== null) freeze(s, `format version ${s.version}`)
     }
@@ -827,30 +858,41 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
       if (s.stale !== null) return result(s)
     }
     const out: TargetRecord[] = []
-    let stale = transcripts(s, dir, id, st === undefined, now, out)
+    let stale = transcripts(s, dir, id, st === undefined, now, deadline, out)
     if (stale !== null && !s.head) {
       // As for the WAL: nothing is built from the old transcript yet, so start over.
       s = fresh(s.file)
       sessions.set(id, s)
       s.total = st?.size ?? 0
       out.length = 0
-      stale = transcripts(s, dir, id, st === undefined, now, out)
+      stale = transcripts(s, dir, id, st === undefined, now, deadline, out)
     }
     if (stale !== null) {
       freeze(s, stale)
       return result(s)
     }
+    const ends = s.ends
     if (st !== undefined) {
-      if (!walPass(s, wal, st.size, now + budgetMs, now, out)) {
+      if (!walPass(s, wal, st.size, deadline, now, out)) {
         // The transcript records of this pass are not written: the next sync re-opens from the target.
         sessions.delete(id)
         return result(s)
       }
       s.ino = st.ino
     }
-    if (s.rejoin) joinTokens(s, out)
+    // A reply written between the transcript reads and the WAL read, with its SessionEnd in that WAL read,
+    // would otherwise give its call `out` only for good.
+    if (s.ends > ends) {
+      stale = transcripts(s, dir, id, st === undefined, now, deadline, out)
+      if (stale !== null) {
+        freeze(s, stale)
+        return result(s)
+      }
+    }
+    const cut = s.deferred || short(s, deadline)
+    if (s.rejoin) joinTokens(s, out, cut)
     // Short of the WAL end before the deadline is a torn tail: the pass is caught up to the last whole line.
-    s.behind = st !== undefined && s.off < st.size && Date.now() >= now + budgetMs
+    s.behind = cut || (st !== undefined && s.off < st.size && Date.now() >= deadline)
     if (out.length) {
       if (!s.head) out.unshift({ k: 'head', v: TARGET_VERSION, id, wal: st !== undefined })
       const tr = Object.fromEntries([...s.tr.values()].filter((t) => t.off > 0).map((t) => [t.name, { ino: t.ino, off: t.off }]))

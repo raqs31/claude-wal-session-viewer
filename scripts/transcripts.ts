@@ -81,7 +81,7 @@ export interface Pricing {
 }
 
 const MAX = 200
-const LAST_TEXT = 2000
+export const LAST_TEXT = 2000
 const TAG_RE = /<\/?(?:command-name|command-message|command-args|local-command-caveat|local-command-stdout|task-notification)>/g
 const WRAP_RE = /^<(?:command-|local-command-)/
 
