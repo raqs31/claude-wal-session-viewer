@@ -238,6 +238,52 @@ test('a SubagentStop whose agent has no transcript file gets no tok', () => {
   assert.deepEqual(toks(s.target), [])
 })
 
+test('a SubagentStop whose agent has no transcript file is dropped at SessionEnd', () => {
+  const s = session(fixMain.length)
+  const o = observer()
+  put(s.wal, [
+    rec('2026-09-30T11:08:07.000Z', 'SubagentStop', { agent_id: AGENT, payload: { last_assistant_message: textOf(fixAgent, 49) } }),
+    rec('2026-09-30T11:08:08.000Z', 'SessionEnd'),
+  ])
+  sync(s.id, o)
+  assert.deepEqual(toks(s.target), [])
+
+  const dir = join(proj, s.id, 'subagents')
+  mkdirSync(dir, { recursive: true })
+  cpSync(join(fixDir, FIX, 'subagents', `agent-${AGENT}.meta.json`), join(dir, `agent-${AGENT}.meta.json`))
+  writeFileSync(s.sub, fixAgent.join(''))
+  sync(s.id, o)
+  assert.ok(records(s.target).some((r) => r.k === 'agent' && r.id === AGENT))
+  assert.deepEqual(toks(s.target), [])
+})
+
+test('a call whose tuid is in no transcript is dropped at SessionEnd', () => {
+  const s = session()
+  const o = observer()
+  put(s.tr, [userPrompt('u1', 1), reply('a1', 'r1', 2, 100, 5, [{ type: 'text', text: 'hi' }], 'end_turn')])
+  put(s.wal, [...call(sec(3), 'tgone'), rec(sec(4), 'SessionEnd')])
+  sync(s.id, o)
+  assert.deepEqual(tokOf(s.target, 'tgone'), [])
+
+  put(s.tr, [
+    reply('a2', 'r2', 5, 200, 7, [use('tgone', 'x')]),
+    result('u2', 6, 'tgone', 'r'),
+    reply('a3', 'r3', 7, 300, 3, [{ type: 'text', text: 'ok' }], 'end_turn'),
+  ])
+  sync(s.id, o)
+  assert.deepEqual(toks(s.target), [])
+})
+
+test('a Stop message longer than the parser keeps still joins its reply', () => {
+  const s = session()
+  const text = 'z'.repeat(2500)
+  put(s.tr, [userPrompt('u1', 1), reply('a1', 'r1', 2, 100, 77, [{ type: 'text', text }], 'end_turn')])
+  put(s.wal, [rec(sec(3), 'Stop', { payload: { last_assistant_message: text } })])
+  sync(s.id)
+  const [stop] = woffOf(s.target, 'Stop')
+  assert.deepEqual(toks(s.target), [{ k: 'tok', woff: stop, out: 77 }])
+})
+
 test('restart: a call left open gets its tok once, and a replay writes nothing', () => {
   // Without aMrgGL (line 18) the call has no next reply.
   const s = session(18)

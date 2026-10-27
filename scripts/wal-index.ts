@@ -66,6 +66,8 @@ export interface IndexEntry {
   res: number | null
   // A `tok` entry: it has a seq but is no row, so it sits in `entries` only, never in `order`, the sets or a result.
   hidden: boolean
+  // On a `tok` entry: the seq of the row it patched; null when that row is not indexed, and on every row.
+  target: number | null
 }
 
 export interface WalIndex {
@@ -230,6 +232,7 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
           out: rec.out ?? null,
           res: null,
           hidden: false,
+          target: null,
         })
         const seq = ix.entries.length - 1
         if (rec.tuid !== null) notePending(rec.tuid, rec.event, seq)
@@ -256,13 +259,15 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
           out: null,
           res: null,
           hidden: false,
+          target: null,
         })
         callSeq.set(rec.tuid, ix.entries.length - 1)
       } else if (rec.k === 'tok') {
-        const target = ix.entries[('tuid' in rec ? callSeq.get(rec.tuid) : stopSeq.get(rec.woff)) ?? -1]
+        const at = ('tuid' in rec ? callSeq.get(rec.tuid) : stopSeq.get(rec.woff)) ?? null
+        const target = at === null ? undefined : ix.entries[at]
         if (target) {
           target.out = rec.out
-          if ('res' in rec && rec.res !== undefined) target.res = rec.res
+          target.res = 'res' in rec ? (rec.res ?? null) : null
         }
         push({
           off,
@@ -283,6 +288,7 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
           out: null,
           res: null,
           hidden: true,
+          target: target ? at : null,
         })
       }
     }
@@ -379,6 +385,8 @@ const minuteOf = (s: string | null): number | null => {
   return h < 24 && min < 60 ? h * 60 + min : null
 }
 const num = (s: string | null | undefined): number | null => (s?.trim() && Number.isFinite(Number(s)) ? Number(s) : null)
+/** A row's Total, output plus result; null until a `tok` lands on it. */
+const tokensOf = (r: IndexEntry): number | null => (r.out === null ? null : r.out + (r.res ?? 0))
 
 type Tree = Pick<WalIndex, 'agents' | 'parents' | 'about' | 'links'>
 export type Matcher = (r: IndexEntry, ix: Tree & Pick<WalIndex, 'id'>, text: (r: IndexEntry) => string) => boolean
@@ -515,6 +523,9 @@ export const matcher = (p: URLSearchParams): Matcher => {
   const min = num(p.get('min_ms'))
   const max = num(p.get('max_ms'))
   const nodur = p.get('nodur') === 'include'
+  const minTok = num(p.get('min_tok'))
+  const maxTok = num(p.get('max_tok'))
+  const notok = p.get('notok') === 'include'
   const q = (p.get('q') || '').toLowerCase()
   return (r, ix, text) => {
     if (r.hidden) return false
@@ -531,6 +542,10 @@ export const matcher = (p: URLSearchParams): Matcher => {
     if (lo <= hi ? r.minute < lo || r.minute > hi : r.minute < lo && r.minute > hi) return false
     if (min !== null || max !== null) {
       if (r.dur === null ? !nodur : (min !== null && r.dur < min) || (max !== null && r.dur > max)) return false
+    }
+    if (minTok !== null || maxTok !== null) {
+      const tok = tokensOf(r)
+      if (tok === null ? !notok : (minTok !== null && tok < minTok) || (maxTok !== null && tok > maxTok)) return false
     }
     // Last, so the disk read only happens for rows every index filter already passed.
     return !q || text(r).toLowerCase().includes(q)
@@ -567,6 +582,116 @@ export const parseVector = (s: string | null | undefined): Map<string, number> |
 }
 
 const CURSOR = /^(-?\d+)\.([0-9a-f-]{36})\.(\d+)$/
+const TOK_CURSOR = /^(-?\d+)\.(-?\d+)\.([0-9a-f-]{36})\.(\d+)$/
+
+interface Scan {
+  rows: Row[]
+  next: string | null
+  // Null on a page after the first.
+  first: Pick<FirstPage, 'total' | 'counts' | 'spans'> | null
+}
+
+const pageOf = (ixs: WalIndex[], s: Scan, unknown: string[], pipe: Record<string, Pipe>): Page | FirstPage => {
+  const page: Page = {
+    gens: Object.fromEntries(ixs.map((ix) => [ix.id, ix.gen])),
+    head: vector(ixs),
+    rows: s.rows,
+    next: s.next,
+    unknown,
+  }
+  if (!s.first) return page
+  const tools = new Set<string>()
+  for (const ix of ixs) for (const tl of ix.tools) tools.add(tl)
+  const events = new Set<string>()
+  for (const ix of ixs) for (const ev of ix.events) events.add(ev)
+  const live = ixs.filter((ix) => ix.entries.length > 0)
+  const agents = live.map((ix) => ({ sess: ix.id, main: agentTree(ix) }))
+  return {
+    ...page,
+    ...s.first,
+    tools: [...tools],
+    events: [...events],
+    cats: CATEGORIES.filter((c) => ixs.some((ix) => ix.cats.has(c))),
+    agents,
+    sessions: live.map((ix) => ix.id),
+    pipe,
+  }
+}
+
+interface TokKey {
+  total: number
+  t: number
+  sess: string
+  seq: number
+}
+/** Positive when `a` comes first in Tokens order: the higher Total, then the time order's tie-breaks. */
+const ahead = (a: TokKey, b: TokKey): number => a.total - b.total || cmp(a.t, a.sess, a.seq, b.t, b.sess, b.seq)
+
+/** `sort=tokens`: one scan of the pick keeps the top rows below the cursor; a row with no Total sorts as -1. */
+const byTokens = (ixs: WalIndex[], readers: Reader[], p: URLSearchParams, hit: Matcher, limit: number): Scan => {
+  const c = TOK_CURSOR.exec(p.get('before') ?? '')
+  const sess = c?.[3]
+  const before: TokKey | null = sess === undefined ? null : { total: Number(c?.[1]), t: Number(c?.[2]), sess, seq: Number(c?.[4]) }
+  // A later page has no totals to count, so `q` (a disk read per row) runs only in order until the page fills.
+  const lazy = before !== null && !!p.get('q')
+  let pass = hit
+  if (lazy) {
+    const rest = new URLSearchParams(p)
+    rest.delete('q')
+    pass = matcher(rest)
+  }
+  const keep = limit + 1
+  // Highest first: the top `keep` rows below the cursor, or with `lazy` all of them.
+  const top: (TokKey & { i: number })[] = []
+  const first: Scan['first'] = before ? null : { total: 0, counts: {}, spans: {} }
+  for (let i = 0; i < ixs.length; i++) {
+    const ix = nth(ixs, i)
+    const text = nth(readers, i).text
+    for (let pos = ix.order.length - 1; pos >= 0; pos--) {
+      const seq = nth(ix.order, pos)
+      const e = nth(ix.entries, seq)
+      if (!pass(e, ix, text)) continue
+      const k = { total: tokensOf(e) ?? -1, t: e.t, sess: ix.id, seq, i }
+      if (before && ahead(k, before) >= 0) continue
+      if (first) {
+        first.total++
+        first.counts[e.cat] = (first.counts[e.cat] || 0) + 1
+        // Each index is walked newest first, so its first hit is the last matching row.
+        const b = first.spans[ix.id]
+        if (b) b[0] = e.t
+        else first.spans[ix.id] = [e.t, e.t]
+      }
+      if (lazy) top.push(k)
+      else if (top.length < keep || ahead(k, nth(top, keep - 1)) > 0) {
+        let lo = 0
+        let hi = top.length
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1
+          if (ahead(nth(top, mid), k) > 0) lo = mid + 1
+          else hi = mid
+        }
+        top.splice(lo, 0, k)
+        if (top.length > keep) top.pop()
+      }
+    }
+  }
+  let picked = top
+  if (lazy) {
+    top.sort((a, b) => ahead(b, a))
+    picked = []
+    for (const k of top) {
+      const ix = nth(ixs, k.i)
+      if (hit(nth(ix.entries, k.seq), ix, nth(readers, k.i).text) && picked.push(k) === keep) break
+    }
+  }
+  const rows = picked.slice(0, limit)
+  const last = rows.at(-1)
+  return {
+    rows: rows.map((k) => summary(nth(ixs, k.i), k.seq)),
+    next: picked.length > limit && last ? `${last.total}.${last.t}.${last.sess}.${last.seq}` : null,
+    first,
+  }
+}
 
 export const query = (ixs: WalIndex[], p: URLSearchParams, unknown: string[], pipe: Record<string, Pipe>): Page | FirstPage => {
   const hit = matcher(p)
@@ -577,6 +702,7 @@ export const query = (ixs: WalIndex[], p: URLSearchParams, unknown: string[], pi
   const before = sess === undefined ? null : { t: Number(c?.[1]), sess, seq: Number(c?.[3]) }
   const readers = ixs.map((ix) => ix.reader())
   try {
+    if (p.get('sort') === 'tokens') return pageOf(ixs, byTokens(ixs, readers, p, hit, limit), unknown, pipe)
     // Per index, the next position in `order` to visit, walking down; -1 when exhausted.
     const at = ixs.map((ix) => {
       const { order, entries } = ix
@@ -632,32 +758,8 @@ export const query = (ixs: WalIndex[], p: URLSearchParams, unknown: string[], pi
       }
     }
     const last = rows[rows.length - 1]
-    const page: Page = {
-      gens: Object.fromEntries(ixs.map((ix) => [ix.id, ix.gen])),
-      head: vector(ixs),
-      rows,
-      next: more && last ? `${last.t}.${last.sess}.${last.seq}` : null,
-      unknown,
-    }
-    if (before) return page
-    const tools = new Set<string>()
-    for (const ix of ixs) for (const tl of ix.tools) tools.add(tl)
-    const events = new Set<string>()
-    for (const ix of ixs) for (const ev of ix.events) events.add(ev)
-    const live = ixs.filter((ix) => ix.entries.length > 0)
-    const agents = live.map((ix) => ({ sess: ix.id, main: agentTree(ix) }))
-    return {
-      ...page,
-      total,
-      counts,
-      spans,
-      tools: [...tools],
-      events: [...events],
-      cats: CATEGORIES.filter((c) => ixs.some((ix) => ix.cats.has(c))),
-      agents,
-      sessions: live.map((ix) => ix.id),
-      pipe,
-    }
+    const next = more && last ? `${last.t}.${last.sess}.${last.seq}` : null
+    return pageOf(ixs, { rows, next, first: before ? null : { total, counts, spans } }, unknown, pipe)
   } finally {
     for (const r of readers) r.close()
   }

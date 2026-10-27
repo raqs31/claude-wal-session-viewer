@@ -654,11 +654,11 @@
       "id": "T18",
       "title": "Token filter and Tokens order in the index",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 7,
       "parent": null,
-      "holder": null,
+      "holder": "a9197e3162115152c",
       "tags": [
         "risk-high"
       ],
@@ -667,36 +667,37 @@
         "scripts/query.test.ts"
       ],
       "path": "tickets/T18.md",
-      "updated": "2026-10-26 14:50"
+      "updated": "2026-10-26 18:42"
     },
     {
       "id": "T19",
       "title": "Stream tokens frames and held rows",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 7,
       "parent": null,
-      "holder": null,
+      "holder": "a207fd575e189d87d",
       "tags": [
         "risk-high"
       ],
       "files": [
         "scripts/wal-server.ts",
-        "scripts/live-tail.test.ts"
+        "scripts/live-tail.test.ts",
+        "scripts/wal-index.ts"
       ],
       "path": "tickets/T19.md",
-      "updated": "2026-10-26 14:50"
+      "updated": "2026-10-26 19:36"
     },
     {
       "id": "T20",
       "title": "Bench: pipeline build and token queries",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 7,
       "parent": null,
-      "holder": null,
+      "holder": "aabb4e328d8dcbe85",
       "tags": [
         "tests"
       ],
@@ -708,17 +709,17 @@
         "scripts/observer.test.ts"
       ],
       "path": "tickets/T20.md",
-      "updated": "2026-10-26 18:01"
+      "updated": "2026-10-27 12:09"
     },
     {
       "id": "T21",
       "title": "Phase 7 review",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 7,
       "parent": null,
-      "holder": null,
+      "holder": "a179b2a944e7c994a",
       "tags": [],
       "files": [
         "scripts/wal-index.ts",
@@ -728,10 +729,13 @@
         "scripts/bench.ts",
         "scripts/bench-sessions.ts",
         "scripts/observer.ts",
-        "scripts/observer.test.ts"
+        "scripts/observer.test.ts",
+        "scripts/transcripts.ts",
+        "scripts/tokens.test.ts",
+        "scripts/observer-server.test.ts"
       ],
       "path": "tickets/T21.md",
-      "updated": "2026-10-26 18:01"
+      "updated": "2026-10-27 12:21"
     },
     {
       "id": "T22",
@@ -901,6 +905,46 @@
       ],
       "path": "tickets/T29.md",
       "updated": "2026-10-26 18:06"
+    },
+    {
+      "id": "T30",
+      "title": "Phase 6 follow-ups: token join at session end",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 7,
+      "parent": null,
+      "holder": "a09471e79435f9988",
+      "tags": [
+        "tests"
+      ],
+      "files": [
+        "scripts/observer.ts",
+        "scripts/transcripts.ts",
+        "scripts/tokens.test.ts"
+      ],
+      "path": "tickets/T30.md",
+      "updated": "2026-10-26 18:37"
+    },
+    {
+      "id": "T31",
+      "title": "Phase 6 follow-ups: /record hidden entries, orphan targets, root test guard",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 7,
+      "parent": null,
+      "holder": "ab19f55dc3034bd12",
+      "tags": [
+        "tests"
+      ],
+      "files": [
+        "scripts/wal-server.ts",
+        "scripts/query.test.ts",
+        "scripts/observer-server.test.ts"
+      ],
+      "path": "tickets/T31.md",
+      "updated": "2026-10-27 12:19"
     }
   ],
   "edges": [
@@ -1200,6 +1244,11 @@
       "type": "depends_on"
     },
     {
+      "from": "T14",
+      "to": "T30",
+      "type": "depends_on"
+    },
+    {
       "from": "T15",
       "to": "T16",
       "type": "depends_on"
@@ -1207,6 +1256,11 @@
     {
       "from": "T15",
       "to": "T17",
+      "type": "depends_on"
+    },
+    {
+      "from": "T15",
+      "to": "T30",
       "type": "depends_on"
     },
     {
@@ -1245,6 +1299,11 @@
       "type": "depends_on"
     },
     {
+      "from": "T18",
+      "to": "T31",
+      "type": "depends_on"
+    },
+    {
       "from": "T19",
       "to": "T20",
       "type": "depends_on"
@@ -1257,6 +1316,11 @@
     {
       "from": "T19",
       "to": "T24",
+      "type": "depends_on"
+    },
+    {
+      "from": "T19",
+      "to": "T31",
       "type": "depends_on"
     },
     {
@@ -1327,6 +1391,31 @@
     {
       "from": "T29",
       "to": "T17",
+      "type": "depends_on"
+    },
+    {
+      "from": "T29",
+      "to": "T31",
+      "type": "depends_on"
+    },
+    {
+      "from": "T30",
+      "to": "T20",
+      "type": "depends_on"
+    },
+    {
+      "from": "T30",
+      "to": "T21",
+      "type": "depends_on"
+    },
+    {
+      "from": "T31",
+      "to": "T20",
+      "type": "depends_on"
+    },
+    {
+      "from": "T31",
+      "to": "T21",
       "type": "depends_on"
     }
   ]

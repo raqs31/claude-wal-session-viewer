@@ -5,14 +5,14 @@
 // Binds loopback only. The WAL carries prompts, file contents and command output, so this
 // must never be reachable off the machine.
 
-import { closeSync, createReadStream, existsSync, openSync, readSync, rmSync, statSync } from 'node:fs'
+import { closeSync, createReadStream, existsSync, openSync, readdirSync, readSync, rmSync, statSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { dirname, extname, resolve, sep } from 'node:path'
+import { dirname, extname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { CallRecord, ObserverStatus, Pipe, RebuildResult, RecordResponse, Row, StaleFrame, TrashRef, TrashResult, WalRecord } from '../shared/api.ts'
 import { createDiscovery } from './discovery.ts'
-import { createObserver, pipeOf, rebuild, syncAll, targetFile } from './observer.ts'
+import { createObserver, pipeOf, rebuild, syncAll, syncBudget, targetFile } from './observer.ts'
 import { createStore, parseScope, type Session, validId } from './sessions.ts'
 import { acquireLock, type TargetRecord, targetDir, targetPath } from './target.ts'
 import { createTrash } from './trash.ts'
@@ -59,9 +59,16 @@ interface Client {
   gens: Map<string, number>
   // Picked ids this stream already sent an `event: stale` for.
   stale: Set<string>
+  // The stream has a min_tok or max_tok bound: only then can a row match with its numbers and not without.
+  tokf: boolean
+  // `<sess>:<seq>` of a row sent with numbers under that bound, so a later `tok` for it does not send it again.
+  late: Set<string>
 }
 
 const clients = new Set<Client>()
+
+// The numbers a `tok` entry gave its row, for a row the page may already hold.
+type TokensPatch = Pick<Row, 'sess' | 'seq' | 'out' | 'res'>
 
 // One per /session-stream or /usage-stream: the picked ids and the version of each it has sent.
 interface SessionClient {
@@ -242,21 +249,55 @@ const walTick = (): void => {
     const readers: Reader[] = []
     try {
       const rows: Row[] = []
+      const patches: TokensPatch[] = []
       for (const ix of client.ixs) {
         const reader = ix.reader(true)
         readers.push(reader)
         const from = client.pos.get(ix.id) ?? 0
+        // Rows patched in this tick: a row patched twice gets one patch with its last numbers.
+        const patched = new Set<number>()
         for (let seq = from; seq < ix.entries.length; seq++) {
           const e = ix.entries[seq]
-          if (e && client.hit(e, ix, reader.text)) rows.push(summary(ix, seq))
+          if (!e) continue
+          if (!e.hidden) {
+            if (client.hit(e, ix, reader.text)) {
+              rows.push(summary(ix, seq))
+              if (client.tokf && e.out !== null) client.late.add(`${ix.id}:${seq}`)
+            }
+            continue
+          }
+          const at = e.target
+          const row = at === null ? undefined : ix.entries[at]
+          if (at === null || !row || patched.has(at)) continue
+          patched.add(at)
+          const { out, res } = summary(ix, at)
+          patches.push({ sess: ix.id, seq: at, out, res })
+          // A row at or after `from` was judged above with its numbers. An earlier one a token filter held back is
+          // sent now, once: `late` holds the rows already sent with numbers. The bare check runs first: a token filter
+          // rejects the bare row before the `q` disk read.
+          const key = `${ix.id}:${at}`
+          if (
+            client.tokf &&
+            at < from &&
+            !client.late.has(key) &&
+            !client.hit({ ...row, out: null, res: null }, ix, reader.text) &&
+            client.hit(row, ix, reader.text)
+          ) {
+            rows.push(summary(ix, at))
+            client.late.add(key)
+          }
         }
         // Advanced past misses too, or a `q` stream re-reads them from disk every tick.
         client.pos.set(ix.id, ix.entries.length)
       }
-      if (rows.length === 0) continue
-      rows.sort((a, b) => cmp(a.t, a.sess, a.seq, b.t, b.sess, b.seq))
-      // Every picked index was just given a position above.
-      client.res.write(`id: ${vector(client.ixs, (ix) => client.pos.get(ix.id) ?? 0)}\ndata: ${JSON.stringify(rows)}\n\n`)
+      if (rows.length) {
+        rows.sort((a, b) => cmp(a.t, a.sess, a.seq, b.t, b.sess, b.seq))
+        // Every picked index was just given a position above.
+        client.res.write(`id: ${vector(client.ixs, (ix) => client.pos.get(ix.id) ?? 0)}\ndata: ${JSON.stringify(rows)}\n\n`)
+      }
+      // After the rows, so a row sent in this frame is held before its patch lands. No `id:`: the next row
+      // frame's vector covers the `tok` entries, and a reconnect from before them replays these patches.
+      if (patches.length) client.res.write(`event: tokens\ndata: ${JSON.stringify(patches)}\n\n`)
     } catch (err) {
       console.error(`wal-server: tick: ${(err as Error).message}`)
     } finally {
@@ -269,13 +310,80 @@ setInterval(() => {
   // One set, so a session both kinds of stream pick is synced once per tick.
   const streamed = new Set([...clients].flatMap((c) => c.ixs.map((ix) => ix.id)))
   for (const c of sessionClients) for (const id of c.ids) streamed.add(id)
-  syncAll(observer, [...streamed])
+  // One slice for all of them: an empty pick streams every session, and an unbuilt one is the loop's to build.
+  syncAll(observer, [...streamed], Math.min(syncBudget(), SLICE_MS))
   walTick()
   sessionTick()
 }, 250)
 
 // Sessions the loop synced; /observer counts one the writer keeps no state for (a skipped sync) as built.
 const seen = new Set<string>()
+
+/** Every readdir down the tree discovery and the trash walk succeeds; a missing or non-directory entry is fine, an unreadable one is not. */
+const complete = (projectsDir: string): boolean => {
+  const ls = (d: string, absentOk: boolean): string[] | null => {
+    try {
+      return readdirSync(d)
+    } catch (err) {
+      return absentOk && ['ENOENT', 'ENOTDIR'].includes((err as NodeJS.ErrnoException).code ?? '') ? [] : null
+    }
+  }
+  const slugs = ls(projectsDir, false)
+  if (slugs === null || slugs.some((slug) => ls(join(projectsDir, slug), true) === null)) return false
+  const root = join(dirname(projectsDir), 'wal-trash')
+  const dates = ls(root, true)
+  if (dates === null) return false
+  for (const date of dates) {
+    const inDate = ls(join(root, date), true)
+    if (inDate === null || inDate.some((slug) => ls(join(root, date, slug), true) === null)) return false
+  }
+  return true
+}
+
+// Candidates found in the trash at the last check: not asked again for KEEP_MS, so a trashed session does not cost a
+// full discovery and trash listing every tick.
+const kept = new Map<string, number>()
+const KEEP_MS = 30_000
+
+/**
+ * Removes the targets in the dirs this server holds whose session is neither discovered nor in the trash: a purge in
+ * a reader server left them, and a session deleted by hand does the same. Never touches a source, and never a dir
+ * another server holds. A dir is skipped when discovery or the trash could not read all of one of its sources: a short
+ * listing would call a live session an orphan. `listed` is the tick's discovery listing; a target outside it is checked
+ * against a fresh one, and each orphan must also be unlocatable, so a session found after the tick keeps its target.
+ */
+const sweep = (listed: Set<string>): void => {
+  const now = Date.now()
+  for (const dir of held) {
+    let names: string[]
+    try {
+      names = readdirSync(dir)
+    } catch {
+      continue
+    }
+    const ids = names.filter((n) => n.endsWith('.jsonl')).map((n) => n.slice(0, -'.jsonl'.length))
+    const candidates = ids.filter((id) => validId(id) && !listed.has(id) && now - (kept.get(id) ?? Number.NEGATIVE_INFINITY) >= KEEP_MS)
+    if (!candidates.length) continue
+    const mine = discovery.sources().filter((src) => targetDir(src) === dir)
+    if (!mine.length || !mine.every((src) => complete(src.projectsDir))) continue
+    const live = new Set(discovery.list().sessions.map((s) => s.id))
+    const orphans = candidates.filter((id) => !live.has(id))
+    if (!orphans.length) continue
+    const trashed = new Set(trash.list().map((e) => e.id))
+    for (const id of orphans) {
+      if (trashed.has(id)) {
+        kept.set(id, now)
+        continue
+      }
+      if (discovery.locate(id) !== null) continue
+      rmSync(join(dir, `${id}.jsonl`), { force: true })
+      kept.delete(id)
+      observer.drop(id)
+      indexes.drop(id)
+      store.drop(id)
+    }
+  }
+}
 
 /**
  * The background build: once a second, every discovered session in a dir this server holds (or can take) the lock
@@ -305,6 +413,7 @@ const build = async (): Promise<void> => {
         }
         await new Promise((r) => setImmediate(r))
       }
+      sweep(new Set(ids))
     } catch (err) {
       console.error(`wal-server: build: ${(err as Error).message}`)
     }
@@ -461,6 +570,8 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
 
   if (url.pathname === '/events' || url.pathname === '/events-stream') {
     const p = url.searchParams
+    // A live row cannot be put in Tokens order: a later `tok` can move a row already sent.
+    if (url.pathname === '/events-stream' && p.get('sort') === 'tokens') return void res.writeHead(400).end('sort=tokens cannot stream')
     // Acquiring tails every index, so `head` is exact and a stream started at `after=head` has no gap.
     // An empty pick means every session that has a WAL.
     const picked = idsOf(p)
@@ -495,7 +606,16 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
     const pos =
       parseVector(req.headers['last-event-id'] as string | undefined) ?? parseVector(p.get('after')) ?? new Map(ixs.map((ix) => [ix.id, ix.entries.length]))
     const gens = parseVector(p.get('gens')) ?? new Map(ixs.map((ix) => [ix.id, ix.gen]))
-    const client: Client = { res, ixs, hit: matcher(p), pos, gens, stale: new Set() }
+    const client: Client = {
+      res,
+      ixs,
+      hit: matcher(p),
+      pos,
+      gens,
+      stale: new Set(),
+      tokf: p.get('min_tok') !== null || p.get('max_tok') !== null,
+      late: new Set(),
+    }
     clients.add(client)
     req.on('close', () => clients.delete(client))
     return
@@ -512,9 +632,10 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
     if (Number(p.get('gen')) !== ix.gen) return void res.writeHead(409).end('stale gen')
     const seq = p.get('seq')
     const r = seq !== null && /^\d+$/.test(seq) ? ix.entries[Number(seq)] : undefined
-    if (!r) return void res.writeHead(404).end('no such record')
+    if (!r || r.hidden) return void res.writeHead(404).end('no such record')
     const fd = openSync(ix.path, 'r')
-    // Index entries stand for `ev` and `call` lines only; a call row's `virtual` points at two `ev` entries.
+    // Visible entries stand for `ev` and `call` lines; a `tok` line is a hidden entry, refused above. A call row's
+    // `virtual` points at two `ev` entries.
     const read = (e: IndexEntry): Ev | Extract<TargetRecord, { k: 'call' }> => {
       const buf = Buffer.alloc(e.len)
       readSync(fd, buf, 0, e.len, e.off)

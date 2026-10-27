@@ -398,6 +398,31 @@ test('budget: 0 ms makes partial progress and later passes finish', () => {
   assert.ok(records(target).filter((x) => x.k === 'ck').length > 1)
 })
 
+test('budget: a transcript read stops at the deadline and later passes finish it', () => {
+  const { id, tr, target } = session()
+  const pad = 'x'.repeat(1000)
+  const prompts = 300
+  appendFileSync(
+    tr,
+    Array.from(
+      { length: prompts },
+      (_, i) => `${JSON.stringify({ type: 'user', uuid: `u${i}`, timestamp: sec(i % 60), message: { role: 'user', content: `p${i} ${pad}` } })}\n`,
+    ).join(''),
+  )
+  const obs = createObserver({ discovery, write: true })
+  const first = obs.sync(id, 0)
+  assert.equal(first.total, statSync(tr).size)
+  assert.ok(first.done > 0 && first.done < first.total, JSON.stringify(first))
+  assert.equal(obs.built(id), false)
+  const read = evs(target).length
+  assert.ok(read > 0 && read < prompts, String(read))
+  let r = first
+  for (let i = 0; i < 100 && r.done < r.total; i++) r = obs.sync(id, 0)
+  assert.equal(r.done, r.total)
+  assert.equal(obs.built(id), true)
+  assert.equal(evs(target).length, prompts)
+})
+
 test('stale: a WAL replaced before its first whole line starts over, not frozen', () => {
   const { id, wal, target } = session()
   writeFileSync(wal, rec(1, 'SessionStart'))

@@ -9,7 +9,7 @@
 import { appendFileSync, closeSync, mkdirSync, mkdtempSync, openSync, rmSync, symlinkSync, utimesSync, writeFileSync, writeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { SessionList, SessionView } from '../shared/api.ts'
+import type { ObserverStatus, SessionList, SessionView } from '../shared/api.ts'
 import { createObserver, targetFile } from './observer.ts'
 import { createStore } from './sessions.ts'
 import { startServer } from './test-server.ts'
@@ -24,6 +24,7 @@ const CHUNK = 8 * 1024 * 1024
 const MAIN_BYTES = 16 * 1024 * 1024
 const AGENTS = 8
 const FILES = 300
+const BUILD_MAX_MS = 60_000
 const T0 = Date.parse('2026-09-01T00:00:00Z')
 let fail = 0
 
@@ -170,6 +171,18 @@ try {
   )
   const { server, base: BASE } = await startServer([`--source=${join(dir, 'extra-src')}`], { HOME: dir })
   try {
+    // A request syncs a session for at most 150 ms, so the first /session of the 16 MB transcript would show a part of
+    // it. The stats check below needs the whole transcript, so the build ends first.
+    const started = performance.now()
+    let status: ObserverStatus | undefined
+    while (performance.now() - started < BUILD_MAX_MS) {
+      status = (await (await fetch(`${BASE}/observer`)).json()) as ObserverStatus
+      if (status.built === status.total || status.stale.length) break
+      await new Promise((r) => setTimeout(r, 250))
+    }
+    console.log(`build             ${Math.round(performance.now() - started)} ms`)
+    check('every session built', status?.built === FILES && status.total === FILES && status.stale.length === 0, JSON.stringify(status))
+
     // Best of three cold listings: a single one is at the mercy of whatever else loads the host.
     // A new mtime on every file misses the list's size+mtime cache, so each run rereads all tails.
     let list: { ms: number; body: SessionList } | undefined
