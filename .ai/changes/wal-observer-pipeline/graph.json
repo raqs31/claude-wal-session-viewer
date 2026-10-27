@@ -816,7 +816,7 @@
         "web/src/components/ConfirmDialog.tsx"
       ],
       "path": "tickets/T25.md",
-      "updated": "2026-10-27 12:58"
+      "updated": "2026-10-27 13:09"
     },
     {
       "id": "T26",
@@ -871,7 +871,7 @@
         "scripts/query.test.ts"
       ],
       "path": "tickets/T27.md",
-      "updated": "2026-10-27 13:08"
+      "updated": "2026-10-27 13:09"
     },
     {
       "id": "T28",
