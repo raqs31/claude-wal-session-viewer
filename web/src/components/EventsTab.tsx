@@ -92,10 +92,12 @@ export function EventsTab({
     return [...m].map(([id, reason]) => ({ id, reason }))
   }, [ev.pipe, ev.stale, observer.status, ids])
   // The observer says when a session is built; the pipe bytes only give the percent while it runs.
-  const building = useMemo(
-    () => buildingNote({ ...ev.pipe, ...usage?.pipe }, new Set(observer.status?.building), ids ?? []),
-    [ev.pipe, usage, observer.status, ids],
-  )
+  // Two sources, the first page and the usage stream; whichever object arrived last is the newer one.
+  const pipeAt = useRef({ page: ev.pipe, usage: usage?.pipe, newest: 'page' as 'page' | 'usage' })
+  if (pipeAt.current.page !== ev.pipe) pipeAt.current = { page: ev.pipe, usage: usage?.pipe, newest: 'page' }
+  else if (pipeAt.current.usage !== usage?.pipe) pipeAt.current = { page: ev.pipe, usage: usage?.pipe, newest: usage?.pipe ? 'usage' : 'page' }
+  const pipe = pipeAt.current.newest === 'usage' && usage ? { ...ev.pipe, ...usage.pipe } : { ...usage?.pipe, ...ev.pipe }
+  const building = useMemo(() => buildingNote(pipe, new Set(observer.status?.building), ids ?? []), [pipe, observer.status, ids])
   const rebuild = async (rids: readonly string[]) => {
     const err = await observer.rebuild(rids)
     void ev.requery()

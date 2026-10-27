@@ -223,6 +223,7 @@ export function useEvents(filters: Filters, view: View, ids: readonly string[] |
         })
       }
       setList((l) => ({ rows: apply(l.rows), pending: apply(l.pending) }))
+      s.deferred = apply(s.deferred)
     })
     es.onmessage = (m: MessageEvent<string>) => {
       if (my !== s.qgen) return

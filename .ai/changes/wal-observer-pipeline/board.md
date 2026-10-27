@@ -52,12 +52,13 @@ Build plan.md phases 1-8: observer targets, readers on targets, token join, filt
 <!-- tickets:start — rendered by board.py refresh -->
 | id | status | phase | holder | needs | tags | title |
 | -- | ------ | ----- | ------ | ----- | ---- | ----- |
-| T27 (review) | blocked | 8 | a7c9d041d8c9398a6 | T33 |  | Phase 8 review |
-| T33 | in_progress | 8 | a2071482dd88c5b50 |  |  | Events head: recorded counts visible rows, not tok entries |
-Closed: T1 done · T2 done · T3 done · T4 done · T5 done · T6 done · T7 done · T8 done · T9 done · T10 done · T11 done · T12 done · T13 done · T14 done · T15 done · T16 done · T17 done · T18 done · T19 done · T20 done · T21 done · T22 done · T23 done · T24 done · T25 done · T26 done · T28 done · T29 done · T30 done · T31 done · T32 done
+Closed: T1 done · T2 done · T3 done · T4 done · T5 done · T6 done · T7 done · T8 done · T9 done · T10 done · T11 done · T12 done · T13 done · T14 done · T15 done · T16 done · T17 done · T18 done · T19 done · T20 done · T21 done · T22 done · T23 done · T24 done · T25 done · T26 done · T27 done · T28 done · T29 done · T30 done · T31 done · T32 done · T33 done
 <!-- tickets:end -->
 
 ## Log
 
 - 2026-10-27 13:03 orchestrator: T33 done: FirstPage.recorded and event: recorded frame; useEvents recorded() sums visible rows
 - 2026-10-27 13:08 orchestrator: T27 approve: 286 pass, badge fix confirmed in browser; 2 new T25 minors
+- 2026-10-27 13:08 orchestrator: Phase 8 committed and pushed (6183b4d); T25 reopened for 2 T27 round-2 minors
+- 2026-10-27 13:09 orchestrator: T25 round 2 done: pipeAt picks newest pipe, tokens patches apply to deferred rows
+- 2026-10-27 13:10 orchestrator: T27 approve (round 2): 122 web tests pass; all phases closed
