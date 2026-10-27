@@ -7,7 +7,8 @@ import { TrashTab } from './components/TrashTab.tsx'
 import { UsageTiles } from './components/UsageTiles.tsx'
 import { EMPTY_FILTERS, type Filters } from './lib/params.ts'
 import { FORMATS } from './lib/tree.ts'
-import { VIEWS } from './useEvents.ts'
+import { type Order, VIEWS } from './useEvents.ts'
+import { useObserver } from './useObserver.ts'
 import { usePick, useUnseen } from './usePick.ts'
 import { useSessions } from './useSessions.ts'
 import { useStored } from './useStored.ts'
@@ -32,6 +33,8 @@ export function App() {
   // Held here rather than in the tabs, which unmount on a switch, so filters and follow survive one.
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [follow, setFollow] = useState(true)
+  // Not stored: a reload comes back in Time order with Live on.
+  const [order, setOrder] = useState<Order>('time')
   const showEvents = useCallback(
     (agent: string) => {
       setFilters({ ...EMPTY_FILTERS, agent: new Set([agent]) })
@@ -40,6 +43,8 @@ export function App() {
     [setTab],
   )
   const list = useSessions()
+  const observer = useObserver()
+  const obs = observer.status
   // Bumped by a sidebar move so an open Trash tab refetches; the tab stays mounted, keeping its note and selection.
   const [trashGen, setTrashGen] = useState(0)
   const rows = list.ready ? list.sessions : null
@@ -92,6 +97,18 @@ export function App() {
             )}
           </div>
           <span className="spacer" />
+          {obs !== null && !obs.owner && obs.elsewhere > 0 ? (
+            <span className="badge pipe" id="pipechip">
+              read-only — another viewer owns the cache
+            </span>
+          ) : (
+            obs !== null &&
+            obs.building.length > 0 && (
+              <span className="badge pipe" id="pipechip">
+                Indexing {obs.built.toLocaleString()}/{obs.total.toLocaleString()}
+              </span>
+            )
+          )}
           <button className="ghost" id="theme" type="button" onClick={toggleTheme}>
             Toggle theme
           </button>
@@ -113,6 +130,9 @@ export function App() {
             setFormat={setFormat}
             follow={follow}
             setFollow={setFollow}
+            order={order}
+            setOrder={setOrder}
+            observer={observer}
             ids={ids}
             onUnknown={forget}
             sessions={list.sessions}
@@ -124,7 +144,7 @@ export function App() {
             onFpin={() => setFpin(fpin === 'pinned' ? 'unpinned' : 'pinned')}
           />
         ) : (
-          <SessionsTab ids={pick} sessions={list.sessions} onUnknown={forget} onShowEvents={showEvents} />
+          <SessionsTab ids={pick} observer={observer} sessions={list.sessions} onUnknown={forget} onShowEvents={showEvents} />
         )}
       </div>
     </div>

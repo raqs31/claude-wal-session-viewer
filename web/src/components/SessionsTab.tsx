@@ -2,11 +2,13 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { SessionMeta, SessionView } from '../../../shared/api.ts'
 import { short } from '../lib/format.ts'
 import { groupByProject } from '../lib/sidebar.ts'
+import type { Observer } from '../useObserver.ts'
 import { useSessionViews } from '../useSession.ts'
 import { ShareBars } from './charts/ShareBars.tsx'
 import { TokensOverTime } from './charts/TokensOverTime.tsx'
 import { TurnBars } from './charts/TurnBars.tsx'
 import { agentName, ByAgent, ByModel, Totals } from './SessionStats.tsx'
+import { buildingNote, StaleBadge } from './StatsHeader.tsx'
 
 const base = (p: string) => p.replace(/\/+$/, '').split('/').pop() || p
 
@@ -62,6 +64,9 @@ const Block = memo(function Block({
   project,
   view,
   unknown,
+  building,
+  readOnly,
+  rebuild,
   onShowEvents,
 }: {
   id: string
@@ -69,6 +74,9 @@ const Block = memo(function Block({
   project: { label: string; title: string } | undefined
   view: SessionView | undefined
   unknown: boolean
+  building: string | null
+  readOnly: boolean
+  rebuild: Observer['rebuild']
   onShowEvents: (agent: string) => void
 }) {
   return (
@@ -87,6 +95,8 @@ const Block = memo(function Block({
           </span>
         ))}
         {meta && meta.worktree !== null && <span className="badge wt">{meta.worktree}</span>}
+        {view && view.pipe.stale !== null && <StaleBadge stale={[{ id, reason: view.pipe.stale }]} readOnly={readOnly} rebuild={rebuild} />}
+        {building && <span className="badge building">{building}</span>}
         <span className="num id" title={id}>
           {short(id)}
         </span>
@@ -107,11 +117,13 @@ const Block = memo(function Block({
 
 export function SessionsTab({
   ids,
+  observer,
   sessions,
   onUnknown,
   onShowEvents,
 }: {
   ids: readonly string[]
+  observer: Observer
   sessions: SessionMeta[]
   onUnknown: (ids: string[]) => void
   onShowEvents: (agent: string) => void
@@ -139,6 +151,10 @@ export function SessionsTab({
     return next
   }, [ids, sessions])
 
+  const building = (id: string): string | null => {
+    const v = views[id]
+    return v ? buildingNote({ [id]: v.pipe }, new Set(observer.status?.building), [id]) : null
+  }
   if (ids.length === 0)
     return (
       <div className="sessions">
@@ -156,7 +172,20 @@ export function SessionsTab({
       </div>
       {ids.map((id) => {
         const p = props.get(id)
-        return <Block key={id} id={id} meta={p?.meta} project={p?.project} view={views[id]} unknown={unknown.includes(id)} onShowEvents={onShowEvents} />
+        return (
+          <Block
+            key={id}
+            id={id}
+            meta={p?.meta}
+            project={p?.project}
+            view={views[id]}
+            unknown={unknown.includes(id)}
+            building={building(id)}
+            readOnly={observer.status?.owner === false}
+            rebuild={observer.rebuild}
+            onShowEvents={onShowEvents}
+          />
+        )
       })}
     </div>
   )

@@ -3,6 +3,7 @@ import type { RecordResponse, Row } from '../../../shared/api.ts'
 import { CATEGORY } from '../lib/categories.ts'
 import { fmtDate, fmtTime, short } from '../lib/format.ts'
 import { toolColor } from '../lib/mcp.ts'
+import { fmtTokens } from '../lib/tokens.ts'
 import type { Format } from '../lib/tree.ts'
 import { RecordViewer } from './RecordViewer.tsx'
 
@@ -14,6 +15,12 @@ interface Props {
   format: Format
   requery: () => Promise<void>
 }
+
+const Tokens = ({ n }: { n: number | undefined }) => (
+  <td className="num" title={n == null ? undefined : String(n)}>
+    {n == null ? '—' : fmtTokens(n)}
+  </td>
+)
 
 export const EventRow = memo(function EventRow({ r, gens, format, requery }: Props) {
   const [open, setOpen] = useState(false)
@@ -77,10 +84,13 @@ export const EventRow = memo(function EventRow({ r, gens, format, requery }: Pro
           )}
         </td>
         <td className="num">{r.dur == null ? '—' : `${r.dur} ms`}</td>
+        <Tokens n={r.out} />
+        <Tokens n={r.res} />
+        <Tokens n={r.out == null ? undefined : r.out + (r.res ?? 0)} />
         <td className="num">{short(r.sess)}</td>
       </tr>
       <tr hidden={!open}>
-        <td colSpan={6}>{detail && ('rec' in detail ? <RecordViewer rec={detail.rec} format={shownFmt} /> : <pre>{detail.text}</pre>)}</td>
+        <td colSpan={9}>{detail && ('rec' in detail ? <RecordViewer rec={detail.rec} format={shownFmt} /> : <pre>{detail.text}</pre>)}</td>
       </tr>
     </>
   )

@@ -62,6 +62,7 @@ export interface IndexEntry {
   // On a call row: the seqs of the Pre and Post entries it stands for.
   virtual: { pre: number; post: number } | null
   // Output tokens of the reply behind a call or Stop row, and the context its result added; set by a `tok` entry.
+  // On a `tok` entry: the numbers its row had before this entry, so a stream can tell a row it already sent.
   out: number | null
   res: number | null
   // A `tok` entry: it has a seq but is no row, so it sits in `entries` only, never in `order`, the sets or a result.
@@ -265,6 +266,7 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
       } else if (rec.k === 'tok') {
         const at = ('tuid' in rec ? callSeq.get(rec.tuid) : stopSeq.get(rec.woff)) ?? null
         const target = at === null ? undefined : ix.entries[at]
+        const before = { out: target?.out ?? null, res: target?.res ?? null }
         if (target) {
           target.out = rec.out
           target.res = 'res' in rec ? (rec.res ?? null) : null
@@ -285,8 +287,8 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
           mcp: null,
           err: false,
           virtual: null,
-          out: null,
-          res: null,
+          out: before.out,
+          res: before.res,
           hidden: true,
           target: target ? at : null,
         })
@@ -614,6 +616,7 @@ const pageOf = (ixs: WalIndex[], s: Scan, unknown: string[], pipe: Record<string
     cats: CATEGORIES.filter((c) => ixs.some((ix) => ix.cats.has(c))),
     agents,
     sessions: live.map((ix) => ix.id),
+    recorded: Object.fromEntries(ixs.map((ix) => [ix.id, ix.order.length])),
     pipe,
   }
 }

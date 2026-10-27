@@ -57,6 +57,14 @@ export interface StaleFrame {
   reason: string
 }
 
+// One patch of an `event: tokens` frame on /events-stream.
+export type TokensFrame = Pick<Row, 'sess' | 'seq' | 'out' | 'res'>
+
+// The data of an `event: recorded` frame on /events-stream: per picked session, its count of indexed rows, `tok`
+// entries excluded. It follows a rows frame (and precedes a tokens frame) in a tick where a picked session's position
+// advanced, and has no `id:` line.
+export type RecordedFrame = Record<string, number>
+
 // A row is identified by its session and its line number in that session's target (`seq`).
 export interface Row {
   sess: string
@@ -124,6 +132,8 @@ export interface FirstPage extends Page {
   agents: SessionAgents[]
   // Picked sessions whose WAL holds any row.
   sessions: string[]
+  // Per picked session: its count of indexed rows, `tok` entries excluded (`head` counts them).
+  recorded: RecordedFrame
   // One per picked session that discovery found.
   pipe: Record<string, Pipe>
 }

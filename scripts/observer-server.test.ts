@@ -6,7 +6,8 @@
 // Then the lock per target dir: a rebuild that would lose a WAL's events, a source added after the start, and a server
 // started before any projects dir exists. Then torn last lines still count as built, and a dir whose lock cannot be
 // taken is logged once. Last, a purge leaves a target in a dir another server holds and the owner removes it later, a
-// trashed session keeps its target, an unreadable projects dir keeps every target, and a failed append is not built.
+// trashed session keeps its target, an unreadable projects dir, slug dir or trash dir keeps every target, and a failed
+// append is not built.
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
@@ -403,6 +404,58 @@ test('an unreadable projects dir does not make the owner remove a live target', 
     assert.ok(existsSync(target), 'the target stays while discovery cannot read the projects dir')
   } finally {
     chmodSync(projects, 0o755)
+    owner.server.kill()
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('an unreadable slug dir does not make the owner remove a live target', {
+  skip: process.getuid?.() === 0 ? 'root ignores chmod 000' : false,
+}, async () => {
+  const home = mkdtempSync(join(tmpdir(), 'walobsslug.'))
+  const p = join(home, '.claude', 'projects', '-tmp-slug')
+  mkdirSync(p, { recursive: true })
+  const G1 = sid(82)
+  writeFileSync(join(p, `${G1}.jsonl`), userLine('g1-u1'))
+  writeFileSync(join(p, `${G1}.wal.jsonl`), wal('SessionStart'))
+  const target = join(home, '.claude', 'wal-viewer', `${G1}.jsonl`)
+  const owner = await startServer([], { HOME: home })
+  try {
+    await until('the target built', async () => ((await status(owner.base)).built === 1 ? true : null))
+    chmodSync(p, 0o000)
+    await sleep(2500)
+    assert.ok(existsSync(target), 'the target stays while discovery cannot read the slug dir')
+  } finally {
+    chmodSync(p, 0o755)
+    owner.server.kill()
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('an unreadable dir in the trash tree does not make the owner remove a trashed target', {
+  skip: process.getuid?.() === 0 ? 'root ignores chmod 000' : false,
+}, async () => {
+  const home = mkdtempSync(join(tmpdir(), 'walobstreeunread.'))
+  const p = join(home, '.claude', 'projects', '-tmp-tree')
+  mkdirSync(p, { recursive: true })
+  const T1 = sid(83)
+  writeFileSync(join(p, `${T1}.jsonl`), userLine('x1-u1'))
+  writeFileSync(join(p, `${T1}.wal.jsonl`), wal('SessionStart') + wal('SessionEnd'))
+  const target = join(home, '.claude', 'wal-viewer', `${T1}.jsonl`)
+  const owner = await startServer([], { HOME: home })
+  let unreadable: string | null = null
+  try {
+    await until('the target built', async () => ((await status(owner.base)).built === 1 ? true : null))
+    assert.deepEqual(JSON.parse((await post(owner.base, '/trash', { ids: [T1] })).text), { results: [{ id: T1, status: 'ok' }] })
+    const { entries } = (await (await fetch(`${owner.base}/trash`)).json()) as { entries: { date: string; slug: string; id: string }[] }
+    const e = entries.find((x) => x.id === T1)
+    assert.ok(e, 'the session is in the trash listing')
+    unreadable = join(home, '.claude', 'wal-trash', e.date, e.slug)
+    chmodSync(unreadable, 0o000)
+    await sleep(2500)
+    assert.ok(existsSync(target), 'the target stays while the trash tree cannot be read')
+  } finally {
+    if (unreadable !== null) chmodSync(unreadable, 0o755)
     owner.server.kill()
     rmSync(home, { recursive: true, force: true })
   }

@@ -8,6 +8,7 @@ export function ConfirmDialog({
   confirmLabel,
   items,
   requireYes = false,
+  countLabel = 'to delete',
   onConfirm,
   onCancel,
 }: {
@@ -15,6 +16,7 @@ export function ConfirmDialog({
   confirmLabel: string
   items: readonly ConfirmItem[]
   requireYes?: boolean
+  countLabel?: string
   onConfirm: () => void
   onCancel: () => void
 }) {
@@ -53,7 +55,8 @@ export function ConfirmDialog({
       >
         <h2 id="confirm-title">{title}</h2>
         <p className="confirm-n">
-          {items.length - skipped} to delete{skipped ? `, ${skipped} skipped` : ''}
+          {items.length - skipped} {countLabel}
+          {skipped ? `, ${skipped} skipped` : ''}
         </p>
         <ul className="confirm-list">
           {items.map((i, idx) => (

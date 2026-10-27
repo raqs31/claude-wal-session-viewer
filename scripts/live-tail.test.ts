@@ -10,7 +10,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSy
 import { get, type IncomingMessage } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { FirstPage, Row, WalRecord } from '../shared/api.ts'
+import type { FirstPage, RecordedFrame, Row, TokensFrame, WalRecord } from '../shared/api.ts'
 import { startServer } from './test-server.ts'
 
 const dir = mkdtempSync(join(tmpdir(), 'waltail.'))
@@ -85,14 +85,17 @@ interface Stream {
   lastId: string | null
   unknown: string[] | null
   // The patches of every `tokens` frame, in order, and how many of those frames carried an `id:` line.
-  tokens: Pick<Row, 'sess' | 'seq' | 'out' | 'res'>[]
+  tokens: TokensFrame[]
   tokenIds: number
+  // The data of the last `recorded` frame, and how many such frames came.
+  recorded: RecordedFrame | null
+  recordedFrames: number
   res?: IncomingMessage
 }
 const streams: Stream[] = []
 const open = (qs: string, headers: Record<string, string> = {}): Promise<Stream> =>
   new Promise((resolve, reject) => {
-    const s: Stream = { rows: [], resets: 0, stale: [], frames: 0, lastId: null, unknown: null, tokens: [], tokenIds: 0 }
+    const s: Stream = { rows: [], resets: 0, stale: [], frames: 0, lastId: null, unknown: null, tokens: [], tokenIds: 0, recorded: null, recordedFrames: 0 }
     const req = get(`${BASE}/events-stream?${qs}`, { headers }, (res) => {
       s.res = res
       let pending = ''
@@ -110,8 +113,11 @@ const open = (qs: string, headers: Record<string, string> = {}): Promise<Stream>
           else if (f.event === 'stale') s.stale.push(must(f.data, 'stale event data'))
           else if (f.event === 'unknown') s.unknown = JSON.parse(must(f.data, 'unknown event data')) as string[]
           else if (f.event === 'tokens') {
-            s.tokens.push(...(JSON.parse(must(f.data, 'tokens event data')) as Stream['tokens']))
+            s.tokens.push(...(JSON.parse(must(f.data, 'tokens event data')) as TokensFrame[]))
             if (f.id !== undefined) s.tokenIds++
+          } else if (f.event === 'recorded') {
+            s.recorded = JSON.parse(must(f.data, 'recorded event data')) as RecordedFrame
+            s.recordedFrames++
           } else if (f.data) {
             s.rows.push(...(JSON.parse(f.data) as Row[]))
             s.lastId = f.id ?? null
@@ -159,6 +165,7 @@ try {
   check('rows of both files are intact', (await record(first, s.rows[1])).event === 'UserPromptSubmit' && (await record(first, s.rows[4])).duration_ms === 4)
   check('frame id advances both positions', s.lastId === `${L1}:4,${L2}:3`, `id ${s.lastId}`)
   check('/events head agrees with the stream', (await events()).head === s.lastId)
+  check('the last recorded frame holds the visible row count per session', same(s.recorded, { [L1]: 4, [L2]: 3 }), JSON.stringify(s.recorded))
 
   // A record caught mid-write must not arrive split in two.
   const half = rec({ event: 'PostToolUse', tool_name: 'Read', duration_ms: 42 })
@@ -438,6 +445,50 @@ try {
     JSON.stringify([call2, plain.tokens]),
   )
   check('with min_tok, a row whose numbers do not match never arrives', held(big) === `${call1?.seq}:Tool call:100:200`, held(big))
+
+  // A second tok for the same call, written into the target by hand: the observer writes one tok per call.
+  const targetOf = (id: string): string => join(dir, '.claude', 'wal-viewer', `${id}.jsonl`)
+  const tok2 = (id: string, tuid: string, out: number, res: number): void => appendFileSync(targetOf(id), `${JSON.stringify({ k: 'tok', tuid, out, res })}\n`)
+  const call1Rows = big.rows.length
+  const visible = { [tk.id]: (await events(tkq)).rows.length }
+  const recordedBefore = big.recordedFrames
+  tok2(tk.id, 'toolu_t1', 120, 200)
+  await wait(700)
+  check(
+    'a tick with only a tok line keeps the recorded count',
+    big.recordedFrames === recordedBefore + 1 && same(big.recorded, visible),
+    JSON.stringify([big.recordedFrames - recordedBefore, big.recorded, visible]),
+  )
+  check(
+    'with min_tok, a row the stream sent with numbers is not sent again on a second tok',
+    big.rows.length === call1Rows && big.tokens.at(-1)?.out === 120,
+    JSON.stringify([big.rows, big.tokens]),
+  )
+
+  // The row came in the first page with the numbers of its first tok, which match min_tok.
+  const pg = session(rec({ event: 'SessionStart' }), tpre('toolu_p1', 'Read'), tpost('toolu_p1', 'Read'))
+  writeFileSync(
+    join(proj, `${pg.id}.jsonl`),
+    line({ type: 'user', uuid: 'pu0', message: { role: 'user', content: 'go' } }) +
+      reply(1, 1000, 100, use('toolu_p1', 'Read')) +
+      result(1, 'toolu_p1') +
+      reply(2, 1300, 10, [{ type: 'text', text: 'done' }]),
+  )
+  const pgq = `ids=${pg.id}&min_tok=250`
+  const pgPage = await until(async () => {
+    const page = await events(pgq)
+    if (page.rows.length === 0) throw new Error('no tokens yet')
+    return page
+  })
+  const pgStream = await open(after(pgPage, pgq))
+  await wait(400)
+  tok2(pg.id, 'toolu_p1', 150, 200)
+  await wait(700)
+  check(
+    'with min_tok, a row from the first page is not sent again on a second tok',
+    pgPage.rows.length === 1 && pgStream.rows.length === 0 && same(pgStream.tokens, [{ sess: pg.id, seq: pgPage.rows[0]?.seq, out: 150, res: 200 }]),
+    JSON.stringify([pgPage.rows, pgStream.rows, pgStream.tokens]),
+  )
 
   const sorted = await fetch(`${BASE}/events-stream?${tkq}&sort=tokens`)
   check('a sort=tokens stream gets 400', sorted.status === 400, `status ${sorted.status}`)

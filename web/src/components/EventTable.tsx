@@ -100,6 +100,9 @@ export function EventTable({ rows, pending, view, follow, ready, next, pages, ch
             <th style={{ width: '230px' }}>Event</th>
             <th style={{ width: '150px' }}>Tool</th>
             <th style={{ width: '90px' }}>Duration</th>
+            <th style={{ width: '80px' }}>Output</th>
+            <th style={{ width: '80px' }}>Result</th>
+            <th style={{ width: '80px' }}>Total</th>
             <th>Session</th>
           </tr>
         </thead>
