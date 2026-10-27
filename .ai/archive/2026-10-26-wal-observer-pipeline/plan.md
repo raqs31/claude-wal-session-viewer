@@ -867,33 +867,33 @@ the page shows partial rows with progress. No source file changes. Deleting `<co
 
 #### Automated
 
-- [ ] 1.1 Target tests pass: `node --test scripts/target.test.ts`
-- [ ] 1.2 Type check passes: `npm run check`
-- [ ] 1.3 Lint passes: `npm run lint`
+- [x] 1.1 Target tests pass: `node --test scripts/target.test.ts` — 516b183 · verified
+- [x] 1.2 Type check passes: `npm run check` — 516b183 · verified
+- [x] 1.3 Lint passes: `npm run lint` — 516b183 · verified
 
 ### Phase 2: Observer — WAL to target
 
 #### Automated
 
-- [ ] 2.1 Observer tests pass: `node --test scripts/observer.test.ts`
-- [ ] 2.2 Type check passes: `npm run check`
-- [ ] 2.3 Lint passes: `npm run lint`
+- [x] 2.1 Observer tests pass: `node --test scripts/observer.test.ts` — bafbfc1 · verified
+- [x] 2.2 Type check passes: `npm run check` — bafbfc1 · verified
+- [x] 2.3 Lint passes: `npm run lint` — bafbfc1 · verified
 
 ### Phase 3: Observer — transcripts to target
 
 #### Automated
 
-- [ ] 3.1 Golden test passes: `node --test scripts/session-view.test.ts`
-- [ ] 3.2 Observer tests still pass: `node --test scripts/observer.test.ts`
-- [ ] 3.3 Type check and lint pass: `npm run check && npm run lint`
+- [x] 3.1 Golden test passes: `node --test scripts/session-view.test.ts` — d8689e0 · verified
+- [x] 3.2 Observer tests still pass: `node --test scripts/observer.test.ts` — d8689e0 · verified
+- [x] 3.3 Type check and lint pass: `npm run check && npm run lint` — d8689e0 · verified
 
 ### Phase 4: Readers switch to targets
 
 #### Automated
 
-- [ ] 4.1 All tests pass: `npm test`
-- [ ] 4.2 Type check and lint pass: `npm run check && npm run lint`
-- [ ] 4.3 No raw WAL or transcript read remains outside `observer.ts`, `discovery.ts`, `trash.ts` and `legacy.ts`
+- [x] 4.1 All tests pass: `npm test` — 90f90bd · verified
+- [x] 4.2 Type check and lint pass: `npm run check && npm run lint` — 90f90bd · verified
+- [x] 4.3 No raw WAL or transcript read remains outside `observer.ts`, `discovery.ts`, `trash.ts` and `legacy.ts` — 90f90bd · verified
 
 #### Manual
 
@@ -903,17 +903,17 @@ the page shows partial rows with progress. No source file changes. Deleting `<co
 
 #### Automated
 
-- [ ] 5.1 Server observer tests pass: `node --test scripts/observer-server.test.ts`
-- [ ] 5.2 All tests pass: `npm test`
-- [ ] 5.3 Type check and lint pass: `npm run check && npm run lint`
+- [x] 5.1 Server observer tests pass: `node --test scripts/observer-server.test.ts` — 5e1900b · verified
+- [x] 5.2 All tests pass: `npm test` — 5e1900b · verified
+- [x] 5.3 Type check and lint pass: `npm run check && npm run lint` — 5e1900b · verified
 
 ### Phase 6: Token join
 
 #### Automated
 
-- [ ] 6.1 Token tests pass: `node --test scripts/tokens.test.ts`
-- [ ] 6.2 All tests pass: `npm test`
-- [ ] 6.3 Type check and lint pass: `npm run check && npm run lint`
+- [x] 6.1 Token tests pass: `node --test scripts/tokens.test.ts` — 083ea1e · verified
+- [x] 6.2 All tests pass: `npm test` — 083ea1e · verified
+- [x] 6.3 Type check and lint pass: `npm run check && npm run lint` — 083ea1e · verified
 
 #### Manual
 
@@ -923,18 +923,18 @@ the page shows partial rows with progress. No source file changes. Deleting `<co
 
 #### Automated
 
-- [ ] 7.1 Query and live-tail tests pass: `node --test scripts/query.test.ts scripts/live-tail.test.ts`
-- [ ] 7.2 All tests pass: `npm test`
-- [ ] 7.3 Bench passes within its limits: `npm run bench`
-- [ ] 7.4 Type check and lint pass: `npm run check && npm run lint`
+- [x] 7.1 Query and live-tail tests pass: `node --test scripts/query.test.ts scripts/live-tail.test.ts` — d56004e · verified
+- [x] 7.2 All tests pass: `npm test` — d56004e · verified
+- [x] 7.3 Bench passes within its limits: `npm run bench` — d56004e · verified
+- [x] 7.4 Type check and lint pass: `npm run check && npm run lint` — d56004e · verified
 
 ### Phase 8: Web — columns, filter, Order, pipeline UI, README
 
 #### Automated
 
-- [ ] 8.1 All tests pass: `npm test`
-- [ ] 8.2 Type check and lint pass: `npm run check && npm run lint`
-- [ ] 8.3 Build passes: `npm run build`
+- [x] 8.1 All tests pass: `npm test` — dee6327 · verified
+- [x] 8.2 Type check and lint pass: `npm run check && npm run lint` — dee6327 · verified
+- [x] 8.3 Build passes: `npm run build` — dee6327 · verified
 
 #### Manual
 
