@@ -1,7 +1,18 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { SessionMeta } from '../../../shared/api.ts'
-import { chipValues, filterRows, groupByProject, pinPicked, type SidebarFilter, sidebarSummary } from './sidebar.ts'
+import {
+  ANY,
+  chipValues,
+  defaultFilter,
+  filterRows,
+  groupByProject,
+  inDates,
+  type SidebarFilter,
+  sidebarSummary,
+  startOfToday,
+  toLocalInput,
+} from './sidebar.ts'
 
 const row = (id: string, o: Partial<SessionMeta> = {}): SessionMeta => ({
   id,
@@ -20,7 +31,7 @@ const row = (id: string, o: Partial<SessionMeta> = {}): SessionMeta => ({
   transcriptSize: 0,
   ...o,
 })
-const NONE: SidebarFilter = { chips: new Set(), not: false, project: '', text: '' }
+const NONE: SidebarFilter = { chips: new Set(), not: false, project: '', text: '', created: ANY, last: ANY }
 const ids = (rs: readonly SessionMeta[]) => rs.map((r) => r.id)
 
 const rows = [
@@ -59,9 +70,9 @@ test('text matches every word, case-insensitive, across title, id, project and w
 })
 
 test('chip AND project AND text all apply', () => {
-  assert.deepEqual(ids(filterRows(rows, { chips: new Set(['default']), not: false, project: 'p', text: 'login' })), ['a', 'c'])
-  assert.deepEqual(ids(filterRows(rows, { chips: new Set(['default']), not: false, project: 'p', text: 'page' })), ['c'])
-  assert.deepEqual(ids(filterRows(rows, { chips: new Set(['work']), not: false, project: 'p', text: '' })), [])
+  assert.deepEqual(ids(filterRows(rows, { ...NONE, chips: new Set(['default']), not: false, project: 'p', text: 'login' })), ['a', 'c'])
+  assert.deepEqual(ids(filterRows(rows, { ...NONE, chips: new Set(['default']), not: false, project: 'p', text: 'page' })), ['c'])
+  assert.deepEqual(ids(filterRows(rows, { ...NONE, chips: new Set(['work']), not: false, project: 'p', text: '' })), [])
 })
 
 test('chip values are the sorted union of sources and workspaces', () => {
@@ -103,7 +114,11 @@ test('a tie keeps list order; a worktree-only group takes the worktree cwd; no c
 
 test('summary lists only active sidebar filters', () => {
   assert.deepEqual(sidebarSummary(NONE, ''), [])
-  assert.deepEqual(sidebarSummary({ chips: new Set(['priv']), not: false, project: 'p', text: ' bug ' }, 'unix_conf'), ['priv', 'project: unix_conf', 'q: bug'])
+  assert.deepEqual(sidebarSummary({ ...NONE, chips: new Set(['priv']), not: false, project: 'p', text: ' bug ' }, 'unix_conf'), [
+    'priv',
+    'project: unix_conf',
+    'q: bug',
+  ])
   assert.deepEqual(sidebarSummary({ ...NONE, chips: new Set(['a', 'b', 'c']) }, ''), ['chips: 3'])
 })
 
@@ -145,10 +160,39 @@ test('an id unknown to the frozen lastOf sinks to the bottom of its group', () =
   )
 })
 
-test('pinPicked returns picked rows in pick order, skips missing ids, keeps the rest in input order', () => {
-  const rs = [row('a'), row('b'), row('c'), row('d')]
-  const { picked, rest } = pinPicked(rs, ['d', 'gone', 'b'])
-  assert.deepEqual(ids(picked), ['d', 'b'])
-  assert.deepEqual(ids(rest), ['a', 'c'])
-  assert.deepEqual(pinPicked(rs, []), { picked: [], rest: rs })
+test('the last-message range keeps rows whose last write lies within it, bounds inclusive', () => {
+  const rs = [row('a', { last: 10 }), row('b', { last: 20 }), row('c', { last: 30 })]
+  assert.deepEqual(ids(filterRows(rs, { ...NONE, last: { from: 20, to: null } })), ['b', 'c'])
+  assert.deepEqual(ids(filterRows(rs, { ...NONE, last: { from: null, to: 20 } })), ['a', 'b'])
+  assert.deepEqual(ids(filterRows(rs, { ...NONE, last: { from: 20, to: 20 } })), ['b'])
+})
+
+test('the created range reads started, falling back to the last write when the start is unknown', () => {
+  const rs = [row('a', { started: 5, last: 50 }), row('b', { started: null, last: 15 }), row('c', { started: 25, last: 30 })]
+  assert.deepEqual(ids(filterRows(rs, { ...NONE, created: { from: 10, to: 20 } })), ['b'])
+  assert.equal(inDates(row('d', { started: 5, last: 50 }), { created: { from: null, to: 5 }, last: { from: 50, to: null } }), true)
+})
+
+test('startOfToday is local midnight of the given time', () => {
+  const t = new Date(2026, 9, 27, 13, 58, 20).getTime()
+  assert.equal(startOfToday(t), new Date(2026, 9, 27).getTime())
+})
+
+test('toLocalInput writes the local minute a datetime-local input reads back', () => {
+  const t = new Date(2026, 0, 2, 3, 4).getTime()
+  assert.equal(toLocalInput(t), '2026-01-02T03:04')
+  assert.equal(new Date(toLocalInput(t)).getTime(), t)
+})
+
+test('the summary lists set date bounds', () => {
+  const a = new Date(2026, 9, 27).getTime()
+  const b = new Date(2026, 9, 28, 9, 30).getTime()
+  assert.deepEqual(sidebarSummary({ ...NONE, last: { from: a, to: null } }, ''), ['last ≥ 2026-10-27 00:00'])
+  assert.deepEqual(sidebarSummary({ ...NONE, created: { from: a, to: b } }, ''), ['created: 2026-10-27 00:00 – 2026-10-28 09:30'])
+  assert.deepEqual(sidebarSummary({ ...NONE, created: { from: null, to: b } }, ''), ['created ≤ 2026-10-28 09:30'])
+})
+
+test('defaultFilter lists the sessions last touched since local midnight, nothing else set', () => {
+  const t = new Date(2026, 9, 27, 13, 58).getTime()
+  assert.deepEqual(defaultFilter(t), { ...NONE, last: { from: new Date(2026, 9, 27).getTime(), to: null } })
 })

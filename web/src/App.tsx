@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { EventsTab } from './components/EventsTab.tsx'
 import { LegacyBanner } from './components/LegacyBanner.tsx'
 import { SessionsTab } from './components/SessionsTab.tsx'
@@ -6,6 +6,7 @@ import { Sidebar } from './components/Sidebar.tsx'
 import { TrashTab } from './components/TrashTab.tsx'
 import { UsageTiles } from './components/UsageTiles.tsx'
 import { EMPTY_FILTERS, type Filters } from './lib/params.ts'
+import { defaultFilter, filterRows, inDates, type SidebarFilter } from './lib/sidebar.ts'
 import { FORMATS } from './lib/tree.ts'
 import { type Order, VIEWS } from './useEvents.ts'
 import { useObserver } from './useObserver.ts'
@@ -42,16 +43,27 @@ export function App() {
     },
     [setTab],
   )
+  // Not stored: every load starts at the defaults.
+  const [sbFilter, setSbFilter] = useState<SidebarFilter>(() => defaultFilter())
   const list = useSessions()
+  const listed = useMemo(() => filterRows(list.sessions, sbFilter), [list.sessions, sbFilter])
   const observer = useObserver()
   const obs = observer.status
   // Bumped by a sidebar move so an open Trash tab refetches; the tab stays mounted, keeping its note and selection.
   const [trashGen, setTrashGen] = useState(0)
   const rows = list.ready ? list.sessions : null
-  const { pick, toggle, clear, forget, drop } = usePick(rows, list.listedAt)
+  const { pick, toggle, clear, forget, drop, unpick } = usePick(rows, list.listedAt)
+  useEffect(() => {
+    if (pick === null) return
+    const out = list.sessions.filter((s) => pick.includes(s.id) && !inDates(s, sbFilter)).map((s) => s.id)
+    if (out.length) unpick(out)
+  }, [pick, list.sessions, sbFilter, unpick])
   const unseen = useUnseen(rows, pick ?? NONE)
   // null until the first list lands and the newest session is preselected, so no hook queries all sessions on startup.
   const ids = pick
+  // An empty pick shows the listed sessions on Events; all of them listed goes as [] (the server's all sessions).
+  const listedIds = useMemo(() => (listed.length === list.sessions.length ? NONE : listed.map((r) => r.id)), [listed, list.sessions])
+  const nothingListed = listed.length === 0 && list.sessions.length > 0
   const usage = useUsage(ids)
   useEffect(() => forget(usage.unknown), [usage.unknown, forget])
   const head = useRef<HTMLElement>(null)
@@ -69,6 +81,9 @@ export function App() {
     <div className="viz-root" data-pin={pin} data-fpin={events ? fpin : undefined}>
       <Sidebar
         sessions={list.sessions}
+        rows={listed}
+        filter={sbFilter}
+        setFilter={setSbFilter}
         ready={list.ready}
         error={list.error}
         root={list.root}
@@ -120,6 +135,8 @@ export function App() {
           <TrashTab refreshSessions={list.refresh} gen={trashGen} />
         ) : pick === null ? (
           <div className="empty">Loading sessions…</div>
+        ) : tab === 'events' && pick.length === 0 && nothingListed ? (
+          <div className="empty">No session matches the sidebar filters.</div>
         ) : tab === 'events' ? (
           <EventsTab
             filters={filters}
@@ -133,7 +150,7 @@ export function App() {
             order={order}
             setOrder={setOrder}
             observer={observer}
-            ids={ids}
+            ids={pick.length ? pick : listedIds}
             onUnknown={forget}
             sessions={list.sessions}
             usage={usage.usage}

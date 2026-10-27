@@ -24,7 +24,7 @@
   background: var(--plane);
   color: var(--text-primary);
   min-height: 100vh;
-  --sb-w: 300px;
+  --sb-w: 420px;
   --fp-w: 320px;
 }
 @media (prefers-color-scheme: dark) {
@@ -936,6 +936,7 @@ table.trash-t td.name {
 }
 .sb-n {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -962,6 +963,45 @@ table.trash-t td.name {
 .sb-fs[hidden] {
   display: none;
 }
+.sb-fh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sb-dates {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.sb-dates > div {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sb-dates .sb-d {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.sb-dates input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 11px;
+}
+.sb-dates button {
+  flex: none;
+  padding: 0 4px;
+  line-height: 1;
+}
 button.fold {
   max-width: 100%;
   text-align: left;
@@ -971,6 +1011,9 @@ button.fold {
 }
 .sb-f button.fold {
   align-self: flex-start;
+}
+.sb-fh button.fold {
+  min-width: 0;
 }
 .sb-g h2 {
   margin: 0;
@@ -1030,9 +1073,6 @@ button.fold {
   border-color: var(--cat-tool);
   color: #fff;
 }
-.sb-pk {
-  padding: 0 12px 8px;
-}
 button.ghost.sb-del {
   flex: none;
   padding: 3px 9px;
@@ -1091,15 +1131,22 @@ button.ghost.sb-del {
 .sb-b .m .num {
   margin-left: auto;
 }
-.chip.pk {
-  gap: 6px;
-  max-width: 100%;
+[data-density="compact"] .sb-row {
+  padding: 3px 12px;
 }
-.chip.pk .n {
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+[data-density="compact"] .sb-b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+[data-density="compact"] .sb-b .t {
+  flex: 1;
+  min-width: 0;
+}
+[data-density="compact"] .sb-b .m {
+  flex: none;
+  flex-wrap: nowrap;
+  margin-top: 0;
 }
 .badge.ws {
   color: var(--cat-mcp);

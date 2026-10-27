@@ -138,26 +138,34 @@ builds every target again.
   events not yet seen. A session is named by its latest `/rename` (the transcript's `custom-title`),
   else Claude Code's latest auto title (`ai-title`), else its cleaned first user message (a session
   started by a slash command or skill reads `⚡ /name args`); the same name shows in the sidebar, the
-  × chips, the Sessions tab and the agent filter. Hovering or focusing a row shows a bubble with the
+  Sessions tab and the agent filter. Hovering or focusing a row shows a bubble with the
   whole first user message, cleaned the same way (system reminders and command output dropped, other
   tags stripped; newlines kept, scrollable), or none when no first message is stored; Escape or
   moving away hides it. Names and titles come from the transcript's first 1 MB (up to the first
   prompt) and its last 256 KB, so a rename seen in neither shows the auto title instead; the first
-  message is cut at 8192 characters. Filter by source or workspace chip, project or text. The chips
-  have All, None and Not like the Events filters: Not hides the sessions whose source or any
+  message is cut at 8192 characters. Filter by source or workspace chip, project, text, **Created**
+  (the first transcript entry, else the last write) and **Last message** (the last write); each date
+  filter is a from/to pair, both ends inclusive and either left empty for no bound; a set
+  end has a × that clears it. Every page load
+  starts at Last message from today 00:00, local time, and **Clear filters** (beside Filters) goes
+  back to that; the filters are not stored. The chips have
+  All, None and Not like the Events filters: Not hides the sessions whose source or any
   workspace is ticked, and the collapsed summary shows it as `≠ default, work`. Click a session row
-  to pick or unpick it; picked sessions are pinned on top under Selected and listed as chips with a
-  × each, plus Clear all. The pick is kept in the browser (`localStorage` key `wal.pick`), so a
+  to pick or unpick it; picked sessions stay in their project group, highlighted. While any is picked,
+  the count line has Clear all, which unpicks them all. The pick is kept in the browser (`localStorage` key `wal.pick`), so a
   refresh restores it and every open tab follows a pick made in another; only picking, unpicking,
   Clear all and a move to the trash store it. With nothing stored, the page opens with the most
-  recently active session picked; a stored empty pick restores as all sessions. When none of the
+  recently active session picked; a stored empty pick restores as all listed sessions. When none of the
   picked sessions is listed any more, the most recently active one is shown instead (not all
-  sessions) until the pick changes. **Delete picked** (beside Clear all) and **Delete N filtered**
+  sessions) until the pick changes. **Delete picked** (on the count line) and **Delete N filtered**
   (on the count line; N is the number of sessions the filters match) move those sessions to the
   [trash](#trash) after a dialog that lists them; busy ones are listed as skipped (`live` or `not
   ended`) and stay. The result shows as one line under the count (`2 moved · 1 live skipped`), and
-  moved sessions leave the pick; when that empties it, the most recently active session is shown. An
-  empty pick means all sessions on the Events tab. The arrow in its top corner pins or unpins it:
+  moved sessions leave the pick; when that empties it, the most recently active session is shown. A
+  picked session the date filters leave out is unpicked for good: widening them does not pick it
+  again. An empty pick means the listed sessions on the Events tab. **Compact** (beside the tabs)
+  puts each session on one line; it starts on and is kept in the browser (`localStorage` key
+  `wal.density`). The arrow in the sidebar's top corner pins or unpins it:
   pinned, it stays shown; unpinned, it hides and slides in when the pointer reaches the left edge.
 -  **Usage tiles**: token and cost totals for the picked sessions, updated live. On Events they top
   the sticky head under the header; on Sessions they sit under the header and scroll away; Trash has

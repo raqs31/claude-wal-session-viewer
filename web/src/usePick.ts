@@ -75,6 +75,8 @@ export function usePick(sessions: readonly SessionMeta[] | null, listedAt: numbe
   }, [])
   const clear = useCallback(() => save([]), [save])
   const toggle = useCallback((id: string) => save(flip(shownRef.current ?? [], id)), [save])
+  // For picked sessions the sidebar's date filters exclude: removed for good, unlike a pick pruned while unlisted.
+  const unpick = useCallback((ids: readonly string[]) => save((shownRef.current ?? []).filter((id) => !ids.includes(id))), [save])
   // After a trash. Nothing stored stays nothing stored: the newest listed session is shown either way.
   const drop = useCallback(
     (ids: readonly string[]) => {
@@ -96,7 +98,7 @@ export function usePick(sessions: readonly SessionMeta[] | null, listedAt: numbe
     [save, adopt, forget],
   )
 
-  return { pick, toggle, clear, forget, drop }
+  return { pick, toggle, clear, forget, drop, unpick }
 }
 
 const visible = () => document.visibilityState === 'visible'
