@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { version } from '../../package.json'
 import { EventsTab } from './components/EventsTab.tsx'
 import { LegacyBanner } from './components/LegacyBanner.tsx'
 import { SessionsTab } from './components/SessionsTab.tsx'
@@ -124,6 +125,7 @@ export function App() {
               </span>
             )
           )}
+          <span className="version">v{version}</span>
           <button className="ghost" id="theme" type="button" onClick={toggleTheme}>
             Toggle theme
           </button>
