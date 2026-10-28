@@ -58,7 +58,7 @@ export interface StaleFrame {
 }
 
 // One patch of an `event: tokens` frame on /events-stream.
-export type TokensFrame = Pick<Row, 'sess' | 'seq' | 'out' | 'res'>
+export type TokensFrame = Pick<Row, 'sess' | 'seq' | 'out' | 'res' | 'inp'>
 
 // The data of an `event: recorded` frame on /events-stream: per picked session, its count of indexed rows, `tok`
 // entries excluded. It follows a rows frame (and precedes a tokens frame) in a tick where a picked session's position
@@ -82,6 +82,8 @@ export interface Row {
   // result added to the next request. Each is absent until the observer has joined it.
   out?: number
   res?: number
+  // The fresh input tokens of the reply behind the row, split like `out`.
+  inp?: number
 }
 
 // `head` is a position vector `<sess>:<n>,…` (rows indexed per picked session), passed back to

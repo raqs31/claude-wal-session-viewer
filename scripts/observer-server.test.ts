@@ -77,8 +77,17 @@ const evCount = (id: string, file = targetOf(id)): number =>
 const post = (at: string, path: string, body: unknown, headers: Record<string, string> = {}): Promise<{ status: number; text: string }> => {
   const { host, port } = new URL(at)
   return new Promise((resolve, reject) => {
+    // No keep-alive: the spawnSync tests block the event loop past the server's 5 s keepAliveTimeout, so a pooled
+    // socket's FIN goes unseen and the next POST is written to a closed socket (ECONNRESET).
     const req = request(
-      { host: '127.0.0.1', port, method: 'POST', path, headers: { host, origin: `http://${host}`, 'content-type': 'application/json', ...headers } },
+      {
+        host: '127.0.0.1',
+        port,
+        method: 'POST',
+        path,
+        agent: false,
+        headers: { host, origin: `http://${host}`, 'content-type': 'application/json', ...headers },
+      },
       (res: IncomingMessage) => {
         let text = ''
         res.setEncoding('utf8')

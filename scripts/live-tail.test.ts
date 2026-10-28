@@ -409,7 +409,7 @@ try {
   const beforeTok = must(plain.lastId, 'last event id')
   appendFileSync(tr, reply(2, 1300, 10, use('toolu_t2', 'Bash')))
   await wait(700)
-  const patch1 = { sess: tk.id, seq: call1?.seq, out: 100, res: 200 }
+  const patch1 = { sess: tk.id, seq: call1?.seq, out: 100, res: 200, inp: 1 }
   check('a tokens frame follows once the next request lands', same(plain.tokens, [patch1]), JSON.stringify(plain.tokens))
   check(
     'tokens frames carry no id and send no row',
@@ -441,14 +441,15 @@ try {
     call2 !== undefined &&
       call2.seq !== call1?.seq &&
       call2.out === undefined &&
-      same(plain.tokens, [patch1, { sess: tk.id, seq: call2.seq, out: 10, res: 20 }]),
+      same(plain.tokens, [patch1, { sess: tk.id, seq: call2.seq, out: 10, res: 20, inp: 1 }]),
     JSON.stringify([call2, plain.tokens]),
   )
   check('with min_tok, a row whose numbers do not match never arrives', held(big) === `${call1?.seq}:Tool call:100:200`, held(big))
 
   // A second tok for the same call, written into the target by hand: the observer writes one tok per call.
   const targetOf = (id: string): string => join(dir, '.claude', 'wal-viewer', `${id}.jsonl`)
-  const tok2 = (id: string, tuid: string, out: number, res: number): void => appendFileSync(targetOf(id), `${JSON.stringify({ k: 'tok', tuid, out, res })}\n`)
+  const tok2 = (id: string, tuid: string, out: number, res: number, inp?: number): void =>
+    appendFileSync(targetOf(id), `${JSON.stringify({ k: 'tok', tuid, out, res, ...(inp === undefined ? {} : { inp }) })}\n`)
   const call1Rows = big.rows.length
   const visible = { [tk.id]: (await events(tkq)).rows.length }
   const recordedBefore = big.recordedFrames
@@ -488,6 +489,14 @@ try {
     'with min_tok, a row from the first page is not sent again on a second tok',
     pgPage.rows.length === 1 && pgStream.rows.length === 0 && same(pgStream.tokens, [{ sess: pg.id, seq: pgPage.rows[0]?.seq, out: 150, res: 200 }]),
     JSON.stringify([pgPage.rows, pgStream.rows, pgStream.tokens]),
+  )
+
+  tok2(pg.id, 'toolu_p1', 160, 200, 7)
+  await wait(700)
+  check(
+    'a tokens frame carries inp from a tok record that has one',
+    same(pgStream.tokens.at(-1), { sess: pg.id, seq: pgPage.rows[0]?.seq, out: 160, res: 200, inp: 7 }),
+    JSON.stringify(pgStream.tokens),
   )
 
   const sorted = await fetch(`${BASE}/events-stream?${tkq}&sort=tokens`)

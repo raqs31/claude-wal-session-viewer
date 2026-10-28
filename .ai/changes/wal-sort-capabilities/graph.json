@@ -1,0 +1,432 @@
+{
+  "change": "wal-sort-capabilities",
+  "statuses": {
+    "todo": {
+      "class": "open",
+      "color": "#374151",
+      "stroke": "#6b7280"
+    },
+    "in_progress": {
+      "class": "active",
+      "color": "#1e3a8a",
+      "stroke": "#3b82f6"
+    },
+    "review": {
+      "class": "active",
+      "color": "#5b21b6",
+      "stroke": "#8b5cf6"
+    },
+    "blocked": {
+      "class": "waiting",
+      "color": "#991b1b",
+      "stroke": "#ef4444"
+    },
+    "user_review": {
+      "class": "waiting",
+      "color": "#854d0e",
+      "stroke": "#f59e0b"
+    },
+    "done": {
+      "class": "closed",
+      "color": "#166534",
+      "stroke": "#22c55e"
+    },
+    "declined": {
+      "class": "closed",
+      "color": "#4b5563",
+      "stroke": "#9ca3af"
+    }
+  },
+  "tags": [
+    "interface",
+    "risk-high",
+    "security",
+    "migration",
+    "refactor",
+    "docs",
+    "tests",
+    "config",
+    "coupled"
+  ],
+  "nodes": [
+    {
+      "id": "T1",
+      "title": "inp contract: TargetRecord, Row, TokensFrame",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 1,
+      "parent": null,
+      "holder": "a9ce71af5a8e1a3d5",
+      "tags": [
+        "interface"
+      ],
+      "files": [
+        "scripts/target.ts",
+        "shared/api.ts"
+      ],
+      "path": "tickets/T1.md",
+      "updated": "2026-10-28 06:13"
+    },
+    {
+      "id": "T2",
+      "title": "Observer join computes inp for calls and Stops",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 1,
+      "parent": null,
+      "holder": "a9036877a7ecc98af",
+      "tags": [
+        "tests"
+      ],
+      "files": [
+        "scripts/observer.ts",
+        "scripts/tokens.test.ts"
+      ],
+      "path": "tickets/T2.md",
+      "updated": "2026-10-28 06:14"
+    },
+    {
+      "id": "T3",
+      "title": "Index entry, Row and tokens frames carry inp",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 1,
+      "parent": null,
+      "holder": "aec8de6fd5ebdc6aa",
+      "tags": [
+        "tests"
+      ],
+      "files": [
+        "scripts/wal-index.ts",
+        "scripts/wal-server.ts",
+        "scripts/query.test.ts",
+        "scripts/live-tail.test.ts"
+      ],
+      "path": "tickets/T3.md",
+      "updated": "2026-10-28 06:24"
+    },
+    {
+      "id": "T4",
+      "title": "Phase 1 review: input tokens end to end",
+      "kind": "review",
+      "status": "done",
+      "class": "closed",
+      "phase": 1,
+      "parent": null,
+      "holder": "ac945cf67d248607d",
+      "tags": [],
+      "files": [
+        "scripts/target.ts",
+        "shared/api.ts",
+        "scripts/observer.ts",
+        "scripts/tokens.test.ts",
+        "scripts/wal-index.ts",
+        "scripts/wal-server.ts",
+        "scripts/query.test.ts",
+        "scripts/live-tail.test.ts",
+        "scripts/observer-server.test.ts"
+      ],
+      "path": "tickets/T4.md",
+      "updated": "2026-10-28 06:26"
+    },
+    {
+      "id": "T5",
+      "title": "Generic byKey sort with direction and value cursor",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 2,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "interface",
+        "risk-high",
+        "tests"
+      ],
+      "files": [
+        "scripts/wal-index.ts",
+        "scripts/query.test.ts"
+      ],
+      "path": "tickets/T5.md",
+      "updated": "2026-10-28 05:58"
+    },
+    {
+      "id": "T6",
+      "title": "Stream rejects any sort param",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 2,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "tests"
+      ],
+      "files": [
+        "scripts/wal-server.ts",
+        "scripts/live-tail.test.ts"
+      ],
+      "path": "tickets/T6.md",
+      "updated": "2026-10-28 05:58"
+    },
+    {
+      "id": "T7",
+      "title": "Bench uses sort=tot and adds sort=dur asc",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 2,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "scripts/bench.ts"
+      ],
+      "path": "tickets/T7.md",
+      "updated": "2026-10-28 05:58"
+    },
+    {
+      "id": "T8",
+      "title": "Phase 2 review: generic sort keys",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 2,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "scripts/wal-index.ts",
+        "scripts/query.test.ts",
+        "scripts/wal-server.ts",
+        "scripts/live-tail.test.ts",
+        "scripts/bench.ts"
+      ],
+      "path": "tickets/T8.md",
+      "updated": "2026-10-28 05:59"
+    },
+    {
+      "id": "T9",
+      "title": "Web sort state rules: sort.ts",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 3,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "interface",
+        "tests"
+      ],
+      "files": [
+        "web/src/lib/sort.ts",
+        "web/src/lib/sort.test.ts"
+      ],
+      "path": "tickets/T9.md",
+      "updated": "2026-10-28 05:59"
+    },
+    {
+      "id": "T10",
+      "title": "Sortable headers, Datetime/Input/Total+In columns, remove Order",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 3,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "risk-high"
+      ],
+      "files": [
+        "web/src/App.tsx",
+        "web/src/useEvents.ts",
+        "web/src/components/EventsTab.tsx",
+        "web/src/components/EventTable.tsx",
+        "web/src/components/EventRow.tsx",
+        "web/src/lib/format.ts",
+        "web/src/styles.css"
+      ],
+      "path": "tickets/T10.md",
+      "updated": "2026-10-28 05:59"
+    },
+    {
+      "id": "T11",
+      "title": "README: header sorting, Input and Total+In",
+      "kind": "work",
+      "status": "todo",
+      "class": "open",
+      "phase": 3,
+      "parent": null,
+      "holder": null,
+      "tags": [
+        "docs"
+      ],
+      "files": [
+        "README.md"
+      ],
+      "path": "tickets/T11.md",
+      "updated": "2026-10-28 06:02"
+    },
+    {
+      "id": "T12",
+      "title": "Phase 3 review: sortable headers and columns",
+      "kind": "review",
+      "status": "todo",
+      "class": "open",
+      "phase": 3,
+      "parent": null,
+      "holder": null,
+      "tags": [],
+      "files": [
+        "web/src/lib/sort.ts",
+        "web/src/lib/sort.test.ts",
+        "web/src/App.tsx",
+        "web/src/useEvents.ts",
+        "web/src/components/EventsTab.tsx",
+        "web/src/components/EventTable.tsx",
+        "web/src/components/EventRow.tsx",
+        "web/src/lib/format.ts",
+        "web/src/styles.css",
+        "README.md"
+      ],
+      "path": "tickets/T12.md",
+      "updated": "2026-10-28 06:02"
+    },
+    {
+      "id": "T13",
+      "title": "Fix ECONNRESET in observer-server test '/rebuild keeps a WAL-built target whose WAL is gone'",
+      "kind": "work",
+      "status": "done",
+      "class": "closed",
+      "phase": 1,
+      "parent": null,
+      "holder": "a4f0a3d9431567436",
+      "tags": [
+        "tests",
+        "risk-high"
+      ],
+      "files": [
+        "scripts/observer-server.test.ts",
+        "scripts/observer.ts",
+        "scripts/wal-server.ts"
+      ],
+      "path": "tickets/T13.md",
+      "updated": "2026-10-28 06:21"
+    }
+  ],
+  "edges": [
+    {
+      "from": "T1",
+      "to": "T2",
+      "type": "depends_on"
+    },
+    {
+      "from": "T1",
+      "to": "T3",
+      "type": "depends_on"
+    },
+    {
+      "from": "T1",
+      "to": "T4",
+      "type": "depends_on"
+    },
+    {
+      "from": "T1",
+      "to": "T10",
+      "type": "depends_on"
+    },
+    {
+      "from": "T2",
+      "to": "T4",
+      "type": "depends_on"
+    },
+    {
+      "from": "T2",
+      "to": "T13",
+      "type": "depends_on"
+    },
+    {
+      "from": "T3",
+      "to": "T4",
+      "type": "depends_on"
+    },
+    {
+      "from": "T3",
+      "to": "T5",
+      "type": "depends_on"
+    },
+    {
+      "from": "T3",
+      "to": "T6",
+      "type": "depends_on"
+    },
+    {
+      "from": "T3",
+      "to": "T13",
+      "type": "depends_on"
+    },
+    {
+      "from": "T5",
+      "to": "T7",
+      "type": "depends_on"
+    },
+    {
+      "from": "T5",
+      "to": "T8",
+      "type": "depends_on"
+    },
+    {
+      "from": "T5",
+      "to": "T9",
+      "type": "depends_on"
+    },
+    {
+      "from": "T6",
+      "to": "T8",
+      "type": "depends_on"
+    },
+    {
+      "from": "T6",
+      "to": "T10",
+      "type": "depends_on"
+    },
+    {
+      "from": "T7",
+      "to": "T8",
+      "type": "depends_on"
+    },
+    {
+      "from": "T9",
+      "to": "T10",
+      "type": "depends_on"
+    },
+    {
+      "from": "T9",
+      "to": "T12",
+      "type": "depends_on"
+    },
+    {
+      "from": "T10",
+      "to": "T11",
+      "type": "depends_on"
+    },
+    {
+      "from": "T10",
+      "to": "T12",
+      "type": "depends_on"
+    },
+    {
+      "from": "T11",
+      "to": "T12",
+      "type": "depends_on"
+    },
+    {
+      "from": "T13",
+      "to": "T4",
+      "type": "depends_on"
+    }
+  ]
+}

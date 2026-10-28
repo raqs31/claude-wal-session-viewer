@@ -89,9 +89,29 @@ const woffOf = (target: string, event: string): number[] =>
 
 // Hand-made transcript lines.
 const sec = (s: number): string => `2026-10-01T10:00:${String(s).padStart(2, '0')}.000Z`
-const usage = (prompt: number, out: number) => ({ input_tokens: 1, cache_read_input_tokens: prompt - 1, output_tokens: out })
-const reply = (uuid: string, id: string, s: number, prompt: number, out: number, blocks: unknown[], stop: string | null = null): string =>
-  JSON.stringify({ type: 'assistant', uuid, timestamp: sec(s), message: { id, model: 'm', stop_reason: stop, content: blocks, usage: usage(prompt, out) } })
+/** `writes` are the 5m and 1h cache writes of the reply, taken out of `prompt` with the 1 input token. */
+const usage = (prompt: number, out: number, writes: [number, number] = [0, 0]) => ({
+  input_tokens: 1,
+  cache_read_input_tokens: prompt - 1 - writes[0] - writes[1],
+  cache_creation: { ephemeral_5m_input_tokens: writes[0], ephemeral_1h_input_tokens: writes[1] },
+  output_tokens: out,
+})
+const reply = (
+  uuid: string,
+  id: string,
+  s: number,
+  prompt: number,
+  out: number,
+  blocks: unknown[],
+  stop: string | null = null,
+  writes: [number, number] = [0, 0],
+): string =>
+  JSON.stringify({
+    type: 'assistant',
+    uuid,
+    timestamp: sec(s),
+    message: { id, model: 'm', stop_reason: stop, content: blocks, usage: usage(prompt, out, writes) },
+  })
 const use = (id: string, q: string) => ({ type: 'tool_use', id, name: 'Read', input: { q } })
 const result = (uuid: string, s: number, tuid: string, content: string): string =>
   JSON.stringify({ type: 'user', uuid, timestamp: sec(s), message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: tuid, content }] } })
@@ -102,7 +122,7 @@ test('a single call: Output is the reply output, Result the prompt growth to the
   put(s.wal, call('2026-09-30T09:55:55.300Z', tu('gsNTiK')))
   sync(s.id)
   // 72685 − 71381 − 903 = 401.
-  assert.deepEqual(tokOf(s.target, tu('gsNTiK')), [{ k: 'tok', tuid: tu('gsNTiK'), out: 903, res: 401 }])
+  assert.deepEqual(tokOf(s.target, tu('gsNTiK')), [{ k: 'tok', tuid: tu('gsNTiK'), out: 903, res: 401, inp: 374 }])
 })
 
 test('parallel calls: Output split by input size, Result by result size, the parts add up', () => {
@@ -115,14 +135,14 @@ test('parallel calls: Output split by input size, Result by result size, the par
   ])
   sync(s.id)
   // Output 219 × 56/110 = 111.5 → 111, and 108. Result 39473 − 28725 − 219 = 10529, split 40 : 40.
-  assert.deepEqual(tokOf(s.target, tu('6k9TNX')), [{ k: 'tok', tuid: tu('6k9TNX'), out: 111, res: 5265 }])
-  assert.deepEqual(tokOf(s.target, tu('gBYmqE')), [{ k: 'tok', tuid: tu('gBYmqE'), out: 108, res: 5264 }])
+  assert.deepEqual(tokOf(s.target, tu('6k9TNX')), [{ k: 'tok', tuid: tu('6k9TNX'), out: 111, res: 5265, inp: 11314 }])
+  assert.deepEqual(tokOf(s.target, tu('gBYmqE')), [{ k: 'tok', tuid: tu('gBYmqE'), out: 108, res: 5264, inp: 10910 }])
 
   // Uneven result sizes: inputs {"q":"x…"} of 16, 32 and 48 chars, results of 100, 300 and 600 chars.
   const h = session()
   put(h.tr, [
     userPrompt('u1', 1),
-    reply('a1', 'r1', 2, 5000, 100, [use('ta', 'x'.repeat(8)), use('tb', 'x'.repeat(24)), use('tc', 'x'.repeat(40))]),
+    reply('a1', 'r1', 2, 5000, 100, [use('ta', 'x'.repeat(8)), use('tb', 'x'.repeat(24)), use('tc', 'x'.repeat(40))], null, [95, 0]),
     result('u2', 3, 'ta', 'a'.repeat(100)),
     result('u3', 3, 'tb', 'b'.repeat(300)),
     result('u4', 3, 'tc', 'c'.repeat(600)),
@@ -131,11 +151,11 @@ test('parallel calls: Output split by input size, Result by result size, the par
   put(h.wal, [...call(sec(2), 'ta'), ...call(sec(2), 'tb'), ...call(sec(2), 'tc')])
   sync(h.id)
   const got = ['ta', 'tb', 'tc'].map((t) => tokOf(h.target, t))
-  // Output 100 by 16 : 32 : 48 → 16.7, 50, 100 cumulated → 17, 33, 50. Result 1001 by 1 : 3 : 6 → 100.1, 400.4, 1001 → 100, 300, 601.
+  // The reply's fresh input is 1 + 95 = 96, split by the same sizes, so 16, 32 and 48. Output 100 by 16 : 32 : 48 → 16.7, 50, 100 cumulated → 17, 33, 50. Result 1001 by 1 : 3 : 6 → 100.1, 400.4, 1001 → 100, 300, 601.
   assert.deepEqual(got, [
-    [{ k: 'tok', tuid: 'ta', out: 17, res: 100 }],
-    [{ k: 'tok', tuid: 'tb', out: 33, res: 300 }],
-    [{ k: 'tok', tuid: 'tc', out: 50, res: 601 }],
+    [{ k: 'tok', tuid: 'ta', out: 17, res: 100, inp: 16 }],
+    [{ k: 'tok', tuid: 'tb', out: 33, res: 300, inp: 32 }],
+    [{ k: 'tok', tuid: 'tc', out: 50, res: 601, inp: 48 }],
   ])
 })
 
@@ -149,7 +169,50 @@ test('streamed subagent reply: the tok waits for the next reply and uses the fin
 
   put(s.sub, fixAgent.slice(14))
   sync(s.id, o)
-  assert.deepEqual(tokOf(s.target, tu('6k9TNX')), [{ k: 'tok', tuid: tu('6k9TNX'), out: 111, res: 5265 }])
+  assert.deepEqual(tokOf(s.target, tu('6k9TNX')), [{ k: 'tok', tuid: tu('6k9TNX'), out: 111, res: 5265, inp: 11314 }])
+})
+
+test('a single call: Inp is the reply input plus its 5m and 1h cache writes, not its cache reads', () => {
+  const s = session()
+  put(s.tr, [
+    userPrompt('u1', 1),
+    reply('a1', 'r1', 2, 9000, 10, [use('ti', 'x')], null, [300, 40]),
+    result('u2', 3, 'ti', 'r'),
+    reply('a2', 'r2', 4, 9100, 5, [{ type: 'text', text: 'ok' }], 'end_turn'),
+  ])
+  put(s.wal, call(sec(2), 'ti'))
+  sync(s.id)
+  // 1 input + 300 + 40 = 341; the 8659 cache reads do not count.
+  assert.equal(tokOf(s.target, 'ti')[0]?.inp, 341)
+})
+
+test('parallel calls: Inp is split by input size and the parts add up to the reply fresh input', () => {
+  const s = session()
+  put(s.tr, [
+    userPrompt('u1', 1),
+    reply('a1', 'r1', 2, 5000, 100, [use('ta', 'x'.repeat(8)), use('tb', 'x'.repeat(24)), use('tc', 'x'.repeat(40))], null, [100, 0]),
+    result('u2', 3, 'ta', 'a'),
+    result('u3', 3, 'tb', 'b'),
+    result('u4', 3, 'tc', 'c'),
+    reply('a2', 'r2', 4, 5200, 5, [{ type: 'text', text: 'done' }], 'end_turn'),
+  ])
+  put(s.wal, [...call(sec(2), 'ta'), ...call(sec(2), 'tb'), ...call(sec(2), 'tc')])
+  sync(s.id)
+  // Fresh input 101 by 16 : 32 : 48 → 16.8, 50.5, 101 cumulated → 17, 51, 101, so the parts are 17, 34 and 50.
+  const parts = ['ta', 'tb', 'tc'].map((t) => tokOf(s.target, t)[0]?.inp)
+  assert.deepEqual(parts, [17, 34, 50])
+  assert.equal(
+    parts.reduce((a, b) => (a ?? 0) + (b ?? 0), 0),
+    101,
+  )
+})
+
+test('a Stop: Inp is the full fresh input of its reply', () => {
+  const s = session()
+  put(s.tr, [userPrompt('u1', 1), reply('a1', 'r1', 2, 1000, 7, [{ type: 'text', text: 'bye' }], 'end_turn', [200, 30])])
+  put(s.wal, [rec(sec(3), 'Stop', { payload: { last_assistant_message: 'bye' } })])
+  sync(s.id)
+  assert.equal(toks(s.target)[0]?.inp, 231)
 })
 
 test('compaction: a negative growth gives Output only', () => {
@@ -169,7 +232,7 @@ test('compaction: a negative growth gives Output only', () => {
   ])
   put(s.wal, call(sec(2), 'tk'))
   sync(s.id)
-  assert.deepEqual(tokOf(s.target, 'tk'), [{ k: 'tok', tuid: 'tk', out: 20 }])
+  assert.deepEqual(tokOf(s.target, 'tk'), [{ k: 'tok', tuid: 'tk', out: 20, inp: 1 }])
 })
 
 test('an interrupted turn: a user prompt between the reply and the next gives Output only', () => {
@@ -177,7 +240,7 @@ test('an interrupted turn: a user prompt between the reply and the next gives Ou
   const s = session(fixMain.length)
   put(s.wal, call('2026-09-30T11:08:07.000Z', tu('SDhFtq')))
   sync(s.id)
-  assert.deepEqual(tokOf(s.target, tu('SDhFtq')), [{ k: 'tok', tuid: tu('SDhFtq'), out: 271 }])
+  assert.deepEqual(tokOf(s.target, tu('SDhFtq')), [{ k: 'tok', tuid: tu('SDhFtq'), out: 271, inp: 1745 }])
 })
 
 test('no next request: open while live, Output only after a SessionEnd that follows the call', () => {
@@ -193,7 +256,7 @@ test('no next request: open while live, Output only after a SessionEnd that foll
 
   put(s.wal, [rec('2026-09-30T11:45:00.000Z', 'SessionEnd')])
   sync(s.id, o)
-  assert.deepEqual(tokOf(s.target, tu('2QYftU')), [{ k: 'tok', tuid: tu('2QYftU'), out: 96 }])
+  assert.deepEqual(tokOf(s.target, tu('2QYftU')), [{ k: 'tok', tuid: tu('2QYftU'), out: 96, inp: 396 }])
 })
 
 test('Stop and SubagentStop: matched by prefix against the last reply at or before them', () => {
@@ -207,14 +270,14 @@ test('Stop and SubagentStop: matched by prefix against the last reply at or befo
   sync(s.id, o)
   const [stop] = woffOf(s.target, 'Stop')
   const [subStop] = woffOf(s.target, 'SubagentStop')
-  assert.deepEqual(toks(s.target), [{ k: 'tok', woff: subStop, out: 116 }])
+  assert.deepEqual(toks(s.target), [{ k: 'tok', woff: subStop, out: 116, inp: 1580 }])
 
   put(s.tr, fixMain.slice(18))
   sync(s.id, o)
   sync(s.id, o)
   assert.deepEqual(toks(s.target), [
-    { k: 'tok', woff: subStop, out: 116 },
-    { k: 'tok', woff: stop, out: 41 },
+    { k: 'tok', woff: subStop, out: 116, inp: 1580 },
+    { k: 'tok', woff: stop, out: 41, inp: 1306 },
   ])
 
   // A clamped message: the hook's first 2000 chars plus its suffix still match; another text does not.
@@ -227,7 +290,7 @@ test('Stop and SubagentStop: matched by prefix against the last reply at or befo
   ])
   sync(h.id)
   const [clamped] = woffOf(h.target, 'Stop')
-  assert.deepEqual(toks(h.target), [{ k: 'tok', woff: clamped, out: 77 }])
+  assert.deepEqual(toks(h.target), [{ k: 'tok', woff: clamped, out: 77, inp: 1 }])
 })
 
 test('a SubagentStop whose agent has no transcript file gets no tok', () => {
@@ -281,7 +344,7 @@ test('a Stop message longer than the parser keeps still joins its reply', () => 
   put(s.wal, [rec(sec(3), 'Stop', { payload: { last_assistant_message: text } })])
   sync(s.id)
   const [stop] = woffOf(s.target, 'Stop')
-  assert.deepEqual(toks(s.target), [{ k: 'tok', woff: stop, out: 77 }])
+  assert.deepEqual(toks(s.target), [{ k: 'tok', woff: stop, out: 77, inp: 1 }])
 })
 
 test('restart: a call left open gets its tok once, and a replay writes nothing', () => {
@@ -302,8 +365,8 @@ test('restart: a call left open gets its tok once, and a replay writes nothing',
   sync(s.id)
   assert.ok(readFileSync(s.target, 'utf8').startsWith(built))
   assert.deepEqual(toks(s.target), [
-    { k: 'tok', tuid: tu('gsNTiK'), out: 903, res: 401 },
-    { k: 'tok', tuid: tu('SDhFtq'), out: 271 },
+    { k: 'tok', tuid: tu('gsNTiK'), out: 903, res: 401, inp: 374 },
+    { k: 'tok', tuid: tu('SDhFtq'), out: 271, inp: 1745 },
   ])
   const done = readFileSync(s.target, 'utf8')
   sync(s.id)
@@ -316,26 +379,26 @@ test('an MCP call row gets a tok', () => {
   sync(s.id)
   const row = records(s.target).find((r) => r.k === 'call')
   assert.equal(row?.k === 'call' && row.mcp, true)
-  assert.deepEqual(tokOf(s.target, tu('gsNTiK')), [{ k: 'tok', tuid: tu('gsNTiK'), out: 903, res: 401 }])
+  assert.deepEqual(tokOf(s.target, tu('gsNTiK')), [{ k: 'tok', tuid: tu('gsNTiK'), out: 903, res: 401, inp: 374 }])
 })
 
 test('a session without a WAL: its call rows get toks and its Stop rows carry out', () => {
   const s = session(fixMain.length, fixAgent.length)
   sync(s.id)
   const byTuid = Object.fromEntries(toks(s.target).map((t) => ['tuid' in t ? t.tuid : '', t]))
-  assert.deepEqual(byTuid[tu('gsNTiK')], { k: 'tok', tuid: tu('gsNTiK'), out: 903, res: 401 })
-  assert.deepEqual(byTuid[tu('SDhFtq')], { k: 'tok', tuid: tu('SDhFtq'), out: 271 })
-  assert.deepEqual(byTuid[tu('6k9TNX')], { k: 'tok', tuid: tu('6k9TNX'), out: 111, res: 5265 })
+  assert.deepEqual(byTuid[tu('gsNTiK')], { k: 'tok', tuid: tu('gsNTiK'), out: 903, res: 401, inp: 374 })
+  assert.deepEqual(byTuid[tu('SDhFtq')], { k: 'tok', tuid: tu('SDhFtq'), out: 271, inp: 1745 })
+  assert.deepEqual(byTuid[tu('6k9TNX')], { k: 'tok', tuid: tu('6k9TNX'), out: 111, res: 5265, inp: 11314 })
   // A session without a WAL never ends: the last call of the file stays open.
   assert.equal(byTuid[tu('2QYftU')], undefined)
   assert.ok(toks(s.target).every((t) => 'tuid' in t))
   const calls = records(s.target).filter((r) => r.k === 'call').length
   assert.equal(toks(s.target).length, calls - 1)
 
-  const stops = records(s.target).flatMap((r) => (r.k === 'ev' && (r.event === 'Stop' || r.event === 'SubagentStop') ? [[r.event, r.out]] : []))
+  const stops = records(s.target).flatMap((r) => (r.k === 'ev' && (r.event === 'Stop' || r.event === 'SubagentStop') ? [[r.event, r.out, r.inp]] : []))
   assert.deepEqual(stops, [
-    ['Stop', 41],
-    ['SubagentStop', 1160],
-    ['SubagentStop', 116],
+    ['Stop', 41, 1306],
+    ['SubagentStop', 1160, 182],
+    ['SubagentStop', 116, 1580],
   ])
 })

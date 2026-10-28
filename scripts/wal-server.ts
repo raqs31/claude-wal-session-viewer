@@ -278,12 +278,12 @@ const walTick = (): void => {
           const row = at === null ? undefined : ix.entries[at]
           if (at === null || !row || patched.has(at)) continue
           patched.add(at)
-          const { out, res } = summary(ix, at)
-          patches.push({ sess: ix.id, seq: at, out, res })
+          const { out, res, inp } = summary(ix, at)
+          patches.push({ sess: ix.id, seq: at, out, res, inp })
           // A row at or after `from` was judged above with its numbers. An earlier one a token filter held back is
           // sent now, once: it is sent when it misses with the numbers it had before this `tok` and hits with its own.
           // The check with the old numbers runs first: a token filter rejects a row with none before the `q` disk read.
-          if (client.tokf && at < from && !client.hit({ ...row, out: e.out, res: e.res }, ix, reader.text) && client.hit(row, ix, reader.text)) {
+          if (client.tokf && at < from && !client.hit({ ...row, out: e.out, res: e.res, inp: e.inp }, ix, reader.text) && client.hit(row, ix, reader.text)) {
             rows.push(summary(ix, at))
           }
         }

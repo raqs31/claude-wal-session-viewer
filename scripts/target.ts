@@ -37,8 +37,9 @@ interface EvBase {
   err: boolean
   // Null on a turn row built from a transcript: it has no WAL line.
   woff: number | null
-  // Stop / SubagentStop rows built from a transcript carry their output tokens here.
+  // Stop / SubagentStop rows built from a transcript carry their output tokens here, and `inp` their fresh input tokens.
   out?: number
+  inp?: number
 }
 
 export type TargetRecord =
@@ -60,8 +61,8 @@ export type TargetRecord =
       input: unknown
       response: unknown
     }
-  | { k: 'tok'; tuid: string; out: number; res?: number }
-  | { k: 'tok'; woff: number; out: number }
+  | { k: 'tok'; tuid: string; out: number; res?: number; inp?: number }
+  | { k: 'tok'; woff: number; out: number; inp?: number }
   | ({ k: 'use' } & UsageRecord)
   | { k: 'turn'; t: number }
   | { k: 'compact'; agent: string; t: number; trigger: string; pre: number; post: number }

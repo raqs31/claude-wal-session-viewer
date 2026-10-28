@@ -65,6 +65,8 @@ export interface IndexEntry {
   // On a `tok` entry: the numbers its row had before this entry, so a stream can tell a row it already sent.
   out: number | null
   res: number | null
+  // Fresh input tokens of the same reply, set by a `tok` entry; null on an old `tok` record that has none.
+  inp: number | null
   // A `tok` entry: it has a seq but is no row, so it sits in `entries` only, never in `order`, the sets or a result.
   hidden: boolean
   // On a `tok` entry: the seq of the row it patched; null when that row is not indexed, and on every row.
@@ -232,6 +234,7 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
           virtual: null,
           out: rec.out ?? null,
           res: null,
+          inp: rec.inp ?? null,
           hidden: false,
           target: null,
         })
@@ -259,6 +262,7 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
           virtual: held?.pre !== undefined && held.post !== undefined ? { pre: held.pre, post: held.post } : null,
           out: null,
           res: null,
+          inp: null,
           hidden: false,
           target: null,
         })
@@ -266,10 +270,11 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
       } else if (rec.k === 'tok') {
         const at = ('tuid' in rec ? callSeq.get(rec.tuid) : stopSeq.get(rec.woff)) ?? null
         const target = at === null ? undefined : ix.entries[at]
-        const before = { out: target?.out ?? null, res: target?.res ?? null }
+        const before = { out: target?.out ?? null, res: target?.res ?? null, inp: target?.inp ?? null }
         if (target) {
           target.out = rec.out
           target.res = 'res' in rec ? (rec.res ?? null) : null
+          target.inp = rec.inp ?? null
         }
         push({
           off,
@@ -289,6 +294,7 @@ export const createWalIndex = (id: string, path: string): WalIndex => {
           virtual: null,
           out: before.out,
           res: before.res,
+          inp: before.inp,
           hidden: true,
           target: target ? at : null,
         })
@@ -555,10 +561,11 @@ export const matcher = (p: URLSearchParams): Matcher => {
 }
 
 export const summary = (ix: WalIndex, seq: number): Row => {
-  const { cat, t, event, tool, dur, mcp, err, virtual, out, res } = nth(ix.entries, seq)
+  const { cat, t, event, tool, dur, mcp, err, virtual, out, res, inp } = nth(ix.entries, seq)
   const s: Row = { sess: ix.id, seq, cat, t, event, tool, dur }
   if (out !== null) s.out = out
   if (res !== null) s.res = res
+  if (inp !== null) s.inp = inp
   if (mcp) s.mcp = mcp
   if (err) s.err = true
   if (virtual) s.virtual = virtual

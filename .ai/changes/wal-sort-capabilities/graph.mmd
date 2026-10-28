@@ -1,0 +1,79 @@
+%%{init: {
+  'theme': 'dark',
+  'themeVariables': {
+    'textColor': '#f3f4f6',
+    'primaryTextColor': '#f3f4f6',
+    'secondaryTextColor': '#e5e7eb',
+    'tertiaryTextColor': '#d1d5db',
+    'mainBkg': '#111827',
+    'nodeBorder': '#4b5563',
+    'clusterBkg': '#1f2937',
+    'clusterBorder': '#374151',
+    'lineColor': '#9ca3af'
+  }
+}}%%
+flowchart LR
+  classDef todo fill:#374151,stroke:#6b7280,color:#ffffff
+  classDef in_progress fill:#1e3a8a,stroke:#3b82f6,color:#ffffff
+  classDef review fill:#5b21b6,stroke:#8b5cf6,color:#ffffff
+  classDef blocked fill:#991b1b,stroke:#ef4444,color:#ffffff
+  classDef user_review fill:#854d0e,stroke:#f59e0b,color:#ffffff
+  classDef done fill:#166534,stroke:#22c55e,color:#ffffff
+  classDef declined fill:#4b5563,stroke:#9ca3af,color:#ffffff
+  subgraph phase_1["Phase 1"]
+    T1["T1 · inp contract: TargetRecord, Row, TokensFrame #interface"]
+    T2["T2 · Observer join computes inp for calls and Stops #tests"]
+    T3["T3 · Index entry, Row and tokens frames carry inp #tests"]
+    T4{{"T4 · Phase 1 review: input tokens end to end"}}
+    T13["T13 · Fix ECONNRESET in observer-server test '/rebuild keeps a WAL-built target whose WAL is gone' #tests #risk-high"]
+  end
+  subgraph phase_2["Phase 2"]
+    T5["T5 · Generic byKey sort with direction and value cursor #interface #risk-high #tests"]
+    T6["T6 · Stream rejects any sort param #tests"]
+    T7["T7 · Bench uses sort=tot and adds sort=dur asc"]
+    T8{{"T8 · Phase 2 review: generic sort keys"}}
+  end
+  subgraph phase_3["Phase 3"]
+    T9["T9 · Web sort state rules: sort.ts #interface #tests"]
+    T10["T10 · Sortable headers, Datetime/Input/Total+In columns, remove Order #risk-high"]
+    T11["T11 · README: header sorting, Input and Total+In #docs"]
+    T12{{"T12 · Phase 3 review: sortable headers and columns"}}
+  end
+  T1 --> T2
+  T1 --> T3
+  T1 --> T4
+  T1 --> T10
+  T2 --> T4
+  T2 --> T13
+  T3 --> T4
+  T3 --> T5
+  T3 --> T6
+  T3 --> T13
+  T5 --> T7
+  T5 --> T8
+  T5 --> T9
+  T6 --> T8
+  T6 --> T10
+  T7 --> T8
+  T9 --> T10
+  T9 --> T12
+  T10 --> T11
+  T10 --> T12
+  T11 --> T12
+  T13 --> T4
+  class T1 done
+  class T2 done
+  class T3 done
+  class T4 done
+  class T5 todo
+  class T6 todo
+  class T7 todo
+  class T8 todo
+  class T9 todo
+  class T10 todo
+  class T11 todo
+  class T12 todo
+  class T13 done
+  style phase_1 color:#ffffff,fill:#1f2937,stroke:#4b5563
+  style phase_2 color:#ffffff,fill:#1f2937,stroke:#4b5563
+  style phase_3 color:#ffffff,fill:#1f2937,stroke:#4b5563
