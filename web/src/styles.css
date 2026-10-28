@@ -646,7 +646,8 @@ html {
 }
 
 .stats h2,
-.charts h2 {
+.charts h2,
+.chart-x h2 {
   font-size: 11.5px;
   font-weight: 600;
   color: var(--muted);
@@ -689,6 +690,33 @@ table.stat td.name > span {
 }
 .chart-s {
   min-width: 0;
+}
+.chart-h {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.chart-h button.ghost {
+  padding: 1px 7px;
+  font-size: 11.5px;
+}
+.chart-h .chart-x-close {
+  margin-left: auto;
+}
+dialog.chart-x {
+  width: 90vw;
+  max-width: 90vw;
+  padding: 0;
+  border: 1px solid var(--baseline);
+  border-radius: 10px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+}
+dialog.chart-x::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+.chart-x-in {
+  padding: 14px 16px 0;
 }
 /* The legend is a <table>, so it would otherwise pick up the page's boxed table style. */
 .chart .u-legend {

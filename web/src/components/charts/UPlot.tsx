@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
 import { LAYERS, type Layer } from '../../lib/series.ts'
@@ -95,27 +96,100 @@ export const drawCompacts = (u: uPlot, css: Css, marks: readonly { x: number; la
   ctx.restore()
 }
 
-export function UPlot({ title, ...props }: ChartProps & { title: string }) {
-  // Keyed by theme: a theme change remounts the chart, which rebuilds it with the colours read again.
-  const theme = useTheme()
+type Zoom = readonly [number, number] | null
+
+function Head({ title, zoom, reset, children }: { title: string; zoom: Zoom; reset: () => void; children?: ReactNode }) {
   return (
-    <div className="chart-s">
+    <div className="chart-h">
       <h2>{title}</h2>
-      <Chart key={theme} {...props} />
+      {zoom && (
+        <button type="button" className="ghost" onClick={reset}>
+          Reset zoom
+        </button>
+      )}
+      {children}
     </div>
   )
 }
 
-function Chart({ opts, data }: ChartProps) {
+export function UPlot({ title, ...props }: ChartProps & { title: string }) {
+  // Keyed by theme: a theme change remounts the chart, which rebuilds it with the colours read again.
+  const theme = useTheme()
+  const [zoom, setZoom] = useState<Zoom>(null)
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  return (
+    <div className="chart-s" ref={box}>
+      <Head title={title} zoom={zoom} reset={() => setZoom(null)} />
+      <Chart key={theme} {...props} zoom={zoom} onZoom={setZoom} onClick={() => setOpen(true)} />
+      {open && <Expanded key={theme} title={title} {...props} root={box.current?.closest('.viz-root') ?? document.body} onClose={() => setOpen(false)} />}
+    </div>
+  )
+}
+
+function Expanded({ title, root, onClose, ...props }: ChartProps & { title: string; root: Element; onClose: () => void }) {
+  const dlg = useRef<HTMLDialogElement>(null)
+  const [zoom, setZoom] = useState<Zoom>(null)
+  const [height] = useState(() => Math.max(HEIGHT, Math.round(innerHeight * 0.65)))
+  useEffect(() => {
+    const d = dlg.current
+    d?.showModal()
+    return () => d?.close()
+  }, [])
+  // Portalled into .viz-root, which holds the theme variables, and out of the page's section styles.
+  // React still bubbles its clicks to the chart's ancestors (an agent row toggles on click), so they stop here.
+  return createPortal(
+    // biome-ignore lint/a11y/useKeyWithClickEvents: Escape closes it through the native cancel event.
+    <dialog
+      className="chart-x"
+      ref={dlg}
+      aria-label={title}
+      onCancel={(e) => {
+        e.preventDefault()
+        onClose()
+      }}
+      onClick={(e) => {
+        e.stopPropagation()
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="chart-x-in">
+        <Head title={title} zoom={zoom} reset={() => setZoom(null)}>
+          <button type="button" className="ghost chart-x-close" onClick={onClose}>
+            Close
+          </button>
+        </Head>
+        <Chart {...props} height={height} zoom={zoom} onZoom={setZoom} />
+      </div>
+    </dialog>,
+    root,
+  )
+}
+
+function Chart({
+  opts,
+  data,
+  height = HEIGHT,
+  zoom,
+  onZoom,
+  onClick,
+}: ChartProps & { height?: number; zoom: Zoom; onZoom: (z: Zoom) => void; onClick?: () => void }) {
   const el = useRef<HTMLDivElement>(null)
   const chart = useRef<uPlot | null>(null)
-  const latest = useRef({ opts, data })
-  latest.current = { opts, data }
+  const latest = useRef({ opts, data, zoom, onZoom, onClick })
+  latest.current = { opts, data, zoom, onZoom, onClick }
 
   useEffect(() => {
     const box = el.current
     if (!box) return
     let u: uPlot | null = null
+    // The drag only reports its range: the zoom lives in React state, so a reset or a rebuild can reapply it.
+    const select = (u: uPlot) => {
+      const { left, width } = u.select
+      if (width < 2) return
+      u.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false)
+      latest.current.onZoom([u.posToVal(left, 'x'), u.posToVal(left + width, 'x')])
+    }
     // Inside a closed <details> the box is 0 wide, and uPlot built at 0 computes a negative plot size;
     // so build on the first positive width (now or when the panel opens) and only resize after that.
     const sync = () => {
@@ -123,9 +197,31 @@ function Chart({ opts, data }: ChartProps) {
       if (width <= 0) return
       if (!u) {
         const style = getComputedStyle(box)
-        u = new uPlot({ ...latest.current.opts((n) => style.getPropertyValue(n).trim()), width, height: HEIGHT }, latest.current.data, box)
+        const o = latest.current.opts((n) => style.getPropertyValue(n).trim())
+        u = new uPlot(
+          {
+            ...o,
+            cursor: { ...o.cursor, drag: { x: true, y: false, setScale: false } },
+            hooks: { ...o.hooks, setSelect: [...(o.hooks?.setSelect ?? []), select] },
+            width,
+            height,
+          },
+          latest.current.data,
+          box,
+        )
         chart.current = u
-      } else if (width !== u.width) u.setSize({ width, height: HEIGHT })
+        const z = latest.current.zoom
+        if (z) u.setScale('x', { min: z[0], max: z[1] })
+        // A drag ends in a click too; only a press that stayed put opens the chart.
+        let down = 0
+        u.over.addEventListener('mousedown', (e) => {
+          down = e.clientX
+        })
+        u.over.addEventListener('click', (e) => {
+          if (Math.abs(e.clientX - down) < 3) latest.current.onClick?.()
+        })
+        if (latest.current.onClick) u.over.style.cursor = 'zoom-in'
+      } else if (width !== u.width) u.setSize({ width, height })
     }
     sync()
     const ro = new ResizeObserver(sync)
@@ -135,9 +231,16 @@ function Chart({ opts, data }: ChartProps) {
       u?.destroy()
       chart.current = null
     }
-  }, [])
+  }, [height])
   useEffect(() => {
-    chart.current?.setData(data)
+    const u = chart.current
+    if (!u) return
+    if (zoom) u.setScale('x', { min: zoom[0], max: zoom[1] })
+    else u.setData(u.data)
+  }, [zoom])
+  // A live frame must not reset the x scale while zoomed, or the zoom would silently jump back.
+  useEffect(() => {
+    chart.current?.setData(data, latest.current.zoom === null)
   }, [data])
 
   return <div ref={el} className="chart" />
