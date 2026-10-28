@@ -170,7 +170,7 @@ Compute fresh input per call and Stop row in the observer join. Store it in `tok
 **Contract**:
 - Query params: `sort ∈ {inp,out,res,tot,all,dur}` and `dir ∈ {asc,desc}`. `desc` is the default.
 - The cursor is `before=<v>.<t>.<sess>.<seq>`, where `<v>` is the key value, or `n` when the row has no value.
-- The regex replaces `TOK_CURSOR`: `/^(-?\d+|n)\.(-?\d+)\.([0-9a-f-]{36})\.(\d+)$/`.
+- The regex replaces `TOK_CURSOR`. `<v>` is the number as JS prints it (fraction and exponent allowed) or `n`: `-?\d+(?:\.\d+)?(?:e[+-]\d+)?|-?Infinity|n`. Clients URL-encode the cursor.
 - `next` is null on the last page.
 
 #### 2. Stream rejection

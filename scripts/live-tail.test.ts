@@ -499,8 +499,8 @@ try {
     JSON.stringify(pgStream.tokens),
   )
 
-  const sorted = await fetch(`${BASE}/events-stream?${tkq}&sort=tokens`)
-  check('a sort=tokens stream gets 400', sorted.status === 400, `status ${sorted.status}`)
+  const sorted = await fetch(`${BASE}/events-stream?${tkq}&sort=dur`)
+  check('a sorted stream gets 400', sorted.status === 400, `status ${sorted.status}`)
   await sorted.body?.cancel()
 
   // An empty pick is every session: the stream follows sessions nobody named.
