@@ -8,8 +8,9 @@ import { TrashTab } from './components/TrashTab.tsx'
 import { UsageTiles } from './components/UsageTiles.tsx'
 import { EMPTY_FILTERS, type Filters } from './lib/params.ts'
 import { defaultFilter, filterRows, inDates, type SidebarFilter } from './lib/sidebar.ts'
+import type { Sort } from './lib/sort.ts'
 import { FORMATS } from './lib/tree.ts'
-import { type Order, VIEWS } from './useEvents.ts'
+import { VIEWS } from './useEvents.ts'
 import { useObserver } from './useObserver.ts'
 import { usePick, useUnseen } from './usePick.ts'
 import { useSessions } from './useSessions.ts'
@@ -35,8 +36,8 @@ export function App() {
   // Held here rather than in the tabs, which unmount on a switch, so filters and follow survive one.
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [follow, setFollow] = useState(true)
-  // Not stored: a reload comes back in Time order with Live on.
-  const [order, setOrder] = useState<Order>('time')
+  // Not stored: a reload comes back in datetime order with Live on.
+  const [sort, setSort] = useState<Sort>(null)
   const showEvents = useCallback(
     (agent: string) => {
       setFilters({ ...EMPTY_FILTERS, agent: new Set([agent]) })
@@ -149,8 +150,8 @@ export function App() {
             setFormat={setFormat}
             follow={follow}
             setFollow={setFollow}
-            order={order}
-            setOrder={setOrder}
+            sort={sort}
+            setSort={setSort}
             observer={observer}
             ids={pick.length ? pick : listedIds}
             onUnknown={forget}

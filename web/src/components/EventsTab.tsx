@@ -2,8 +2,9 @@ import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useStat
 import type { SessionMeta, UsageTotals } from '../../../shared/api.ts'
 import { buildTree } from '../lib/agents.ts'
 import { EMPTY_FILTERS, type Filters, filterSummary, pruneFilters } from '../lib/params.ts'
+import { canSort, type Sort, type View } from '../lib/sort.ts'
 import { FORMATS, type Format } from '../lib/tree.ts'
-import { type Order, useEvents, type View } from '../useEvents.ts'
+import { useEvents } from '../useEvents.ts'
 import type { Observer } from '../useObserver.ts'
 import { EventTable } from './EventTable.tsx'
 import { FilterPanel } from './FilterPanel.tsx'
@@ -41,8 +42,8 @@ interface Props {
   setFormat: (f: Format) => void
   follow: boolean
   setFollow: (f: boolean) => void
-  order: Order
-  setOrder: (o: Order) => void
+  sort: Sort
+  setSort: (s: Sort) => void
   observer: Observer
   ids: readonly string[] | null
   onUnknown: (ids: string[]) => void
@@ -64,8 +65,8 @@ export function EventsTab({
   setFormat,
   follow,
   setFollow,
-  order,
-  setOrder,
+  sort,
+  setSort,
   observer,
   ids,
   onUnknown,
@@ -82,7 +83,7 @@ export function EventsTab({
   // Remounting on Reset is the only way to clear a badInput field ('-' in a number, a partial date):
   // its value already reads '', so a controlled '' → '' render never writes to the DOM.
   const [resets, setResets] = useState(0)
-  const ev = useEvents(filters, view, ids, order)
+  const ev = useEvents(filters, view, ids, sort)
   // Stale from the first page, a stale frame or the observer poll, whichever names the session first.
   const stale = useMemo((): Stale[] => {
     const m = new Map<string, string>()
@@ -194,8 +195,8 @@ export function EventsTab({
             type="button"
             aria-pressed={follow}
             onClick={() => {
-              // A ranked list takes no live rows, so Live returns to Time order.
-              if (!follow) setOrder('time')
+              // In the same handler: one render with Live on and a sort would open a stream the server refuses.
+              if (!follow) setSort(null)
               setFollow(!follow)
             }}
           >
@@ -205,23 +206,17 @@ export function EventsTab({
             className="ghost"
             id="view"
             type="button"
-            onClick={() => setView(view === 'tail' ? 'table' : 'tail')}
-          >{`View: ${view === 'tail' ? 'Tail' : 'Table'}`}</button>
-          <button
-            className="ghost"
-            id="order"
-            type="button"
             onClick={() => {
-              if (order === 'tokens') return setOrder('time')
-              setOrder('tokens')
-              setFollow(false)
+              // Tail takes no sort; reset here for the same reason as Live.
+              if (view === 'table') setSort(null)
+              setView(view === 'tail' ? 'table' : 'tail')
             }}
-          >{`Order: ${order === 'time' ? 'Time' : 'Tokens'}`}</button>
+          >{`View: ${view === 'tail' ? 'Tail' : 'Table'}`}</button>
           <FormatSeg format={format} onFormat={setFormat} />
           <span className="live">
             <span className="dot" id="livedot" style={ev.live === null ? undefined : { background: ev.live ? 'var(--cat-session)' : 'var(--muted)' }} />
             <button id="livetext" type="button" onClick={() => void ev.requery()}>
-              {order === 'tokens' ? 'paused' : ev.live === null ? 'connecting' : ev.live ? 'live' : 'disconnected'}
+              {sort ? 'paused' : ev.live === null ? 'connecting' : ev.live ? 'live' : 'disconnected'}
             </button>
           </span>
         </div>
@@ -229,8 +224,8 @@ export function EventsTab({
       <EventTable
         rows={ev.rows}
         pending={ev.pending}
-        // Tokens order is a ranked list read top-down, so the table pages it down whatever the view.
-        view={order === 'tokens' ? 'table' : view}
+        // A sorted list reads top-down, so the table pages it down whatever the view.
+        view={sort ? 'table' : view}
         follow={follow}
         ready={ev.ready}
         next={ev.next}
@@ -242,6 +237,9 @@ export function EventsTab({
         loadOlder={ev.loadOlder}
         flush={ev.flush}
         requery={ev.requery}
+        sort={sort}
+        setSort={setSort}
+        canSort={canSort(follow, view)}
       />
     </>
   )

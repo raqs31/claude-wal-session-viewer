@@ -55,8 +55,7 @@ export const EventRow = memo(function EventRow({ r, gens, format, requery }: Pro
   return (
     <>
       <tr className="row" onClick={() => void toggle()}>
-        <td className="num">{fmtDate(r.t)}</td>
-        <td className="num">{fmtTime(r.t)}</td>
+        <td className="num">{`${fmtDate(r.t)} ${fmtTime(r.t)}`}</td>
         <td>
           <span className="ev">
             <span className="dot" style={{ background: meta.color }} />
@@ -84,13 +83,15 @@ export const EventRow = memo(function EventRow({ r, gens, format, requery }: Pro
           )}
         </td>
         <td className="num">{r.dur == null ? '—' : `${r.dur} ms`}</td>
+        <Tokens n={r.inp} />
         <Tokens n={r.out} />
         <Tokens n={r.res} />
         <Tokens n={r.out == null ? undefined : r.out + (r.res ?? 0)} />
+        <Tokens n={r.out == null ? undefined : (r.inp ?? 0) + r.out + (r.res ?? 0)} />
         <td className="num">{short(r.sess)}</td>
       </tr>
       <tr hidden={!open}>
-        <td colSpan={9}>{detail && ('rec' in detail ? <RecordViewer rec={detail.rec} format={shownFmt} /> : <pre>{detail.text}</pre>)}</td>
+        <td colSpan={10}>{detail && ('rec' in detail ? <RecordViewer rec={detail.rec} format={shownFmt} /> : <pre>{detail.text}</pre>)}</td>
       </tr>
     </>
   )

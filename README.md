@@ -191,12 +191,19 @@ builds every target again.
   a row expands to its full record. MCP Pre/Post pairs get a synthetic "MCP call" row showing
   request beside response. Records render as a tree in JSON, YAML or Raw.
   A call row is one tool call. It lands at its start time, and its tokens fill in after the agent's
-  next API call, so a call row can land after newer rows. Its three columns, Output, Result and
-  Total, follow Duration: Output and Result are the call's share of the reply's output and of the
-  prompt growth from its tool result, split over the calls of a parallel reply by their size, and
-  Total is their sum. A cell shows — when the value is unknown and on every other row.
-  Order sits beside View: Time (the default) or Tokens. Tokens lists the largest Total first, as a
-  table, with no live stream, so it turns Live off; turning Live on sets Order back to Time.
+  next API call, so a call row can land after newer rows. Its columns, Input, Output, Result, Total
+  and Total+In, follow Duration. Input is the fresh input tokens (input + cache writes) of the reply
+  behind the row, split over the calls of a parallel reply by their size, as Output is. Output and
+  Result are the call's share of the reply's output and of the prompt growth from its tool result,
+  split the same way, and Total is their sum. Total+In is Input plus Output plus Result. A cell
+  shows — when the value is unknown and on every other row. Old sessions show — in Input until
+  Rebuild.
+  The Datetime column shows `YYYY-MM-DD HH:MM:SS.mmm` in one column. Click a column header to sort.
+  With Live off and View on Table, a click on Duration, Input, Output, Result, Total or Total+In sorts
+  the largest first, then the smallest first, then returns to datetime order. The Datetime header
+  resets the sort. Rows with no value come last. Under Live or Tail the headers are inert, with a
+  tooltip, and turning Live or Tail on resets the sort. Total+In counts a tool result twice (in Result
+  and in the next reply's Input), so it ranks rows and is not a billing sum.
 -  **Sessions**: one block per picked session with totals, By-agent and By-model tables, charts and
   agent rows that expand to type, model (main shows its model, or "mixed (see By model)"), turns or
   requests, token kinds, cost, duration, tool calls and context at end. The totals end with the main
@@ -223,8 +230,9 @@ builds every target again.
   a reply repeats it, and in subagent files the early ones are streaming snapshots.
 -  Thinking is part of output. Its tile is shown on its own and never added to a total.
 -  On a call row, Output is the call's share of its reply's output tokens, Result is its share of the
-  prompt growth from its tool result before the next call, and Total is Output plus Result. A cell
-  shows — until its tokens land.
+  prompt growth from its tool result before the next call, and Total is Output plus Result. Input is
+  the fresh input tokens of the reply, and Total+In is Input plus Output plus Result; Total does not
+  include Input. A cell shows — until its tokens land.
 -  Context at end is the prompt of an agent's last request: input + cache read + cache write, so
   after a compaction it is the compacted size. It is tokens only: no transcript records the model's
   window size.

@@ -2,10 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Category, FirstPage, Page, Pipe, RecordedFrame, Row, SessionAgents, StaleFrame, TokensFrame } from '../../shared/api.ts'
 import { buildTree } from './lib/agents.ts'
 import { buildParams, type Filters, pruneFilters, sameRows } from './lib/params.ts'
+import { type Sort, sortParams, type View } from './lib/sort.ts'
 
-export type View = 'tail' | 'table'
 export const VIEWS: readonly View[] = ['tail', 'table']
-export type Order = 'time' | 'tokens'
 // How the rows last changed, so the table can place the view after the commit. `h` is the
 // document height before an older page was prepended.
 export type Change = { kind: 'first' | 'live' | 'flush' } | { kind: 'older'; h: number }
@@ -30,6 +29,8 @@ const same = (a: readonly string[], b: readonly string[]): boolean => a.length =
 const recorded = (per: RecordedFrame): number => Object.values(per).reduce((n, c) => n + c, 0)
 
 // Below the oldest loaded row (the cursor `next`), where only loadOlder's pages reach.
+// Time order only: `next` must be a `t.sess.seq` cursor. A sorted cursor is `v.t.sess.seq` and
+// would split wrong. Only time order opens a stream, and only the stream defers rows, so loadOlder skips them under a sort.
 const below = (next: string | null, r: Pick<Row, 't' | 'sess' | 'seq'>): boolean => {
   if (next === null) return false
   const [t, sess, seq] = next.split('.')
@@ -59,13 +60,13 @@ const place = (rows: Row[], add: readonly Row[], dir: 1 | -1): Row[] => {
   return out
 }
 
-const params = (f: Filters, ids: string | null, order: Order): URLSearchParams => {
+const params = (f: Filters, ids: string | null, sort: Sort): URLSearchParams => {
   const p = buildParams(f, ids ? ids.split(',') : [])
-  if (order === 'tokens') p.set('sort', 'tokens')
+  for (const [k, v] of sortParams(sort)) p.set(k, v)
   return p
 }
 
-export function useEvents(filters: Filters, view: View, ids: readonly string[] | null, order: Order) {
+export function useEvents(filters: Filters, view: View, ids: readonly string[] | null, sort: Sort) {
   const filtersRef = useRef(filters)
   filtersRef.current = filters
   const pick = ids === null ? null : ids.join(',')
@@ -73,8 +74,8 @@ export function useEvents(filters: Filters, view: View, ids: readonly string[] |
   pickRef.current = pick
   const viewRef = useRef(view)
   viewRef.current = view
-  const orderRef = useRef(order)
-  orderRef.current = order
+  const sortRef = useRef(sort)
+  sortRef.current = sort
   const s = useRef({
     qgen: 0,
     pick: '',
@@ -135,8 +136,8 @@ export function useEvents(filters: Filters, view: View, ids: readonly string[] |
       setReady(false)
     }
     const f = filtersRef.current
-    const order = orderRef.current
-    const p = params(f, ids, order)
+    const sort = sortRef.current
+    const p = params(f, ids, sort)
     s.sent = p.toString()
     let data: FirstPage
     try {
@@ -156,7 +157,7 @@ export function useEvents(filters: Filters, view: View, ids: readonly string[] |
     // The facets list every value of the pick whatever the filter, so dropping values they lack (as
     // EventsTab does after a pick change) selects the same rows, unless a set empties: an empty set means no filter.
     const kept = pruneFilters(f, { tools: data.tools, events: data.events, cats: data.cats, agents: buildTree(data.agents) })
-    if (sameRows(f, kept)) s.sent = params(kept, ids, order).toString()
+    if (sameRows(f, kept)) s.sent = params(kept, ids, sort).toString()
     setGens(data.gens)
     setQid(my)
     setNext(data.next)
@@ -171,15 +172,15 @@ export function useEvents(filters: Filters, view: View, ids: readonly string[] |
     setStale({})
     s.seen = new Set(data.rows.map(key))
     s.deferred = []
-    // Tokens order lists the server's order top-down in both views.
-    setList({ rows: order === 'time' && viewRef.current === 'tail' ? data.rows.reverse() : data.rows, pending: [] })
+    // A sorted view lists the server's order top-down in both views.
+    setList({ rows: sort === null && viewRef.current === 'tail' ? data.rows.reverse() : data.rows, pending: [] })
     setError(null)
     setReady(true)
     setChange({ kind: 'first' })
     setPages((n) => n + 1)
 
-    // The server refuses a Tokens-order stream: a new row has no place in a ranked list.
-    if (order === 'tokens') {
+    // The server refuses a sorted stream: a new row has no place in a sorted list.
+    if (sort !== null) {
       setLive(false)
       return
     }
@@ -271,8 +272,8 @@ export function useEvents(filters: Filters, view: View, ids: readonly string[] |
     if (s.loading || s.next === null) return
     s.loading = true
     const my = s.qgen
-    const order = orderRef.current
-    const p = params(filtersRef.current, pickRef.current, order)
+    const sort = sortRef.current
+    const p = params(filtersRef.current, pickRef.current, sort)
     p.set('before', String(s.next))
     try {
       const data = (await (await fetch(`/events?${p}`)).json()) as Page
@@ -282,16 +283,15 @@ export function useEvents(filters: Filters, view: View, ids: readonly string[] |
       setNext(data.next)
       for (const r of data.rows) s.seen.add(key(r))
       // A row that arrived while this page was in flight sat below the old cursor; if the page missed it, it is due now.
-      const open = s.deferred.filter((r) => !s.seen.has(key(r)))
+      const open = sort === null ? s.deferred.filter((r) => !s.seen.has(key(r))) : []
       const late = open.filter((r) => !below(s.next, r))
       s.deferred = open.filter((r) => below(s.next, r))
       for (const r of late) s.seen.add(key(r))
-      if (order === 'time' && viewRef.current === 'tail') {
+      if (sort === null && viewRef.current === 'tail') {
         const older = data.rows.reverse()
         setList((l) => ({ ...l, rows: [...older, ...l.rows] }))
         setChange({ kind: 'older', h: document.documentElement.scrollHeight })
       } else setList((l) => ({ ...l, rows: [...l.rows, ...data.rows] }))
-      // Tokens order has no stream, so `late` is empty there.
       if (late.length) setList((l) => ({ ...l, rows: place(l.rows, late, viewRef.current === 'tail' ? 1 : -1) }))
     } finally {
       s.loading = false
@@ -309,16 +309,16 @@ export function useEvents(filters: Filters, view: View, ids: readonly string[] |
   useEffect(() => {
     if (!started.current) return
     clearTimeout(s.timer)
-    if (params(filters, pickRef.current, orderRef.current).toString() === s.sent) return
+    if (params(filters, pickRef.current, sortRef.current).toString() === s.sent) return
     s.timer = setTimeout(() => void query(), 250)
   }, [filters, s, query])
   // query reads view and pick through refs, so requery and the stream's reset see the latest too.
   // biome-ignore lint/correctness/useExhaustiveDependencies(view): re-run trigger, a new view needs a fresh first page.
   // biome-ignore lint/correctness/useExhaustiveDependencies(pick): re-run trigger, a new pick needs a fresh first page.
-  // biome-ignore lint/correctness/useExhaustiveDependencies(order): re-run trigger, a new order needs a fresh first page.
+  // biome-ignore lint/correctness/useExhaustiveDependencies(sort): re-run trigger, a new sort needs a fresh first page.
   useEffect(() => {
     if (started.current) void query()
-  }, [view, pick, order, query])
+  }, [view, pick, sort, query])
   useEffect(() => {
     started.current = true
     void query()

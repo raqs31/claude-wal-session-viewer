@@ -226,17 +226,17 @@
         "web/src/lib/sort.test.ts"
       ],
       "path": "tickets/T9.md",
-      "updated": "2026-10-28 06:32"
+      "updated": "2026-10-28 06:42"
     },
     {
       "id": "T10",
       "title": "Sortable headers, Datetime/Input/Total+In columns, remove Order",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 3,
       "parent": null,
-      "holder": null,
+      "holder": "ad1909bdaa650d3a2",
       "tags": [
         "risk-high"
       ],
@@ -250,17 +250,17 @@
         "web/src/styles.css"
       ],
       "path": "tickets/T10.md",
-      "updated": "2026-10-28 06:33"
+      "updated": "2026-10-28 06:47"
     },
     {
       "id": "T11",
       "title": "README: header sorting, Input and Total+In",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 3,
       "parent": null,
-      "holder": null,
+      "holder": "a9260e9517ca5b13a",
       "tags": [
         "docs"
       ],
@@ -268,17 +268,17 @@
         "README.md"
       ],
       "path": "tickets/T11.md",
-      "updated": "2026-10-28 06:02"
+      "updated": "2026-10-28 06:44"
     },
     {
       "id": "T12",
       "title": "Phase 3 review: sortable headers and columns",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 3,
       "parent": null,
-      "holder": null,
+      "holder": "a471c1e12e26b712e",
       "tags": [],
       "files": [
         "web/src/lib/sort.ts",
@@ -293,7 +293,7 @@
         "README.md"
       ],
       "path": "tickets/T12.md",
-      "updated": "2026-10-28 06:02"
+      "updated": "2026-10-28 06:49"
     },
     {
       "id": "T13",
