@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { Row } from '../../../shared/api.ts'
+import { next as nextSort, type Sort, type SortKey, type View } from '../lib/sort.ts'
 import type { Format } from '../lib/tree.ts'
-import type { Change, View } from '../useEvents.ts'
+import type { Change } from '../useEvents.ts'
 import { EventRow } from './EventRow.tsx'
 
 interface Props {
@@ -19,9 +20,32 @@ interface Props {
   loadOlder: () => Promise<void>
   flush: (kind: 'live' | 'flush') => void
   requery: () => Promise<void>
+  sort: Sort
+  setSort: (s: Sort) => void
+  canSort: boolean
 }
 
-export function EventTable({ rows, pending, view, follow, ready, next, pages, change, qid, gens, format, loadOlder, flush, requery }: Props) {
+const OFF = 'Turn off Live and switch to Table to sort'
+
+export function EventTable({
+  rows,
+  pending,
+  view,
+  follow,
+  ready,
+  next,
+  pages,
+  change,
+  qid,
+  gens,
+  format,
+  loadOlder,
+  flush,
+  requery,
+  sort,
+  setSort,
+  canSort,
+}: Props) {
   const tbody = useRef<HTMLTableSectionElement>(null)
   const thead = useRef<HTMLTableSectionElement>(null)
   const sentinel = useRef<HTMLDivElement>(null)
@@ -88,6 +112,26 @@ export function EventTable({ rows, pending, view, follow, ready, next, pages, ch
     o.observe(s)
   }, [pages, view])
 
+  const sortTh = (key: SortKey, label: string, width: string) => {
+    const dir = sort?.key === key ? sort.dir : null
+    return (
+      <th style={{ width }} aria-sort={dir === null ? undefined : dir === 'desc' ? 'descending' : 'ascending'}>
+        <button
+          className="sort"
+          type="button"
+          aria-disabled={!canSort}
+          title={canSort ? undefined : OFF}
+          onClick={() => {
+            if (canSort) setSort(nextSort(sort, key))
+          }}
+        >
+          {label}
+          {dir && (dir === 'desc' ? ' ▼' : ' ▲')}
+        </button>
+      </th>
+    )
+  }
+
   const sentinelEl = <div id="sentinel" ref={sentinel} hidden={next === null} />
   return (
     <>
@@ -95,14 +139,19 @@ export function EventTable({ rows, pending, view, follow, ready, next, pages, ch
       <table id="table">
         <thead ref={thead}>
           <tr>
-            <th style={{ width: '110px' }}>Date</th>
-            <th style={{ width: '120px' }}>Time</th>
+            <th style={{ width: '200px' }}>
+              <button className="sort" type="button" aria-disabled={!canSort} title={canSort ? undefined : OFF} onClick={() => setSort(null)}>
+                Datetime
+              </button>
+            </th>
             <th style={{ width: '230px' }}>Event</th>
             <th style={{ width: '150px' }}>Tool</th>
-            <th style={{ width: '90px' }}>Duration</th>
-            <th style={{ width: '80px' }}>Output</th>
-            <th style={{ width: '80px' }}>Result</th>
-            <th style={{ width: '80px' }}>Total</th>
+            {sortTh('dur', 'Duration', '100px')}
+            {sortTh('inp', 'Input', '80px')}
+            {sortTh('out', 'Output', '80px')}
+            {sortTh('res', 'Result', '80px')}
+            {sortTh('tot', 'Total', '80px')}
+            {sortTh('all', 'Total+In', '100px')}
             <th>Session</th>
           </tr>
         </thead>
