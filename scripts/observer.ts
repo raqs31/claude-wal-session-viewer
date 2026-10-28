@@ -163,6 +163,13 @@ const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : nul
 
 const prompt = (u: UsageRecord): number => u.input + u.cacheRead + u.cacheWrite5m + u.cacheWrite1h
 
+/** The input a reply paid for fresh: the prompt without its cache reads. */
+const freshInput = (u: UsageRecord): number => u.input + u.cacheWrite5m + u.cacheWrite1h
+
+/** `freshInput` of a transcript line's raw `usage`, by the parser's rule: the cache writes count only from their 5m and 1h breakdown. */
+const rawFresh = (u: Line): number =>
+  (u.input_tokens ?? 0) + (u.cache_creation?.ephemeral_5m_input_tokens ?? 0) + (u.cache_creation?.ephemeral_1h_input_tokens ?? 0)
+
 /** Part `i` of `total` split by `weights` (evenly when all are 0). Each part rounds the running sum, so the parts add up to `total`. */
 const share = (total: number, weights: number[], i: number): number => {
   const w = weights.some((x) => x > 0) ? weights : weights.map(() => 1)
@@ -459,7 +466,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
   }
 
   /** A turn row of a session without a WAL: an `ev` whose `rec` is the transcript line. */
-  const turnRow = (s: Session, tr: Transcript, event: string, e: Line, t: number, keep: boolean, out: TargetRecord[], tokens?: unknown): void => {
+  const turnRow = (s: Session, tr: Transcript, event: string, e: Line, t: number, keep: boolean, out: TargetRecord[], usage?: Line): void => {
     if (!keep || s.trRedo.has(e.uuid)) return
     out.push({
       k: 'ev',
@@ -474,7 +481,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
       mcp: null,
       err: false,
       woff: null,
-      ...(typeof tokens === 'number' ? { out: tokens } : {}),
+      ...(typeof usage?.output_tokens === 'number' ? { out: usage.output_tokens, inp: rawFresh(usage) } : {}),
       rec: e,
     })
   }
@@ -545,7 +552,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
       const reply = str(m.id) ?? e.uuid
       if (m.stop_reason === 'end_turn' && !tr.stopped.has(reply)) {
         tr.stopped.add(reply)
-        turnRow(s, tr, tr.agent === null ? 'Stop' : 'SubagentStop', e, t, keep, out, m.usage?.output_tokens)
+        turnRow(s, tr, tr.agent === null ? 'Stop' : 'SubagentStop', e, t, keep, out, m.usage)
       }
     } else if (e.type === 'user') for (const b of blocks) if (b.type === 'tool_result') callRow(s, tr, b, t, keep, out)
   }
@@ -741,27 +748,32 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
       reply.calls.map((c) => c.size),
       at,
     )
+    const inp = share(
+      freshInput(r),
+      reply.calls.map((c) => c.size),
+      at,
+    )
     const n = p.usage[i + 1]
-    if (n === undefined) return ended ? { k: 'tok', tuid, out } : null
+    if (n === undefined) return ended ? { k: 'tok', tuid, out, inp } : null
     const growth = prompt(n) - prompt(r) - r.output
-    if (growth < 0 || reply.prompted) return { k: 'tok', tuid, out }
+    if (growth < 0 || reply.prompted) return { k: 'tok', tuid, out, inp }
     const res = share(
       growth,
       reply.calls.map((c) => p.toolInfo.get(c.id)?.resultSize ?? 0),
       at,
     )
-    return { k: 'tok', tuid, out, res }
+    return { k: 'tok', tuid, out, res, inp }
   }
 
-  /** The `out` of a WAL Stop: the agent's last reply at or before it, when its last text starts with the Stop's message. */
-  const stopOut = (s: Session, stop: { agent: string | null; t: number; text: string }): number | null => {
+  /** The `out` and `inp` of a WAL Stop: the agent's last reply at or before it, when its last text starts with the Stop's message. */
+  const stopOut = (s: Session, stop: { agent: string | null; t: number; text: string }): { out: number; inp: number } | null => {
     const tr = joinFile(s, stop.agent, null)
     if (tr === undefined) return null
     const p = tr.parser
     for (let i = p.usage.length - 1; i >= 0; i--) {
       const r = p.usage[i]
       if (r === undefined || !(r.t <= stop.t)) continue
-      return p.replyInfo.get(r.id)?.lastText.startsWith(stop.text) ? r.output : null
+      return p.replyInfo.get(r.id)?.lastText.startsWith(stop.text) ? { out: r.output, inp: freshInput(r) } : null
     }
     return null
   }
@@ -789,7 +801,7 @@ export const createObserver = ({ discovery, write }: { discovery: Pick<Discovery
         continue
       }
       s.stops.delete(woff)
-      out.push({ k: 'tok', woff, out: n })
+      out.push({ k: 'tok', woff, out: n.out, inp: n.inp })
     }
   }
 

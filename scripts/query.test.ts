@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type CallRecord, catOf, type FirstPage, type Row, type WalRecord } from '../shared/api.ts'
 import { startServer } from './test-server.ts'
-import { agentTree, createWalIndex, type IndexEntry, lineageOf, matcher } from './wal-index.ts'
+import { agentTree, createWalIndex, type IndexEntry, lineageOf, matcher, summary } from './wal-index.ts'
 
 const dir = mkdtempSync(join(tmpdir(), 'walquery.'))
 const dir2 = mkdtempSync(join(tmpdir(), 'walbudget.'))
@@ -794,6 +794,38 @@ try {
   writeFileSync(hand, [handCall, { k: 'tok', tuid: 'th', out: 10, res: 7 }, { k: 'tok', tuid: 'th', out: 12 }].map((r) => `${JSON.stringify(r)}\n`).join(''))
   const twoToks = createWalIndex(sid(19), hand).entries[0]
   check('tokens: the last tok sets out and res, a res it lacks to null', twoToks?.out === 12 && twoToks.res === null, JSON.stringify(twoToks))
+
+  const inpFile = join(dir, 'inp-target.jsonl')
+  const inpRecs = [
+    handCall,
+    { k: 'tok', tuid: 'th', out: 10, res: 7, inp: 4 },
+    { k: 'tok', tuid: 'th', out: 12, res: 7, inp: 9 },
+    { ...handCall, tuid: 'tn' },
+    { k: 'tok', tuid: 'tn', out: 5, res: 2 },
+    {
+      k: 'ev',
+      t: 3,
+      event: 'Stop',
+      cat: 'turn',
+      tool: null,
+      dur: null,
+      tuid: null,
+      agent: null,
+      agentType: null,
+      mcp: null,
+      err: false,
+      woff: null,
+      rec: {},
+      out: 8,
+      inp: 6,
+    },
+  ]
+  writeFileSync(inpFile, inpRecs.map((r) => `${JSON.stringify(r)}\n`).join(''))
+  const inpIx = createWalIndex(sid(20), inpFile)
+  check('tokens: a tok with inp puts it on the row', summary(inpIx, 0).inp === 9, JSON.stringify(summary(inpIx, 0)))
+  check('tokens: a tok entry keeps the inp its row had before it', inpIx.entries[1]?.inp === null && inpIx.entries[2]?.inp === 4, JSON.stringify(inpIx.entries))
+  check('tokens: a Stop ev record carries its inp onto the row', summary(inpIx, 5).out === 8 && summary(inpIx, 5).inp === 6, JSON.stringify(summary(inpIx, 5)))
+  check('tokens: a tok with no inp gives a row with no inp', !('inp' in summary(inpIx, 3)) && summary(inpIx, 3).out === 5, JSON.stringify(summary(inpIx, 3)))
 
   // `<event> <tool>:<Total>`, `-` for no numbers.
   const lab = (r: Row): string => `${r.event}${r.tool ? ` ${r.tool}` : ''}:${r.out === undefined ? '-' : r.out + (r.res ?? 0)}`
