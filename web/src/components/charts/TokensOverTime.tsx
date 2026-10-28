@@ -17,8 +17,7 @@ export function TokensOverTime({ series, agent, markers = true }: { series: Sess
     series: [{ label: 'Time' }, ...stackedSeries(css)],
     bands,
     axes: [xAxis(css, { space: 60 }), yAxis(css)],
-    // A live setData resets the x scale, which would silently undo a drag zoom.
-    cursor: { points: { show: false }, drag: { x: false } },
+    cursor: { points: { show: false } },
     hooks: {
       draw: [
         (u) => {

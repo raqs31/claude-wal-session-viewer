@@ -22,8 +22,7 @@ export function TurnBars({ series, agent, by = 'turn' }: { series: SessionSeries
     bands,
     scales: { x: { time: false, range: (_u, min, max) => [min - 0.5, max + 0.5] } },
     axes: [xAxis(css, { space: 30, values: (_u, splits) => splits.map((v) => (Number.isInteger(v) ? label(v) : '')) }), yAxis(css)],
-    // A live setData resets the x scale, which would silently undo a drag zoom.
-    cursor: { points: { show: false }, drag: { x: false } },
+    cursor: { points: { show: false } },
     hooks: { draw: [(u) => drawCompacts(u, css, compacts.current)] },
   })
   return <UPlot title={by === 'call' ? 'Tokens per API call' : 'Tokens per turn'} opts={opts} data={data} />

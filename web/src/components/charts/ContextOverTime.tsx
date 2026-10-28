@@ -18,7 +18,7 @@ export function ContextOverTime({ series }: { series: SessionSeries }) {
       { label: 'Context', stroke: css('--tok-input'), width: 1.5, points: { show: false }, value: (_u, v) => (v == null ? '—' : fmtTokens(v)) },
     ],
     axes: [xAxis(css, { space: 60 }), yAxis(css)],
-    cursor: { points: { show: false }, drag: { x: false } },
+    cursor: { points: { show: false } },
     hooks: { draw: [(u) => drawCompacts(u, css, compacts.current)] },
   })
   return <UPlot title="Context per call" opts={opts} data={data} />
