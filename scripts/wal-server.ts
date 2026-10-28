@@ -576,8 +576,8 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
 
   if (url.pathname === '/events' || url.pathname === '/events-stream') {
     const p = url.searchParams
-    // A live row cannot be put in Tokens order: a later `tok` can move a row already sent.
-    if (url.pathname === '/events-stream' && p.get('sort') === 'tokens') return void res.writeHead(400).end('sort=tokens cannot stream')
+    // A sorted view cannot stream: a later `tok` or a changed key can move a row already sent.
+    if (url.pathname === '/events-stream' && p.has('sort')) return void res.writeHead(400).end('a sorted view cannot stream')
     // Acquiring tails every index, so `head` is exact and a stream started at `after=head` has no gap.
     // An empty pick means every session that has a WAL.
     const picked = idsOf(p)

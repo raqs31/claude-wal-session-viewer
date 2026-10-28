@@ -189,28 +189,32 @@ try {
     `rows ${min.body.rows.length}`,
   )
 
-  const byTok = await timed(`${idsQ}&sort=tokens`)
-  const byTokNext = await timed(`${idsQ}&sort=tokens&before=${byTok.body.next}`)
-  console.log(`sort=tokens     ${byTok.ms} ms, next page ${byTokNext.ms} ms`)
-  check('sort=tokens first page ≤ 300 ms', byTok.ms <= 300)
-  check('sort=tokens next page ≤ 300 ms', byTokNext.ms <= 300)
+  const byTok = await timed(`${idsQ}&sort=tot`)
+  const byTokNext = await timed(`${idsQ}&sort=tot&before=${byTok.body.next}`)
+  console.log(`sort=tot     ${byTok.ms} ms, next page ${byTokNext.ms} ms`)
+  check('sort=tot first page ≤ 300 ms', byTok.ms <= 300)
+  check('sort=tot next page ≤ 300 ms', byTokNext.ms <= 300)
   const run = [...byTok.body.rows, ...byTokNext.body.rows]
   check(
-    'sort=tokens pages run from the largest Total down',
+    'sort=tot pages run from the largest Total down',
     run.length === 400 && run.every((r, n) => n === 0 || tokens(r) <= tokens(run[n - 1] as Row)) && (run[0]?.out ?? 0) > 0,
     `rows ${run.length}`,
   )
 
-  const byTokQ = await timed(`${idsQ}&sort=tokens&q=needle`)
-  const byTokQNext = await timed(`${idsQ}&sort=tokens&q=needle&before=${byTokQ.body.next}`)
-  console.log(`sort=tokens q   ${byTokQ.ms} ms, next page ${byTokQNext.ms} ms`)
-  check('sort=tokens with q first page ≤ 3 s', byTokQ.ms <= 3000)
-  check('sort=tokens with q next page ≤ 300 ms', byTokQNext.ms <= 300)
+  const byTokQ = await timed(`${idsQ}&sort=tot&q=needle`)
+  const byTokQNext = await timed(`${idsQ}&sort=tot&q=needle&before=${byTokQ.body.next}`)
+  console.log(`sort=tot q   ${byTokQ.ms} ms, next page ${byTokQNext.ms} ms`)
+  check('sort=tot with q first page ≤ 3 s', byTokQ.ms <= 3000)
+  check('sort=tot with q next page ≤ 300 ms', byTokQNext.ms <= 300)
   check(
-    'sort=tokens with q pages are full and ordered',
+    'sort=tot with q pages are full and ordered',
     byTokQ.body.rows.length === 200 && byTokQNext.body.rows.length === 200 && tokens(byTokQNext.body.rows[0] as Row) <= tokens(byTokQ.body.rows[199] as Row),
     `rows ${byTokQ.body.rows.length}, ${byTokQNext.body.rows.length}`,
   )
+
+  const byDur = await timed(`${idsQ}&sort=dur&dir=asc`)
+  console.log(`sort=dur asc    ${byDur.ms} ms`)
+  check('sort=dur asc first page ≤ 300 ms', byDur.ms <= 300)
 
   const rss = rssMb()
   console.log(`server RSS      ${rss.toFixed(0)} MB`)

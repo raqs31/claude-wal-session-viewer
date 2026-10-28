@@ -591,7 +591,9 @@ export const parseVector = (s: string | null | undefined): Map<string, number> |
 }
 
 const CURSOR = /^(-?\d+)\.([0-9a-f-]{36})\.(\d+)$/
-const TOK_CURSOR = /^(-?\d+)\.(-?\d+)\.([0-9a-f-]{36})\.(\d+)$/
+// The value as `${number}` writes it, a fraction, exponent or Infinity included (JSON reads 1e400 as Infinity), so any
+// key value round-trips.
+const KEY_CURSOR = /^(-?(?:Infinity|\d+(?:\.\d+)?(?:e[+-]\d+)?)|n)\.(-?\d+)\.([0-9a-f-]{36})\.(\d+)$/
 
 interface Scan {
   rows: Row[]
@@ -628,20 +630,36 @@ const pageOf = (ixs: WalIndex[], s: Scan, unknown: string[], pipe: Record<string
   }
 }
 
-interface TokKey {
-  total: number
+/** The value a row sorts by under `sort=<key>`, null when it has none. A plain field read: each page scans every row. */
+type KeyOf = (e: IndexEntry) => number | null
+// A Map, so a `sort` such as `constructor` finds no key.
+const KEYS = new Map<string, KeyOf>([
+  ['inp', (e) => e.inp],
+  ['out', (e) => e.out],
+  ['res', (e) => e.res],
+  ['tot', tokensOf],
+  ['all', (e) => (e.out === null ? null : (e.inp ?? 0) + e.out + (e.res ?? 0))],
+  ['dur', (e) => e.dur],
+])
+
+interface SortKey {
+  v: number | null
   t: number
   sess: string
   seq: number
 }
-/** Positive when `a` comes first in Tokens order: the higher Total, then the time order's tie-breaks. */
-const ahead = (a: TokKey, b: TokKey): number => a.total - b.total || cmp(a.t, a.sess, a.seq, b.t, b.sess, b.seq)
+/**
+ * Positive when `a` comes first: by value in `dir` (1 desc, -1 asc), a row with no value after every row with one,
+ * then the time order's tie-breaks, newest first in both directions.
+ */
+const ahead = (a: SortKey, b: SortKey, dir: number): number =>
+  (a.v === null ? (b.v === null ? 0 : -1) : b.v === null ? 1 : dir * (a.v - b.v)) || cmp(a.t, a.sess, a.seq, b.t, b.sess, b.seq)
 
-/** `sort=tokens`: one scan of the pick keeps the top rows below the cursor; a row with no Total sorts as -1. */
-const byTokens = (ixs: WalIndex[], readers: Reader[], p: URLSearchParams, hit: Matcher, limit: number): Scan => {
-  const c = TOK_CURSOR.exec(p.get('before') ?? '')
+/** `sort=<key>&dir=<asc|desc>`: one scan of the pick keeps the top rows past the cursor. */
+const byKey = (ixs: WalIndex[], readers: Reader[], p: URLSearchParams, hit: Matcher, limit: number, keyOf: KeyOf, dir: number): Scan => {
+  const c = KEY_CURSOR.exec(p.get('before') ?? '')
   const sess = c?.[3]
-  const before: TokKey | null = sess === undefined ? null : { total: Number(c?.[1]), t: Number(c?.[2]), sess, seq: Number(c?.[4]) }
+  const before: SortKey | null = sess === undefined ? null : { v: c?.[1] === 'n' ? null : Number(c?.[1]), t: Number(c?.[2]), sess, seq: Number(c?.[4]) }
   // A later page has no totals to count, so `q` (a disk read per row) runs only in order until the page fills.
   const lazy = before !== null && !!p.get('q')
   let pass = hit
@@ -651,8 +669,8 @@ const byTokens = (ixs: WalIndex[], readers: Reader[], p: URLSearchParams, hit: M
     pass = matcher(rest)
   }
   const keep = limit + 1
-  // Highest first: the top `keep` rows below the cursor, or with `lazy` all of them.
-  const top: (TokKey & { i: number })[] = []
+  // First in order first: the top `keep` rows past the cursor, or with `lazy` all of them.
+  const top: (SortKey & { i: number })[] = []
   const first: Scan['first'] = before ? null : { total: 0, counts: {}, spans: {} }
   for (let i = 0; i < ixs.length; i++) {
     const ix = nth(ixs, i)
@@ -661,8 +679,8 @@ const byTokens = (ixs: WalIndex[], readers: Reader[], p: URLSearchParams, hit: M
       const seq = nth(ix.order, pos)
       const e = nth(ix.entries, seq)
       if (!pass(e, ix, text)) continue
-      const k = { total: tokensOf(e) ?? -1, t: e.t, sess: ix.id, seq, i }
-      if (before && ahead(k, before) >= 0) continue
+      const k = { v: keyOf(e), t: e.t, sess: ix.id, seq, i }
+      if (before && ahead(k, before, dir) >= 0) continue
       if (first) {
         first.total++
         first.counts[e.cat] = (first.counts[e.cat] || 0) + 1
@@ -672,12 +690,12 @@ const byTokens = (ixs: WalIndex[], readers: Reader[], p: URLSearchParams, hit: M
         else first.spans[ix.id] = [e.t, e.t]
       }
       if (lazy) top.push(k)
-      else if (top.length < keep || ahead(k, nth(top, keep - 1)) > 0) {
+      else if (top.length < keep || ahead(k, nth(top, keep - 1), dir) > 0) {
         let lo = 0
         let hi = top.length
         while (lo < hi) {
           const mid = (lo + hi) >> 1
-          if (ahead(nth(top, mid), k) > 0) lo = mid + 1
+          if (ahead(nth(top, mid), k, dir) > 0) lo = mid + 1
           else hi = mid
         }
         top.splice(lo, 0, k)
@@ -687,7 +705,7 @@ const byTokens = (ixs: WalIndex[], readers: Reader[], p: URLSearchParams, hit: M
   }
   let picked = top
   if (lazy) {
-    top.sort((a, b) => ahead(b, a))
+    top.sort((a, b) => ahead(b, a, dir))
     picked = []
     for (const k of top) {
       const ix = nth(ixs, k.i)
@@ -698,7 +716,7 @@ const byTokens = (ixs: WalIndex[], readers: Reader[], p: URLSearchParams, hit: M
   const last = rows.at(-1)
   return {
     rows: rows.map((k) => summary(nth(ixs, k.i), k.seq)),
-    next: picked.length > limit && last ? `${last.total}.${last.t}.${last.sess}.${last.seq}` : null,
+    next: picked.length > limit && last ? `${last.v ?? 'n'}.${last.t}.${last.sess}.${last.seq}` : null,
     first,
   }
 }
@@ -712,7 +730,10 @@ export const query = (ixs: WalIndex[], p: URLSearchParams, unknown: string[], pi
   const before = sess === undefined ? null : { t: Number(c?.[1]), sess, seq: Number(c?.[3]) }
   const readers = ixs.map((ix) => ix.reader())
   try {
-    if (p.get('sort') === 'tokens') return pageOf(ixs, byTokens(ixs, readers, p, hit, limit), unknown, pipe)
+    const keyOf = KEYS.get(p.get('sort') ?? '')
+    const d = p.get('dir') ?? 'desc'
+    const dir = d === 'desc' ? 1 : d === 'asc' ? -1 : 0
+    if (keyOf && dir) return pageOf(ixs, byKey(ixs, readers, p, hit, limit, keyOf, dir), unknown, pipe)
     // Per index, the next position in `order` to visit, walking down; -1 when exhausted.
     const at = ixs.map((ix) => {
       const { order, entries } = ix

@@ -136,11 +136,11 @@
       "id": "T5",
       "title": "Generic byKey sort with direction and value cursor",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 2,
       "parent": null,
-      "holder": null,
+      "holder": "a5e9b496249e5661d",
       "tags": [
         "interface",
         "risk-high",
@@ -151,17 +151,17 @@
         "scripts/query.test.ts"
       ],
       "path": "tickets/T5.md",
-      "updated": "2026-10-28 05:58"
+      "updated": "2026-10-28 06:37"
     },
     {
       "id": "T6",
       "title": "Stream rejects any sort param",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 2,
       "parent": null,
-      "holder": null,
+      "holder": "a347de1280d79d9f6",
       "tags": [
         "tests"
       ],
@@ -170,33 +170,33 @@
         "scripts/live-tail.test.ts"
       ],
       "path": "tickets/T6.md",
-      "updated": "2026-10-28 05:58"
+      "updated": "2026-10-28 06:27"
     },
     {
       "id": "T7",
       "title": "Bench uses sort=tot and adds sort=dur asc",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 2,
       "parent": null,
-      "holder": null,
+      "holder": "a83ffb82007e3656d",
       "tags": [],
       "files": [
         "scripts/bench.ts"
       ],
       "path": "tickets/T7.md",
-      "updated": "2026-10-28 05:58"
+      "updated": "2026-10-28 06:32"
     },
     {
       "id": "T8",
       "title": "Phase 2 review: generic sort keys",
       "kind": "review",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 2,
       "parent": null,
-      "holder": null,
+      "holder": "a4b9fcf6d75e99581",
       "tags": [],
       "files": [
         "scripts/wal-index.ts",
@@ -206,17 +206,17 @@
         "scripts/bench.ts"
       ],
       "path": "tickets/T8.md",
-      "updated": "2026-10-28 05:59"
+      "updated": "2026-10-28 06:39"
     },
     {
       "id": "T9",
       "title": "Web sort state rules: sort.ts",
       "kind": "work",
-      "status": "todo",
-      "class": "open",
+      "status": "done",
+      "class": "closed",
       "phase": 3,
       "parent": null,
-      "holder": null,
+      "holder": "add29f05beb265114",
       "tags": [
         "interface",
         "tests"
@@ -226,7 +226,7 @@
         "web/src/lib/sort.test.ts"
       ],
       "path": "tickets/T9.md",
-      "updated": "2026-10-28 05:59"
+      "updated": "2026-10-28 06:32"
     },
     {
       "id": "T10",
@@ -250,7 +250,7 @@
         "web/src/styles.css"
       ],
       "path": "tickets/T10.md",
-      "updated": "2026-10-28 05:59"
+      "updated": "2026-10-28 06:33"
     },
     {
       "id": "T11",

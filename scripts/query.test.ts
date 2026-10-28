@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type CallRecord, catOf, type FirstPage, type Row, type WalRecord } from '../shared/api.ts'
 import { startServer } from './test-server.ts'
-import { agentTree, createWalIndex, type IndexEntry, lineageOf, matcher, summary } from './wal-index.ts'
+import { agentTree, createWalIndex, type IndexEntry, lineageOf, matcher, query, summary } from './wal-index.ts'
 
 const dir = mkdtempSync(join(tmpdir(), 'walquery.'))
 const dir2 = mkdtempSync(join(tmpdir(), 'walbudget.'))
@@ -125,10 +125,12 @@ writeFileSync(
 
 // Token filter and order: a hand-made transcript of one call per reply, so each call's Total is its reply's output
 // plus the prompt growth to the next reply. Totals: Glob 900, Grep 150 and Read 150 (a tie, both at :02), Bash 50,
-// the Stop 5 (output only). Edit's call is in no transcript, and Pre / Post rows never get numbers.
+// the Stop 5 (output only). Edit's call is in no transcript, and Pre / Post rows never get numbers. Fresh input and the
+// Post rows' durations differ per row and are out of time order, so the `inp` and `dur` sorts show their direction.
+// The durations are fractional, one small enough to print as an exponent, so `sort=dur` pages through such cursors.
 const TO = sid(18)
 const osec = (s: number): string => `2026-10-02T10:00:${String(s).padStart(2, '0')}.000Z`
-const oreply = (n: number, s: number, prompt: number, out: number, blocks: unknown[], stop: string | null = null): string =>
+const oreply = (n: number, s: number, prompt: number, out: number, blocks: unknown[], inp: number, stop: string | null = null): string =>
   JSON.stringify({
     type: 'assistant',
     uuid: `a${n}`,
@@ -138,7 +140,7 @@ const oreply = (n: number, s: number, prompt: number, out: number, blocks: unkno
       model: 'm',
       stop_reason: stop,
       content: blocks,
-      usage: { input_tokens: 1, cache_read_input_tokens: prompt - 1, output_tokens: out },
+      usage: { input_tokens: inp, cache_read_input_tokens: prompt - inp, output_tokens: out },
     },
   })
 const ouse = (tuid: string, name: string) => [{ type: 'tool_use', id: tuid, name, input: {} }]
@@ -153,15 +155,15 @@ writeFileSync(
   join(proj, `${TO}.jsonl`),
   `${[
     JSON.stringify({ type: 'user', uuid: 'u0', timestamp: osec(1), message: { role: 'user', content: 'go' } }),
-    oreply(1, 2, 1000, 100, ouse('toolu_o1', 'Read')),
+    oreply(1, 2, 1000, 100, ouse('toolu_o1', 'Read'), 3),
     oresult(1, 3, 'toolu_o1'),
-    oreply(2, 4, 1150, 100, ouse('toolu_o2', 'Grep')),
+    oreply(2, 4, 1150, 100, ouse('toolu_o2', 'Grep'), 1),
     oresult(2, 5, 'toolu_o2'),
-    oreply(3, 6, 1300, 120, ouse('toolu_o3', 'Glob')),
+    oreply(3, 6, 1300, 120, ouse('toolu_o3', 'Glob'), 5),
     oresult(3, 7, 'toolu_o3'),
-    oreply(4, 8, 2200, 30, ouse('toolu_o4', 'Bash')),
+    oreply(4, 8, 2200, 30, ouse('toolu_o4', 'Bash'), 2),
     oresult(4, 9, 'toolu_o4'),
-    oreply(5, 10, 2250, 5, [{ type: 'text', text: 'done' }], 'end_turn'),
+    oreply(5, 10, 2250, 5, [{ type: 'text', text: 'done' }], 4, 'end_turn'),
   ].join('\n')}\n`,
 )
 // `zebra` sits in the inputs of Read, Glob and Edit, so `q` matches their Pre and call rows.
@@ -172,9 +174,10 @@ const opre = (s: number, tool: string, n: number, input = {}) => ({
   tool_use_id: `toolu_o${n}`,
   payload: { tool_input: input },
 })
-const opost = (s: number, tool: string, n: number) => ({
+const opost = (s: number, tool: string, n: number, dur?: number) => ({
   ts: osec(s),
   event: 'PostToolUse',
+  ...(dur === undefined ? {} : { duration_ms: dur }),
   tool_name: tool,
   tool_use_id: `toolu_o${n}`,
   payload: { tool_response: 'ok' },
@@ -185,12 +188,12 @@ writeFileSync(
   `${[
     opre(2, 'Read', 1, ZEBRA),
     opre(2, 'Grep', 2),
-    opost(3, 'Read', 1),
-    opost(3, 'Grep', 2),
+    opost(3, 'Read', 1, 300.5),
+    opost(3, 'Grep', 2, 100.25),
     opre(6, 'Glob', 3, ZEBRA),
-    opost(7, 'Glob', 3),
+    opost(7, 'Glob', 3, 0.000001),
     opre(8, 'Bash', 4),
-    opost(9, 'Bash', 4),
+    opost(9, 'Bash', 4, 1.5e-7),
     opre(9, 'Edit', 5, ZEBRA),
     opost(9, 'Edit', 5),
     { ts: osec(11), event: 'Stop', payload: { last_assistant_message: 'done' } },
@@ -298,11 +301,13 @@ const expectSeqs = (label: string, qs: string, old: number[]): Promise<void> => 
 const pageAll = async (qs: string, limit: number) => {
   const seen: string[] = []
   let res = await events(`${qs}&limit=${limit}`)
-  for (;;) {
+  // A cursor the server cannot parse restarts at page one and would loop forever.
+  for (let pages = 1; pages <= 1000; pages++) {
     seen.push(...res.rows.map(key))
     if (res.next === null) return { seen, last: res }
-    res = await events(`${qs}&limit=${limit}&before=${res.next}`)
+    res = await events(`${qs}&limit=${limit}&before=${encodeURIComponent(res.next)}`)
   }
+  throw new Error(`${qs}: paging never ends`)
 }
 
 try {
@@ -873,13 +878,41 @@ try {
   await expectLabels('notok alone does not filter', 'notok=include', TIME)
 
   for (const n of [1, 2, 5]) {
-    const sorted = await pageAll(`${OB}&sort=tokens`, n)
+    const sorted = await pageAll(`${OB}&sort=tot`, n)
     check(
-      `sort=tokens: limit=${n} pages give one sorted list, ties by time then seq, no data last`,
+      `sort=tot: limit=${n} pages give one sorted list, ties by time then seq, no data last`,
       same(labels(sorted.seen), TOKS),
       JSON.stringify(labels(sorted.seen)),
     )
   }
+  // The full sort each key's paging must match: a stable sort of the time order, so ties stay newest first.
+  const sortValue: Record<string, (r: Row) => number | null> = {
+    inp: (r) => r.inp ?? null,
+    out: (r) => r.out ?? null,
+    res: (r) => r.res ?? null,
+    tot: (r) => (r.out === undefined ? null : r.out + (r.res ?? 0)),
+    all: (r) => (r.out === undefined ? null : (r.inp ?? 0) + r.out + (r.res ?? 0)),
+    dur: (r) => r.dur,
+  }
+  for (const [name, v] of Object.entries(sortValue)) {
+    for (const dir of ['asc', 'desc']) {
+      const want = [...timed.rows]
+        .sort((a, b) => {
+          const va = v(a)
+          const vb = v(b)
+          if (va === null || vb === null) return (va === null ? 1 : 0) - (vb === null ? 1 : 0)
+          return dir === 'asc' ? va - vb : vb - va
+        })
+        .map(key)
+      const got = (await pageAll(`${OB}&sort=${name}&dir=${dir}`, 2)).seen
+      check(`sort=${name}&dir=${dir}: limit=2 pages give the full sort`, same(got, want), JSON.stringify([labels(got), labels(want)]))
+    }
+  }
+  const TOKS_ASC = ['Stop:5', 'Tool call Bash:50', 'Tool call Grep:150', 'Tool call Read:150', 'Tool call Glob:900', ...TIME.filter((l) => l.endsWith(':-'))]
+  const asc = await pageAll(`${OB}&sort=tot&dir=asc`, 3)
+  check('sort=tot&dir=asc: rows with no value come last', same(labels(asc.seen), TOKS_ASC), JSON.stringify(labels(asc.seen)))
+  const cross = await events(`${OB}&sort=tot&dir=asc&limit=6`)
+  check('sort=tot&dir=asc: past the last value the cursor is n', cross.next?.startsWith('n.') === true, String(cross.next))
   const ZQ = ['Tool call Glob:900', 'Tool call Read:150', 'Tool call Edit:-', 'PreToolUse Edit:-', 'PreToolUse Glob:-', 'PreToolUse Read:-']
   for (const [qs, want] of [
     ['tool=Read,Grep,Edit', TOKS.filter((l) => /(Read|Grep|Edit):/.test(l))],
@@ -887,13 +920,42 @@ try {
     ['tool=Read,Edit&q=zebra', ZQ.filter((l) => /(Read|Edit):/.test(l))],
   ] as const) {
     for (const n of [1, 2]) {
-      const got = labels((await pageAll(`${OB}&sort=tokens&${qs}`, n)).seen)
-      check(`sort=tokens with ${qs}, limit=${n}`, same(got, want), JSON.stringify(got))
+      const got = labels((await pageAll(`${OB}&sort=tot&${qs}`, n)).seen)
+      check(`sort=tot with ${qs}, limit=${n}`, same(got, want), JSON.stringify(got))
     }
   }
-  const qFirst = await events(`${OB}&sort=tokens&q=zebra&limit=2`)
-  check('sort=tokens with q: the first page counts every match', qFirst.total === ZQ.length, String(qFirst.total))
+  const qFirst = await events(`${OB}&sort=tot&q=zebra&limit=2`)
+  check('sort=tot with q: the first page counts every match', qFirst.total === ZQ.length, String(qFirst.total))
+  const ZQ_ASC = ['Tool call Read:150', 'Tool call Glob:900', ...ZQ.filter((l) => l.endsWith(':-'))]
+  const qAsc = labels((await pageAll(`${OB}&sort=tot&dir=asc&q=zebra`, 1)).seen)
+  check('sort=tot&dir=asc with q=zebra, limit=1: full, ordered pages', same(qAsc, ZQ_ASC), JSON.stringify(qAsc))
+  const badDir = labels((await pageAll(`${OB}&sort=tot&dir=sideways`, 3)).seen)
+  check('unknown dir: dir=sideways gives time order', same(badDir, TIME), JSON.stringify(badDir))
+
+  // JSON reads 1e400 as Infinity, so a hand-written target gives two rows that tie at an infinite duration.
+  const infFile = join(dir, 'inf-target.jsonl')
+  const infRecs = [
+    { ...handCall, tuid: 'ta', t: 1, dur: 0 },
+    { ...handCall, tuid: 'tb', t: 2, dur: 5 },
+    { ...handCall, tuid: 'tc', t: 3, dur: 0 },
+  ]
+  writeFileSync(infFile, infRecs.map((r) => `${JSON.stringify(r).replace('"dur":0', '"dur":1e400')}\n`).join(''))
+  const infIx = createWalIndex(sid(21), infFile)
+  const infSeen: number[] = []
+  const infP = new URLSearchParams('sort=dur&limit=1')
+  for (let pages = 0; pages < 10; pages++) {
+    const page = query([infIx], infP, [], {})
+    infSeen.push(...page.rows.map((r) => r.seq))
+    if (page.next === null) break
+    infP.set('before', page.next)
+  }
+  check('sort=dur over infinite durations: the cursor round-trips, ties newest first', same(infSeen, [2, 0, 1]), JSON.stringify(infSeen))
   check('no sort: time order paged', same(labels((await pageAll(OB, 3)).seen), TIME), JSON.stringify(labels((await pageAll(OB, 3)).seen)))
+  check(
+    'unknown sort: sort=tokens gives time order',
+    same(labels((await pageAll(`${OB}&sort=tokens`, 3)).seen), TIME),
+    JSON.stringify(labels((await pageAll(`${OB}&sort=tokens`, 3)).seen)),
+  )
 
   const proto = await events(`ids=${P2}`)
   check(
