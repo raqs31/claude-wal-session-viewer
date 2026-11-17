@@ -190,6 +190,10 @@ builds every target again.
   with Not therefore excludes every offered value. Rows load as you scroll and follow the logs live;
   a row expands to its full record. MCP Pre/Post pairs get a synthetic "MCP call" row showing
   request beside response. Records render as a tree in JSON, YAML or Raw.
+  Each Request and Response pane has an Expand button that opens the value full screen, with its own
+  JSON, YAML and Raw switch and a Copy of the full value; an MCP response shows there as Structured, Text
+  and Metadata, each with its own Copy. A pane shows a "truncated by hook" badge when the value the hook
+  clamped could not be read back in full from the transcript.
   A call row is one tool call. It lands at its start time, and its tokens fill in after the agent's
   next API call, so a call row can land after newer rows. Its columns, Input, Output, Result, Total
   and Total+In, follow Duration. Input is the fresh input tokens (input + cache writes) of the reply

@@ -746,7 +746,7 @@ try {
       'transcript call row',
     ).seq,
   )
-  check('no WAL: /record of a call row is { call } with no virtual', same(Object.keys(noWalCall), ['call']), JSON.stringify(noWalCall))
+  check('no WAL: /record of a call row has no virtual', !('virtual' in noWalCall), JSON.stringify(noWalCall))
 
   const joined = await until(async () => {
     const page = await events(`ids=${TK}&limit=500`)

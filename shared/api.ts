@@ -140,10 +140,17 @@ export interface FirstPage extends Page {
   pipe: Record<string, Pipe>
 }
 
+// The sides of a record /record read back in full from the transcript, over the values the wal-hook clamped.
+export interface Restored {
+  input?: true
+  response?: true
+}
+
 export interface WalRecord {
   ts?: string
   event?: string
   payload?: Record<string, unknown>
+  restored?: Restored
   [key: string]: unknown
 }
 
@@ -168,6 +175,7 @@ export interface McpCallRecord {
   pre: WalRecord
   post: WalRecord
   call: CallRecord
+  restored?: Restored
 }
 
 // A call row with no Pre or Post `ev`, as in a session without a WAL.
@@ -175,6 +183,7 @@ export interface CallOnlyRecord {
   // Never set; lets the page read `virtual` on any RecordResponse without a cast.
   virtual?: undefined
   call: CallRecord
+  restored?: Restored
 }
 
 export type RecordResponse = WalRecord | McpCallRecord | CallOnlyRecord

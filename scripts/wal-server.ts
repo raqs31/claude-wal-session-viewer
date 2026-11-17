@@ -11,12 +11,15 @@ import type { AddressInfo } from 'node:net'
 import { dirname, extname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type {
+  CallOnlyRecord,
   CallRecord,
+  McpCallRecord,
   ObserverStatus,
   Pipe,
   RebuildResult,
   RecordedFrame,
   RecordResponse,
+  Restored,
   Row,
   StaleFrame,
   TokensFrame,
@@ -25,6 +28,7 @@ import type {
   WalRecord,
 } from '../shared/api.ts'
 import { createDiscovery } from './discovery.ts'
+import { fullCall } from './full-call.ts'
 import { createObserver, pipeOf, rebuild, syncAll, syncBudget, targetFile } from './observer.ts'
 import { createStore, parseScope, type Session, validId } from './sessions.ts'
 import { acquireLock, type TargetRecord, targetDir, targetPath } from './target.ts'
@@ -62,6 +66,50 @@ type Ev = Extract<TargetRecord, { k: 'ev' }>
 
 // A `raw` line is a WAL line that was not JSON; it gets the `Unparseable` record it got before targets.
 const walOf = (ev: Ev): WalRecord => (ev.raw === undefined ? (ev.rec as WalRecord) : parse(ev.raw))
+
+const str = (v: unknown): string | null => (typeof v === 'string' ? v : null)
+
+/** Sets one payload key, creating the payload a dropped line lost. */
+const put = (rec: WalRecord, key: string, v: unknown): void => {
+  rec.payload ??= {}
+  rec.payload[key] = v
+}
+
+/** Puts the transcript's full values over a call row's clamped ones, on `call` and on its Pre and Post alike. */
+const restoreCall = (body: McpCallRecord | CallOnlyRecord, dir: string, id: string): void => {
+  const { call } = body
+  const full = fullCall(dir, id, call.agent, call.tuid)
+  const restored: Restored = {}
+  if ('input' in full) {
+    call.input = full.input
+    if (body.virtual) put(body.pre, 'tool_input', full.input)
+    restored.input = true
+  }
+  if ('response' in full) {
+    call.response = full.response
+    if (body.virtual) put(body.post, body.post.event === 'PostToolUseFailure' || call.err ? 'error' : 'tool_response', full.response)
+    restored.response = true
+  }
+  if (restored.input || restored.response) body.restored = restored
+}
+
+/** A plain Pre gets its input back; a Post, which the hook also gives the input, both (a failure's result under `error`). */
+const restoreEv = (rec: WalRecord, dir: string, id: string): void => {
+  const tuid = str(rec.tool_use_id)
+  const key = rec.event === 'PreToolUse' ? null : rec.event === 'PostToolUse' ? 'tool_response' : rec.event === 'PostToolUseFailure' ? 'error' : undefined
+  if (tuid === null || key === undefined) return
+  const full = fullCall(dir, id, str(rec.agent_id), tuid)
+  const restored: Restored = {}
+  if ('input' in full) {
+    put(rec, 'tool_input', full.input)
+    restored.input = true
+  }
+  if (key !== null && 'response' in full) {
+    put(rec, key, full.response)
+    restored.response = true
+  }
+  if (restored.input || restored.response) rec.restored = restored
+}
 
 // `pos` and `gens` per picked session: the next seq to send and the gen it was read under.
 interface Client {
@@ -646,15 +694,22 @@ const handle = (req: IncomingMessage, res: ServerResponse): void => {
       readSync(fd, buf, 0, e.len, e.off)
       return JSON.parse(buf.toString('utf8'))
     }
+    // The WAL holds clamped values; the transcript, when it still has the call, the full ones.
+    const dir = discovery.locate(id)
     let body: RecordResponse
     try {
       const line = read(r)
-      if (line.k === 'ev') body = walOf(line)
-      else {
+      if (line.k === 'ev') {
+        const rec = walOf(line)
+        if (dir !== null) restoreEv(rec, dir, id)
+        body = rec
+      } else {
         const call: CallRecord = line
         const pre = r.virtual && ix.entries[r.virtual.pre]
         const post = r.virtual && ix.entries[r.virtual.post]
-        body = pre && post ? { virtual: true, pre: walOf(read(pre) as Ev), post: walOf(read(post) as Ev), call } : { call }
+        const rec: McpCallRecord | CallOnlyRecord = pre && post ? { virtual: true, pre: walOf(read(pre) as Ev), post: walOf(read(post) as Ev), call } : { call }
+        if (dir !== null) restoreCall(rec, dir, id)
+        body = rec
       }
     } finally {
       closeSync(fd)
