@@ -26,6 +26,7 @@ Big tool calls show in full, formatted, and Copy copies the full value; MCP resp
 - 2026-11-17 orchestrator: [auto] T4: call rows of a session with no WAL are restored too (decision: every call row); T1 owns scripts/query.test.ts:749 to assert only that there is no virtual key.
 - 2026-11-17 orchestrator: [auto] T4 follow-ups: all 5 taken without asking (memory rule: fix every review finding and follow-up).
 - 2026-11-17 orchestrator: [auto] Commit message approved by the Fable PO with its scope edit: fix(server,web).
+- 2026-11-17 orchestrator: [auto] End of run (Fable PO): no impl-review, no archive; the operator reviews first.
 
 ## Tickets
 
