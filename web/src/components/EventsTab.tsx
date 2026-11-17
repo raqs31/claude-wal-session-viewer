@@ -3,7 +3,7 @@ import type { SessionMeta, UsageTotals } from '../../../shared/api.ts'
 import { buildTree } from '../lib/agents.ts'
 import { EMPTY_FILTERS, type Filters, filterSummary, pruneFilters } from '../lib/params.ts'
 import { canSort, type Sort, type View } from '../lib/sort.ts'
-import { FORMATS, type Format } from '../lib/tree.ts'
+import { FORMAT_LABEL, FORMATS, type Format } from '../lib/tree.ts'
 import { useEvents } from '../useEvents.ts'
 import type { Observer } from '../useObserver.ts'
 import { EventTable } from './EventTable.tsx'
@@ -11,8 +11,6 @@ import { FilterPanel } from './FilterPanel.tsx'
 import { SidePanel } from './SidePanel.tsx'
 import { buildingNote, type Stale, StatsHeader } from './StatsHeader.tsx'
 import { UsageTiles } from './UsageTiles.tsx'
-
-const FORMAT_LABEL: Record<Format, string> = { json: 'JSON', yaml: 'YAML', raw: 'Raw' }
 
 const FormatSeg = ({ format, onFormat }: { format: Format; onFormat: (f: Format) => void }) => (
   <fieldset className="seg" id="format" aria-label="Record format">

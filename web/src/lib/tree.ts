@@ -12,6 +12,7 @@ export interface Group {
 export type TreeNode = Line | Group
 export type Format = 'json' | 'yaml' | 'raw'
 export const FORMATS: readonly Format[] = ['json', 'yaml', 'raw']
+export const FORMAT_LABEL: Record<Format, string> = { json: 'JSON', yaml: 'YAML', raw: 'Raw' }
 
 // MCP responses arrive as content-block arrays, objects or bare strings depending on the server.
 export const pretty = (v: unknown): string => (typeof v === 'string' ? v : JSON.stringify(v ?? null, null, 2))

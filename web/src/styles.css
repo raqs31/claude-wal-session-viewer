@@ -1531,3 +1531,40 @@ button.ghost.danger:not(:disabled) {
   font-size: 12px;
   color: var(--cat-fail);
 }
+.pane-h .badge {
+  margin-left: 8px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.pane-b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+dialog.rec-x {
+  width: 90vw;
+  max-width: 90vw;
+  height: 90vh;
+  max-height: 90vh;
+  padding: 14px 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--baseline);
+  border-radius: 10px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+}
+dialog.rec-x[open] {
+  display: flex;
+  flex-direction: column;
+}
+dialog.rec-x::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+.rec-x-in {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.rec-sec + .rec-sec {
+  margin-top: 14px;
+}
