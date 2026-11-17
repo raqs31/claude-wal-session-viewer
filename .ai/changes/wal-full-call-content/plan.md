@@ -77,18 +77,18 @@ The wal-hook clamps each string to 2000 chars, so call rows hold cut values: JSO
 
 #### Automated
 
-- [x] 1.1 /record restores full values from the transcript
-- [x] 1.2 Section and badge helpers work
-- [x] 1.3 The viewer compiles and lints
-- [x] 1.4 S1 (RED first): call.input and pre.payload.tool_input equal the transcript input, call.response and post.payload.tool_response equal the transcript toolUseResult, its text parses as JSON, `restored` has input and response, and copyText of call.response holds the full text
-- [x] 1.5 S2 (RED first): call.input and call.response equal the subagent transcript values
-- [x] 1.6 S3 (RED first): call.response and post.payload.tool_response equal the transcript value
-- [x] 1.7 S4 (RED first): each response is 200 with the WAL values unchanged and no `restored` key
-- [x] 1.8 S5 (RED first): Structured holds both parsed JSON values, Text holds the plain text, Metadata holds isError and the image block, and an empty section is absent
-- [x] 1.9 S6 (RED first): it is true for each marker value that is not restored, and false for the full value and for the restored value
-- [x] 1.10 S8 (RED first): call.response and post.payload.error equal the full tool_result content
-- [x] 1.11 The required checks of the project pass
+- [x] 1.1 /record restores full values from the transcript — f9910d1 · verified
+- [x] 1.2 Section and badge helpers work — f9910d1 · verified
+- [x] 1.3 The viewer compiles and lints — f9910d1 · verified
+- [x] 1.4 S1 (RED first): call.input and pre.payload.tool_input equal the transcript input, call.response and post.payload.tool_response equal the transcript toolUseResult, its text parses as JSON, `restored` has input and response, and copyText of call.response holds the full text — f9910d1 · verified
+- [x] 1.5 S2 (RED first): call.input and call.response equal the subagent transcript values — f9910d1 · verified
+- [x] 1.6 S3 (RED first): call.response and post.payload.tool_response equal the transcript value — f9910d1 · verified
+- [x] 1.7 S4 (RED first): each response is 200 with the WAL values unchanged and no `restored` key — f9910d1 · verified
+- [x] 1.8 S5 (RED first): Structured holds both parsed JSON values, Text holds the plain text, Metadata holds isError and the image block, and an empty section is absent — f9910d1 · verified
+- [x] 1.9 S6 (RED first): it is true for each marker value that is not restored, and false for the full value and for the restored value — f9910d1 · verified
+- [x] 1.10 S8 (RED first): call.response and post.payload.error equal the full tool_result content — f9910d1 · verified
+- [x] 1.11 The required checks of the project pass — f9910d1 · verified
 
 #### Manual
 
-- [x] 1.12 S7 (Manual): the dialog shows the value formatted as JSON and YAML, Copy holds the full value, Escape closes the dialog, and the page stays responsive
+- [x] 1.12 S7 (Manual): the dialog shows the value formatted as JSON and YAML, Copy holds the full value, Escape closes the dialog, and the page stays responsive — f9910d1

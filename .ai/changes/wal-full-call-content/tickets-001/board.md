@@ -46,3 +46,4 @@ Closed: T1 done · T2 done · T3 done
 - 2026-11-17 21:54 orchestrator: T1 done again: Post restores input too, bounded search, per-call buffer, restoreEv tests, query.test.ts:749 updated; npm test 303 pass
 - 2026-11-17 21:57 orchestrator: T4 approve: all findings and follow-ups fixed; npm test 303 pass, check and lint clean
 - 2026-11-17 22:05 orchestrator: S7 passed headless on skm GKA-257 extract_images (82 kB): JSON Copy 82426 chars parses, YAML Copy 82321, no marker, Escape closes, opens ~110 ms; s7-dialog.png
+- 2026-11-17 22:07 orchestrator: Committed f9910d1; close-out
