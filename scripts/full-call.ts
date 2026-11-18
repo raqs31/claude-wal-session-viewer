@@ -10,7 +10,9 @@ const CHUNK = 1024 * 1024
 export interface FullCall {
   input?: unknown
   response?: unknown
-  error?: boolean
+  // The result line had no `toolUseResult` (a subagent transcript of Claude Code 2.1.325 has none), so `response`
+  // is the `tool_result` content: often a short status string, not the full value the hook saw.
+  fallback?: true
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: deliberate, transcripts are schemaless JSON.
@@ -34,8 +36,8 @@ const scan = (path: string, tuid: string): FullCall => {
     for (const b of blocks(e)) {
       if (e.type === 'assistant' && (b?.type === 'tool_use' || b?.type === 'server_tool_use') && b.id === tuid) out.input = b.input
       else if (e.type === 'user' && b?.type === 'tool_result' && b.tool_use_id === tuid) {
-        out.error = b.is_error === true
-        out.response = out.error || e.toolUseResult === undefined ? b.content : e.toolUseResult
+        if (b.is_error !== true && e.toolUseResult === undefined) out.fallback = true
+        out.response = b.is_error === true || out.fallback ? b.content : e.toolUseResult
         return true
       }
     }

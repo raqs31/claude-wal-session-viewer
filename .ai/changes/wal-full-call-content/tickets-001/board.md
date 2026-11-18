@@ -27,6 +27,7 @@ Big tool calls show in full, formatted, and Copy copies the full value; MCP resp
 - 2026-11-17 orchestrator: [auto] T4 follow-ups: all 5 taken without asking (memory rule: fix every review finding and follow-up).
 - 2026-11-17 orchestrator: [auto] Commit message approved by the Fable PO with its scope edit: fix(server,web).
 - 2026-11-17 orchestrator: [auto] End of run (Fable PO): no impl-review, no archive; the operator reviews first.
+- 2026-11-18 orchestrator: [auto] Review fallback: use transcript content only for a dropped Post or missing payload; keep the badge.
 
 ## Tickets
 
@@ -48,3 +49,4 @@ Closed: T1 done · T2 done · T3 done
 - 2026-11-17 21:57 orchestrator: T4 approve: all findings and follow-ups fixed; npm test 303 pass, check and lint clean
 - 2026-11-17 22:05 orchestrator: S7 passed headless on skm GKA-257 extract_images (82 kB): JSON Copy 82426 chars parses, YAML Copy 82321, no marker, Escape closes, opens ~110 ms; s7-dialog.png
 - 2026-11-17 22:07 orchestrator: Committed f9910d1; close-out
+- 2026-11-18 07:14 orchestrator: Opus max review round 1: changes (1 major, 4 minor); fixes landed; round 2: approve. S7 rerun on a 236 kB record: JSON 236440, YAML 236370 chars, no marker, Escape closes, opens in 92 ms.

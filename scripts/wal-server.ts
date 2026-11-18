@@ -27,6 +27,7 @@ import type {
   TrashResult,
   WalRecord,
 } from '../shared/api.ts'
+import { marked } from '../shared/clamp.ts'
 import { createDiscovery } from './discovery.ts'
 import { fullCall } from './full-call.ts'
 import { createObserver, pipeOf, rebuild, syncAll, syncBudget, targetFile } from './observer.ts'
@@ -75,20 +76,35 @@ const put = (rec: WalRecord, key: string, v: unknown): void => {
   rec.payload[key] = v
 }
 
-/** Puts the transcript's full values over a call row's clamped ones, on `call` and on its Pre and Post alike. */
+/** The hook dropped the WAL line, or it has no payload: the side has no value at all. */
+const gone = (line?: WalRecord): boolean => line !== undefined && ('dropped' in line || line.payload == null)
+
+/** A side lost data to the hook: its value carries a clamp marker, or its line is gone. */
+const lost = (v: unknown, line?: WalRecord): boolean => marked(v) || gone(line)
+
+/**
+ * Puts the transcript's full values over a call row's clamped ones, on `call` and on its Pre and Post alike. A side
+ * the hook kept whole stays as it is, so the transcript is read only when a side lost data. A fallback response
+ * is no full value: it fills only a side whose line is gone, as a clamped value holds more, and it sets no
+ * `restored.response`, so the badge stays.
+ */
 const restoreCall = (body: McpCallRecord | CallOnlyRecord, dir: string, id: string): void => {
   const { call } = body
+  const needIn = lost(call.input, body.virtual ? body.pre : undefined)
+  const post = body.virtual ? body.post : undefined
+  const needRes = lost(call.response, post)
+  if (!needIn && !needRes) return
   const full = fullCall(dir, id, call.agent, call.tuid)
   const restored: Restored = {}
-  if ('input' in full) {
+  if (needIn && 'input' in full) {
     call.input = full.input
     if (body.virtual) put(body.pre, 'tool_input', full.input)
     restored.input = true
   }
-  if ('response' in full) {
+  if (needRes && 'response' in full && (!full.fallback || gone(post))) {
     call.response = full.response
     if (body.virtual) put(body.post, body.post.event === 'PostToolUseFailure' || call.err ? 'error' : 'tool_response', full.response)
-    restored.response = true
+    if (!full.fallback) restored.response = true
   }
   if (restored.input || restored.response) body.restored = restored
 }
@@ -98,15 +114,18 @@ const restoreEv = (rec: WalRecord, dir: string, id: string): void => {
   const tuid = str(rec.tool_use_id)
   const key = rec.event === 'PreToolUse' ? null : rec.event === 'PostToolUse' ? 'tool_response' : rec.event === 'PostToolUseFailure' ? 'error' : undefined
   if (tuid === null || key === undefined) return
+  const needIn = lost(rec.payload?.tool_input, rec)
+  const needRes = key !== null && lost(rec.payload?.[key], rec)
+  if (!needIn && !needRes) return
   const full = fullCall(dir, id, str(rec.agent_id), tuid)
   const restored: Restored = {}
-  if ('input' in full) {
+  if (needIn && 'input' in full) {
     put(rec, 'tool_input', full.input)
     restored.input = true
   }
-  if (key !== null && 'response' in full) {
+  if (key !== null && needRes && 'response' in full && (!full.fallback || gone(rec))) {
     put(rec, key, full.response)
-    restored.response = true
+    if (!full.fallback) restored.response = true
   }
   if (restored.input || restored.response) rec.restored = restored
 }

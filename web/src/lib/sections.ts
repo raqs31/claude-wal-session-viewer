@@ -1,3 +1,4 @@
+import { marked } from '../../../shared/clamp.ts'
 import { normalize } from './normalize.ts'
 
 export type Sections = { structured?: unknown[]; text?: string[]; meta?: Record<string, unknown> }
@@ -33,15 +34,6 @@ export function mcpSections(v: unknown): Sections {
     ...(text.length && { text }),
     ...(Object.keys(meta).length && { meta }),
   }
-}
-
-const MARKER = /…\[\+\d+ (chars|items)\]$|^…\[depth limit\]$/
-
-function marked(v: unknown): boolean {
-  if (typeof v === 'string') return MARKER.test(v)
-  if (Array.isArray(v)) return v.some(marked)
-  if (isObj(v)) return Object.values(v).some(marked)
-  return false
 }
 
 export function clampBadge(v: unknown, restored: boolean): boolean {

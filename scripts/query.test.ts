@@ -746,7 +746,17 @@ try {
       'transcript call row',
     ).seq,
   )
-  check('no WAL: /record of a call row has no virtual', !('virtual' in noWalCall), JSON.stringify(noWalCall))
+  const noWalTuid = (noWalCall.call as CallRecord | undefined)?.tuid
+  const trBlocks = trLines.flatMap((l) => (JSON.parse(l) as { message?: { content?: unknown } }).message?.content ?? []) as Record<string, unknown>[]
+  const trUse = trBlocks.find((b) => b?.type === 'tool_use' && b.id === noWalTuid)
+  const trResult = trBlocks.find((b) => b?.type === 'tool_result' && b.tool_use_id === noWalTuid)
+  check(
+    'no WAL: /record of a call row is { call } with the transcript input and result content, not restored',
+    same(Object.keys(noWalCall), ['call']) &&
+      same((noWalCall.call as CallRecord).input, trUse?.input) &&
+      same((noWalCall.call as CallRecord).response, trResult?.content),
+    JSON.stringify(noWalCall),
+  )
 
   const joined = await until(async () => {
     const page = await events(`ids=${TK}&limit=500`)

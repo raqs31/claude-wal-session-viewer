@@ -10,6 +10,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { CallRecord, FirstPage, Row, WalRecord } from '../shared/api.ts'
+import { paneBadge } from '../web/src/lib/sections.ts'
 import { copyText } from '../web/src/lib/tree.ts'
 import { fullCall } from './full-call.ts'
 import { startServer } from './test-server.ts'
@@ -80,6 +81,18 @@ const s8Input = { title: 'x' }
 const s8Content = `Error: ${'e'.repeat(4000)}`
 const s8WalError = clampStr(s8Content)
 
+// S5, S6 and S7: subagent calls whose result lines have no `toolUseResult` (Claude Code 2.1.325), so the
+// transcript holds only the short tool_result content. S5's WAL Post is whole, S6's Post line was dropped and
+// S7's Post response is clamped.
+const s5Input = { file_path: '/tmp/w5.txt', content: 'five' }
+const s5Response = { type: 'create', filePath: '/tmp/w5.txt', content: 'five', structuredPatch: [], originalFile: null }
+const s5Content = 'File created successfully at: /tmp/w5.txt'
+const s6Input = { file_path: '/tmp/w6.txt', content: 'six' }
+const s6Content = 'File created successfully at: /tmp/w6.txt'
+const s7Input = { file_path: '/tmp/w7.txt', content: 'seven' }
+const s7WalResponse = { type: 'update', filePath: '/tmp/w7.txt', content: 'seven', originalFile: clampStr('o'.repeat(3000)) }
+const s7Content = 'The file /tmp/w7.txt has been updated successfully.'
+
 // S4: a Grep call that no transcript line holds.
 const s4Input = { pattern: 'needle' }
 const s4Response = { mode: 'files_with_matches', filenames: [], numFiles: 0 }
@@ -100,6 +113,22 @@ writeFileSync(
     wal(A, 'PostToolUse', 'Read', 'toolu_s3', { duration_ms: 12, dropped: DROPPED }),
     wal(A, 'PreToolUse', S8_TOOL, 'toolu_s8', { payload: { tool_input: s8Input } }),
     wal(A, 'PostToolUseFailure', S8_TOOL, 'toolu_s8', { duration_ms: 50, payload: { tool_input: s8Input, error: s8WalError, is_interrupt: false } }),
+    wal(A, 'PreToolUse', 'Write', 'toolu_s5', { agent_id: AGENT, agent_type: 'Explore', payload: { tool_input: s5Input } }),
+    wal(A, 'PostToolUse', 'Write', 'toolu_s5', {
+      agent_id: AGENT,
+      agent_type: 'Explore',
+      duration_ms: 5,
+      payload: { tool_input: s5Input, tool_response: s5Response },
+    }),
+    wal(A, 'PreToolUse', 'Edit', 'toolu_s6', { agent_id: AGENT, agent_type: 'Explore', payload: { tool_input: s6Input } }),
+    wal(A, 'PostToolUse', 'Edit', 'toolu_s6', { agent_id: AGENT, agent_type: 'Explore', duration_ms: 6, dropped: DROPPED }),
+    wal(A, 'PreToolUse', 'MultiEdit', 'toolu_s7', { agent_id: AGENT, agent_type: 'Explore', payload: { tool_input: s7Input } }),
+    wal(A, 'PostToolUse', 'MultiEdit', 'toolu_s7', {
+      agent_id: AGENT,
+      agent_type: 'Explore',
+      duration_ms: 7,
+      payload: { tool_input: s7Input, tool_response: s7WalResponse },
+    }),
     wal(A, 'PreToolUse', 'Grep', 'toolu_s4', { payload: { tool_input: s4Input } }),
     wal(A, 'PostToolUse', 'Grep', 'toolu_s4', { duration_ms: 3, payload: { tool_input: s4Input, tool_response: s4Response } }),
   ]),
@@ -123,6 +152,12 @@ writeFileSync(
     { type: 'user', uuid: 'sp-1', isSidechain: true, timestamp: ts(), message: { role: 'user', content: 'explore' } },
     use('toolu_s2', 'Bash', s2Input, true),
     result('toolu_s2', s2Response.stdout, s2Response, false, true),
+    use('toolu_s5', 'Write', s5Input, true),
+    result('toolu_s5', s5Content, undefined, false, true),
+    use('toolu_s6', 'Edit', s6Input, true),
+    result('toolu_s6', s6Content, undefined, false, true),
+    use('toolu_s7', 'MultiEdit', s7Input, true),
+    result('toolu_s7', s7Content, undefined, false, true),
   ]),
 )
 
@@ -229,6 +264,41 @@ try {
     )
     const failed = await evOf(S8_TOOL, 'PostToolUseFailure')
     check('plain failed Post: payload.error is the full tool_result content', same(failed.payload?.error, s8Content), short(failed.payload))
+  }
+
+  {
+    const { body } = await callOf(A, 'Write')
+    check('S5: fullCall flags the content fallback', same(fullCall(proj, A, AGENT, 'toolu_s5'), { input: s5Input, fallback: true, response: s5Content }))
+    check(
+      'S5: a fallback never replaces a whole WAL Post',
+      same(body.call.response, s5Response) && same(body.post?.payload?.tool_response, s5Response),
+      short(body),
+    )
+    check('S5: a whole WAL call has no restored key', !('restored' in body), JSON.stringify(body.restored))
+  }
+
+  {
+    const { body } = await callOf(A, 'Edit')
+    check(
+      'S6: a dropped Post takes the fallback content',
+      same(body.call.response, s6Content) && same(body.post?.payload?.tool_response, s6Content),
+      short(body),
+    )
+    check('S6: a fallback sets no restored.response', body.restored?.response === undefined, JSON.stringify(body.restored))
+    check('S6: the response pane keeps its badge', paneBadge(body.call.response, body.restored?.response, body.post))
+  }
+
+  {
+    const { body } = await callOf(A, 'MultiEdit')
+    check(
+      'S7: a fallback never replaces a clamped WAL response',
+      same(body.call.response, s7WalResponse) && same(body.post?.payload?.tool_response, s7WalResponse),
+      short(body),
+    )
+    check('S7: a clamped response kept sets no restored.response', body.restored?.response === undefined, JSON.stringify(body.restored))
+    check('S7: the response pane keeps its badge', paneBadge(body.call.response, body.restored?.response, body.post))
+    const post = await evOf('MultiEdit', 'PostToolUse')
+    check('S7: plain Post keeps the clamped WAL response', same(post.payload?.tool_response, s7WalResponse), short(post.payload))
   }
 
   {
