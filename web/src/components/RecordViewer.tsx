@@ -200,17 +200,17 @@ function Split({ rec, format }: { rec: McpCallRecord | CallOnlyRecord; format: F
   )
 }
 
+// `restored` is the server's note, not part of the record, so it is split off before the record shows or copies. A
+// plain event restores the side of its event: PreToolUse its input, any Post* its response.
+function Plain({ rec, format }: { rec: WalRecord; format: Format }) {
+  const { restored, ...shown } = rec
+  return <Pane title="Record" v={shown} format={format} clamped={paneBadge(shown, rec.event === 'PreToolUse' ? restored?.input : restored?.response)} />
+}
+
 const isCall = (r: RecordResponse): r is McpCallRecord | CallOnlyRecord => 'call' in r && typeof r.call === 'object' && r.call !== null
 
 // Keyed by format so a switch rebuilds the tree fully open, as a fresh render would. Memoised because
 // EventRow re-renders on every format switch and toggle, and a big record's tree is ~10^5 nodes.
-// A plain event restores the side of its event: PreToolUse its input, any Post* its response.
-const recordRestored = (rec: WalRecord) => (rec.event === 'PreToolUse' ? rec.restored?.input : rec.restored?.response)
-
 export const RecordViewer = memo(({ rec, format }: { rec: RecordResponse; format: Format }) =>
-  isCall(rec) ? (
-    <Split key={format} rec={rec} format={format} />
-  ) : (
-    <Pane key={format} title="Record" v={rec} format={format} clamped={paneBadge(rec, recordRestored(rec))} />
-  ),
+  isCall(rec) ? <Split key={format} rec={rec} format={format} /> : <Plain key={format} rec={rec} format={format} />,
 )

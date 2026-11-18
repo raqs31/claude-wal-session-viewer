@@ -192,8 +192,8 @@ builds every target again.
   request beside response. Records render as a tree in JSON, YAML or Raw.
   Each Request and Response pane has an Expand button that opens the value full screen, with its own
   JSON, YAML and Raw switch and a Copy of the full value; an MCP response shows there as Structured, Text
-  and Metadata, each with its own Copy. A pane shows a "truncated by hook" badge when the value the hook
-  clamped could not be read back in full from the transcript.
+  and Metadata, each with its own Copy. A pane shows a "truncated by hook" badge while its value still carries
+  the hook's clamp marker, or when the hook dropped its line and the transcript gave no full value.
   A call row is one tool call. It lands at its start time, and its tokens fill in after the agent's
   next API call, so a call row can land after newer rows. Its columns, Input, Output, Result, Total
   and Total+In, follow Duration. Input is the fresh input tokens (input + cache writes) of the reply
